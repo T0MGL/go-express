@@ -66,7 +66,8 @@ class PagoService {
         };
       }
 
-      let q = supabase.from('pagos').select('*, envios!inner(tracking_number, cliente_nombre, costo)', { count: 'exact' });
+      const PAGO_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at, envios!inner(tracking_number, cliente_nombre, costo)';
+      let q = supabase.from('pagos').select(PAGO_WITH_ENVIO, { count: 'exact' });
 
       q = q.in('envio_id', matchingEnvios.map((e: { id: string }) => e.id));
       if (estadoPago) q = q.eq('estado_pago', estadoPago);
@@ -106,8 +107,9 @@ class PagoService {
       };
     }
 
-    // No search — standard listing with joined envio data
-    let q = supabase.from('pagos').select('*, envios(tracking_number, cliente_nombre, costo)', { count: 'exact' });
+    // No search: standard listing with joined envio data
+    const PAGO_COLUMNS_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at, envios(tracking_number, cliente_nombre, costo)';
+    let q = supabase.from('pagos').select(PAGO_COLUMNS_WITH_ENVIO, { count: 'exact' });
 
     if (estadoPago) q = q.eq('estado_pago', estadoPago);
     if (metodoPago) q = q.eq('metodo_pago', metodoPago);

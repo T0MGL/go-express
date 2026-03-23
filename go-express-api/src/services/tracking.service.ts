@@ -37,6 +37,7 @@ class TrackingService {
       .from('envios')
       .select('id, tracking_number, estado, origen, destino, destinatario_ciudad, fecha')
       .eq('tracking_number', trackingNumber)
+      .eq('eliminado', false)
       .single();
 
     if (envioError) {

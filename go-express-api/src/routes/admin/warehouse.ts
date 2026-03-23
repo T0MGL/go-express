@@ -15,6 +15,18 @@ import { idParamSchema } from '../../lib/validators/common.schema.js';
 const router = Router();
 
 /**
+ * GET / — Default: returns inventory list (same as /inventario)
+ */
+router.get(
+  '/',
+  validate({ query: inventarioQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const result = await warehouseService.listInventario(req.query as unknown as InventarioQuery);
+    res.json(result);
+  })
+);
+
+/**
  * GET /inventario — List inventory + filters
  */
 router.get(

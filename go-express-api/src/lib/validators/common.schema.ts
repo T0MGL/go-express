@@ -25,9 +25,9 @@ export const idParamSchema = z.object({
   id: uuidSchema,
 });
 
-// Tracking number param
+// Tracking number param (alphanumeric, 3 to 20 chars; DB lookup returns 404 if not found)
 export const trackingParamSchema = z.object({
-  trackingNumber: z.string().regex(/^GE\d{10}$/, 'Invalid tracking number format'),
+  trackingNumber: z.string().min(3).max(20).regex(/^[A-Za-z0-9]+$/, 'Tracking number must be alphanumeric'),
 });
 
 // Date range filter

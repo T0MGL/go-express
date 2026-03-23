@@ -81,7 +81,7 @@ class PagoService {
         throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
       }
 
-      const rows = (data ?? []) as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+      const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
       return {
         data: rows.map((row) => {
@@ -122,7 +122,7 @@ class PagoService {
       throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+    const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
     return {
       data: rows.map((row) => {

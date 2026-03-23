@@ -257,7 +257,7 @@ router.post(
           await auditoriaService.log({
             usuario: userData.nombre,
             usuarioId: userData.id,
-            accion: 'login',
+            accion: 'logout',
             entidad: 'usuario',
             entidadId: userData.id,
             descripcion: `Logout: ${user.email}`,

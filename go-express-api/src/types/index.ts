@@ -43,7 +43,8 @@ export type AuditoriaAccion =
   | 'nota'
   | 'asignar'
   | 'importar'
-  | 'login';
+  | 'login'
+  | 'logout';
 export type AuditoriaEntidad =
   | 'envio'
   | 'cliente'

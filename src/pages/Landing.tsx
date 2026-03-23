@@ -219,9 +219,9 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-white text-sidebar font-sans overflow-x-hidden selection:bg-primary/10 selection:text-sidebar">
 
-      {/* ═══ NAV ═══════════════════════════════════════════════════════════ */}
+      {/* NAV */}
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
-        <div className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between">
+        <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between" aria-label="Navegacion principal">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <GoIsotipo size={30} className="text-primary flex-shrink-0" />
             <span className="font-display font-extrabold text-[18px] text-sidebar leading-none tracking-tight">GO EXPRESS</span>
@@ -249,7 +249,7 @@ const Landing = () => {
               {mobileMenuOpen ? <X weight="bold" className="w-6 h-6" /> : <List weight="bold" className="w-6 h-6" />}
             </Button>
           </motion.div>
-        </div>
+        </nav>
 
         <AnimatePresence>
           {mobileMenuOpen && (
@@ -268,9 +268,10 @@ const Landing = () => {
         </AnimatePresence>
       </header>
 
-      {/* ═══ HERO ══════════════════════════════════════════════════════════ */}
+      {/* HERO */}
+      <main>
       <section className="relative pt-28 pb-16 md:pt-32 md:pb-20 bg-white flex items-center min-h-[85vh]">
-        <motion.div style={{ y: bgParallax }} className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-50 pointer-events-none" />
+        <motion.div style={{ y: bgParallax }} className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-50 pointer-events-none" aria-hidden="true" />
 
         <div className="max-w-7xl mx-auto px-6 w-full relative z-10 grid lg:grid-cols-12 gap-16 items-center">
           {/* Left Content */}
@@ -800,7 +801,9 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ═══ FOOTER ════════════════════════════════════════════════════════ */}
+      </main>
+
+      {/* FOOTER */}
       <footer className="bg-white pt-16 pb-8 border-t border-muted">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">

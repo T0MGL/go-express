@@ -1,0 +1,351 @@
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { mockRepartidores, mockEnvios, estadoLabels } from '@/data/mockData';
+import { Plus } from 'lucide-react';
+import { Eye, PencilSimple, UserMinus, UsersThree } from '@phosphor-icons/react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useRepartidores, useRepartidorEnvios, useCreateRepartidor, useToggleRepartidorEstado } from '@/hooks/api/use-repartidores';
+import { toast } from 'sonner';
+
+const Repartidores = () => {
+  const [filterEstado, setFilterEstado] = useState<string>('todos');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [nuevoEstado, setNuevoEstado] = useState(true);
+  const [selectedRepartidor, setSelectedRepartidor] = useState<string | null>(null);
+  const [showEnviosModal, setShowEnviosModal] = useState(false);
+
+  const useMock = false;
+
+  // API hooks
+  const apiFilters: Record<string, string | undefined> = {};
+  if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
+
+  const { data: apiRepartidores, isLoading } = useRepartidores(apiFilters);
+  const { data: apiEnviosAsignados } = useRepartidorEnvios(
+    !useMock && selectedRepartidor && showEnviosModal ? selectedRepartidor : undefined,
+  );
+  const createMut = useCreateRepartidor();
+  const toggleEstadoMut = useToggleRepartidorEstado();
+
+  // Resolve data
+  const allRepartidores = useMock ? mockRepartidores : (apiRepartidores?.data ?? []);
+
+  const filteredRepartidores = useMock
+    ? mockRepartidores.filter((repartidor) => {
+        if (filterEstado === 'todos') return true;
+        return repartidor.estado === filterEstado;
+      })
+    : allRepartidores;
+
+  const totalCount = useMock ? mockRepartidores.length : (apiRepartidores?.pagination?.total ?? allRepartidores.length);
+
+  const enviosAsignados = useMock
+    ? (selectedRepartidor ? mockEnvios.filter(e => e.repartidorId === selectedRepartidor) : [])
+    : (apiEnviosAsignados ?? []);
+
+  const getInitials = (nombre: string) => {
+    return nombre
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  const getAvatarColor = (id: string) => {
+    const colors = [
+      'bg-primary text-primary-foreground',
+      'bg-success text-white',
+      'bg-info text-white',
+      'bg-warning text-white',
+      'bg-destructive text-destructive-foreground',
+      'bg-primary/80 text-primary-foreground',
+      'bg-success/80 text-white',
+      'bg-info/80 text-white',
+    ];
+    return colors[parseInt(id) % colors.length];
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!useMock) {
+      const form = e.target as HTMLFormElement;
+      const fd = new FormData(form);
+      createMut.mutate(
+        {
+          nombre: fd.get('nombre') as string,
+          telefono: fd.get('telefono') as string,
+          vehiculo: fd.get('vehiculo') as string,
+          placa: fd.get('placa') as string,
+          licencia: fd.get('licencia') as string,
+          estado: nuevoEstado ? 'activo' : 'inactivo',
+        },
+        {
+          onSuccess: () => {
+            setIsModalOpen(false);
+            toast.success('Repartidor creado correctamente');
+          },
+          onError: () => toast.error('Error al crear repartidor'),
+        },
+      );
+    } else {
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleToggleEstado = (id: string) => {
+    if (!useMock) {
+      toggleEstadoMut.mutate(id, {
+        onSuccess: () => toast.success('Estado actualizado'),
+        onError: () => toast.error('Error al actualizar estado'),
+      });
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="page-header">
+          <div>
+            <h1 className="page-header-title">Repartidores</h1>
+            <p className="page-header-subtitle">Gestion del equipo de reparto</p>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" />
+                Nuevo Repartidor
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Registrar un nuevo repartidor en el sistema</TooltipContent>
+          </Tooltip>
+        </div>
+
+      <div className="surface-card">
+        <div className="p-5 pb-4">
+          <div className="mb-4">
+            <Select value={filterEstado} onValueChange={setFilterEstado}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="activo">Activos</SelectItem>
+                <SelectItem value="inactivo">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!useMock && isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="premium-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Telefono</th>
+                      <th>Vehiculo</th>
+                      <th>Placa</th>
+                      <th>Estado</th>
+                      <th>Envios Hoy</th>
+                      <th className="text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRepartidores.map((repartidor) => (
+                      <tr key={repartidor.id}>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-7 w-7">
+                              <AvatarFallback className={`${getAvatarColor(repartidor.id)} text-[10px]`}>
+                                {getInitials(repartidor.nombre)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium text-[13px]">{repartidor.nombre}</span>
+                          </div>
+                        </td>
+                        <td className="text-[13px] font-data">{repartidor.telefono}</td>
+                        <td className="text-[13px]">{repartidor.vehiculo}</td>
+                        <td className="text-[13px] font-data">{repartidor.placa}</td>
+                        <td>
+                          <Badge variant={repartidor.estado === 'activo' ? 'success' : 'muted'}>
+                            {repartidor.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </td>
+                        <td className="text-[13px]">
+                          {repartidor.enviosHoy} {repartidor.enviosHoy === 1 ? 'entrega' : 'entregas'}
+                        </td>
+                        <td>
+                          <div className="flex gap-1 justify-end">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => {
+                                    setSelectedRepartidor(repartidor.id);
+                                    setShowEnviosModal(true);
+                                  }}
+                                >
+                                  <Eye size={14} weight="duotone" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver envios asignados</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <PencilSimple size={14} weight="duotone" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar informacion del repartidor</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => handleToggleEstado(repartidor.id)}
+                                >
+                                  <UserMinus size={14} weight="duotone" className="text-destructive" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Desactivar repartidor</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {filteredRepartidores.length > 0 && (
+                <div className="px-5 py-3 border-t border-border/40">
+                  <p className="text-[12px] text-muted-foreground">
+                    Mostrando {filteredRepartidores.length} de {totalCount} repartidores
+                  </p>
+                </div>
+              )}
+
+              {filteredRepartidores.length === 0 && (
+                <div className="text-center py-16 px-4">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                    <UsersThree size={18} weight="duotone" className="text-muted-foreground/50" />
+                  </div>
+                  <p className="text-[13px] font-medium text-foreground">No se encontraron repartidores</p>
+                  <p className="text-[12px] text-muted-foreground mt-1">
+                    Intenta con otro filtro de estado
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={showEnviosModal} onOpenChange={setShowEnviosModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Envios Asignados Hoy</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto">
+            <table className="premium-table">
+              <thead>
+                <tr>
+                  <th>Tracking</th>
+                  <th>Destino</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enviosAsignados.map(envio => (
+                  <tr key={envio.id}>
+                    <td className="font-data text-[13px]">{envio.trackingNumber}</td>
+                    <td className="text-[13px]">{envio.destino}</td>
+                    <td><Badge variant="secondary" className="text-[11px]">{estadoLabels[envio.estado]}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {enviosAsignados.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground text-[13px]">No hay envios asignados</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo Repartidor</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="nombre" className="text-[13px]">Nombre completo *</Label>
+                <Input id="nombre" name="nombre" required className="mt-1.5" />
+              </div>
+              <div>
+                <Label htmlFor="telefono" className="text-[13px]">Telefono *</Label>
+                <Input id="telefono" name="telefono" type="tel" placeholder="+595" required className="mt-1.5 font-data" />
+              </div>
+              <div>
+                <Label htmlFor="vehiculo" className="text-[13px]">Tipo de vehiculo *</Label>
+                <Select name="vehiculo" required>
+                  <SelectTrigger id="vehiculo" className="mt-1.5">
+                    <SelectValue placeholder="Seleccionar vehiculo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Moto">Moto</SelectItem>
+                    <SelectItem value="Auto">Auto</SelectItem>
+                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="placa" className="text-[13px]">Placa *</Label>
+                <Input id="placa" name="placa" placeholder="ABC 123" required className="mt-1.5 font-data" />
+              </div>
+              <div>
+                <Label htmlFor="licencia" className="text-[13px]">Licencia de conducir</Label>
+                <Input id="licencia" name="licencia" placeholder="LIC-123456" className="mt-1.5 font-data" />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="estado" className="text-[13px]">Estado</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] text-muted-foreground">
+                    {nuevoEstado ? 'Activo' : 'Inactivo'}
+                  </span>
+                  <Switch id="estado" checked={nuevoEstado} onCheckedChange={setNuevoEstado} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" size="sm" disabled={createMut.isPending}>Guardar</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export default Repartidores;

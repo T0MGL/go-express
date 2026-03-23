@@ -1,0 +1,701 @@
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  mockClientes, departamentosPY, Cliente,
+  estadoClienteLabels, estadoClienteColors,
+  portalStatusLabels, portalStatusColors,
+} from '@/data/mockData';
+import { Plus, Download, ChevronRight } from 'lucide-react';
+import {
+  MagnifyingGlass, Buildings, Phone, EnvelopeSimple, UserCircle,
+  Package, PencilSimple, ArrowSquareOut, Warning, TrendUp, CurrencyDollar,
+  PaperPlaneTilt, ArrowClockwise, LockKey, Globe,
+} from '@phosphor-icons/react';
+import { exportToCSV } from '@/lib/exportCSV';
+import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Link } from 'react-router-dom';
+import {
+  useClientes, useCreateCliente, useUpdateCliente,
+  useInviteCliente, useReinviteCliente, useResetClientePassword,
+} from '@/hooks/api/use-clientes';
+
+const Clientes = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterEstado, setFilterEstado] = useState<string>('todos');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [detailCliente, setDetailCliente] = useState<Cliente | null>(null);
+
+  const useMock = false;
+
+  // API hooks
+  const apiFilters: Record<string, string | undefined> = {};
+  if (searchTerm) apiFilters.search = searchTerm;
+  if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
+
+  const { data: apiClientes, isLoading } = useClientes(apiFilters);
+  const createMut = useCreateCliente();
+  const updateMut = useUpdateCliente();
+  const inviteMut = useInviteCliente();
+  const reinviteMut = useReinviteCliente();
+  const resetPwMut = useResetClientePassword();
+
+  // Resolve data
+  const allClientes = useMock ? mockClientes : (apiClientes?.data ?? []);
+
+  const filteredClientes = useMock
+    ? mockClientes.filter((c) => {
+        const q = searchTerm.toLowerCase();
+        const matchesSearch =
+          c.razonSocial.toLowerCase().includes(q) ||
+          c.ruc.toLowerCase().includes(q) ||
+          c.contactoNombre.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q);
+        const matchesEstado = filterEstado === 'todos' || c.estado === filterEstado;
+        return matchesSearch && matchesEstado;
+      })
+    : allClientes;
+
+  const totales = useMock
+    ? {
+        activos: mockClientes.filter(c => c.estado === 'activo').length,
+        totalEnvios: mockClientes.reduce((sum, c) => sum + c.totalEnvios, 0),
+        deudaTotal: mockClientes
+          .filter(c => c.saldoCuentaCorriente < 0)
+          .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente), 0),
+      }
+    : {
+        activos: allClientes.filter(c => c.estado === 'activo').length,
+        totalEnvios: allClientes.reduce((sum, c) => sum + (c.totalEnvios ?? 0), 0),
+        deudaTotal: allClientes
+          .filter(c => (c.saldoCuentaCorriente ?? 0) < 0)
+          .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente ?? 0), 0),
+      };
+
+  const handleExport = () => {
+    const columns = [
+      { label: 'Razon Social', accessor: (c: Cliente) => c.razonSocial },
+      { label: 'RUC', accessor: (c: Cliente) => c.ruc },
+      { label: 'Contacto', accessor: (c: Cliente) => c.contactoNombre },
+      { label: 'Telefono', accessor: (c: Cliente) => c.telefono },
+      { label: 'Email', accessor: (c: Cliente) => c.email },
+      { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad },
+      { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
+      { label: 'Total Envios', accessor: (c: Cliente) => c.totalEnvios },
+      { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
+    ];
+    exportToCSV(filteredClientes, 'clientes', columns);
+    toast.success('Exportando clientes a CSV...');
+  };
+
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const body: Record<string, unknown> = {
+      razonSocial: fd.get('razonSocial'),
+      ruc: fd.get('ruc'),
+      contactoNombre: fd.get('contactoNombre'),
+      contactoCargo: fd.get('contactoCargo'),
+      telefono: fd.get('telefono'),
+      email: fd.get('email'),
+      direccion: fd.get('direccion'),
+      ciudad: fd.get('ciudad'),
+      estado: fd.get('estado') || 'activo',
+      notas: fd.get('notas'),
+    };
+
+    if (!useMock) {
+      if (selectedCliente) {
+        updateMut.mutate(
+          { id: selectedCliente.id, ...body },
+          {
+            onSuccess: () => {
+              setIsModalOpen(false);
+              toast.success('Cliente actualizado');
+            },
+            onError: () => toast.error('Error al actualizar cliente'),
+          },
+        );
+      } else {
+        createMut.mutate(body, {
+          onSuccess: () => {
+            setIsModalOpen(false);
+            toast.success('Cliente creado correctamente');
+          },
+          onError: () => toast.error('Error al crear cliente'),
+        });
+      }
+    } else {
+      setIsModalOpen(false);
+      toast.success(selectedCliente ? 'Cliente actualizado' : 'Cliente creado correctamente');
+    }
+  };
+
+  const handleInvite = (cliente: Cliente) => {
+    inviteMut.mutate(cliente.id, {
+      onSuccess: () => {
+        toast.success(`Invitacion enviada a ${cliente.email}`);
+        setDetailCliente(null);
+      },
+      onError: (err) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al enviar invitacion';
+        toast.error(msg);
+      },
+    });
+  };
+
+  const handleReinvite = (cliente: Cliente) => {
+    reinviteMut.mutate(cliente.id, {
+      onSuccess: () => {
+        toast.success(`Invitacion reenviada a ${cliente.email}`);
+        setDetailCliente(null);
+      },
+      onError: (err) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al reenviar invitacion';
+        toast.error(msg);
+      },
+    });
+  };
+
+  const handleResetPassword = (cliente: Cliente) => {
+    resetPwMut.mutate(cliente.id, {
+      onSuccess: (data) => {
+        toast.success(data.message);
+        setDetailCliente(null);
+      },
+      onError: (err) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al resetear password';
+        toast.error(msg);
+      },
+    });
+  };
+
+  const portalStatus = (cliente: Cliente) => cliente.portalStatus || 'sin_invitar';
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="page-header">
+          <div>
+            <h1 className="page-header-title">Clientes</h1>
+            <p className="page-header-subtitle">Empresas con acceso al servicio de logistica</p>
+          </div>
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={handleExport}>
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  Exportar
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Descargar base de clientes en CSV</TooltipContent>
+            </Tooltip>
+            <Button size="sm" onClick={() => { setSelectedCliente(null); setIsModalOpen(true); }} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Nuevo Cliente
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">
+                <Buildings size={16} weight="duotone" className="text-success" />
+              </div>
+              <div>
+                <p className="stat-card-value text-xl">{totales.activos}</p>
+                <p className="stat-card-label">Empresas activas</p>
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/6 flex items-center justify-center">
+                <TrendUp size={16} weight="duotone" className="text-primary" />
+              </div>
+              <div>
+                <p className="stat-card-value text-xl">{totales.totalEnvios}</p>
+                <p className="stat-card-label">Envios totales</p>
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-destructive/6 flex items-center justify-center">
+                <CurrencyDollar size={16} weight="duotone" className="text-destructive" />
+              </div>
+              <div>
+                <p className="stat-card-value text-xl">{formatCurrency(totales.deudaTotal)}</p>
+                <p className="stat-card-label">Deuda pendiente</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+            <Input
+              placeholder="Buscar por empresa, RUC, contacto o email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={filterEstado} onValueChange={setFilterEstado}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="activo">Activo</SelectItem>
+              <SelectItem value="inactivo">Inactivo</SelectItem>
+              <SelectItem value="suspendido">Suspendido</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Loading */}
+        {!useMock && isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          /* Client list */
+          <div className="space-y-2">
+            {filteredClientes.map((cliente) => (
+              <div
+                key={cliente.id}
+                className="surface-card-interactive p-4"
+                onClick={() => { setDetailCliente(cliente); }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-9 h-9 rounded-lg bg-primary/6 flex items-center justify-center flex-shrink-0 font-bold text-primary text-[11px]">
+                    {getInitials(cliente.razonSocial)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-[14px] text-foreground truncate">{cliente.razonSocial}</h3>
+                      <Badge variant={estadoClienteColors[cliente.estado]}>
+                        {estadoClienteLabels[cliente.estado]}
+                      </Badge>
+                      <Badge variant={portalStatusColors[portalStatus(cliente)]}>
+                        <Globe size={10} weight="bold" className="mr-1" />
+                        {portalStatusLabels[portalStatus(cliente)]}
+                      </Badge>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground mt-0.5 mb-2.5 font-data">
+                      RUC: {cliente.ruc} · {cliente.ciudad}
+                    </p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-[13px]">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <UserCircle size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
+                        <span className="truncate">{cliente.contactoNombre}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Phone size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
+                        <span>{cliente.telefono}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <EnvelopeSimple size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
+                        <span className="truncate">{cliente.email}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Package size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
+                        <span>
+                          <strong className="text-foreground">{cliente.enviosActivos}</strong> activos · {cliente.totalEnvios} total
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-right hidden md:block">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Saldo Cta.</p>
+                      <p className={`font-semibold text-sm font-data ${
+                        cliente.saldoCuentaCorriente < 0
+                          ? 'text-destructive'
+                          : cliente.saldoCuentaCorriente > 0
+                          ? 'text-success'
+                          : 'text-muted-foreground'
+                      }`}>
+                        {cliente.saldoCuentaCorriente < 0 ? '-' : ''}
+                        {formatCurrency(Math.abs(cliente.saldoCuentaCorriente))}
+                      </p>
+                    </div>
+                    <div className="flex gap-0.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => { e.stopPropagation(); }}
+                            asChild
+                          >
+                            <Link to="/admin/envios">
+                              <Package size={14} weight="duotone" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver envios</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => { e.stopPropagation(); setSelectedCliente(cliente); setIsModalOpen(true); }}
+                          >
+                            <PencilSimple size={14} weight="duotone" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => { e.stopPropagation(); }}
+                            asChild
+                          >
+                            <Link to="/cliente">
+                              <ArrowSquareOut size={14} weight="duotone" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver portal</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+                  </div>
+                </div>
+
+                {cliente.saldoCuentaCorriente < -100000 && (
+                  <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-warning">
+                    <Warning size={13} weight="fill" />
+                    <span>Saldo elevado, requiere atencion</span>
+                  </div>
+                )}
+
+                {cliente.estado === 'suspendido' && cliente.notas && (
+                  <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-destructive">
+                    <Warning size={13} weight="fill" />
+                    <span>{cliente.notas}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {filteredClientes.length === 0 && (
+              <div className="text-center py-16">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <Buildings size={18} weight="duotone" className="text-muted-foreground/50" />
+                </div>
+                <p className="text-[13px] font-medium">No se encontraron empresas</p>
+                <p className="text-[12px] text-muted-foreground mt-1">
+                  {searchTerm ? 'Proba con otros terminos' : 'Aun no hay clientes registrados'}
+                </p>
+                <Button size="sm" className="mt-4 gap-1.5" onClick={() => setIsModalOpen(true)}>
+                  <Plus className="w-3.5 h-3.5" />
+                  Agregar cliente
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create/Edit Modal */}
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="text-base">{selectedCliente ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleFormSubmit}>
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label className="text-[13px]">Razon Social *</Label>
+                    <Input
+                      name="razonSocial"
+                      defaultValue={selectedCliente?.razonSocial}
+                      placeholder="Ej: Distribuidora Central SA"
+                      required
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">RUC *</Label>
+                    <Input
+                      name="ruc"
+                      defaultValue={selectedCliente?.ruc}
+                      placeholder="80012345-1"
+                      required
+                      className="mt-1.5 font-data"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Contacto principal *</Label>
+                    <Input
+                      name="contactoNombre"
+                      defaultValue={selectedCliente?.contactoNombre}
+                      placeholder="Nombre completo"
+                      required
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Cargo</Label>
+                    <Input
+                      name="contactoCargo"
+                      defaultValue={selectedCliente?.contactoCargo}
+                      placeholder="Ej: Gerente de Logistica"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Telefono *</Label>
+                    <Input
+                      name="telefono"
+                      defaultValue={selectedCliente?.telefono}
+                      placeholder="+595 21 555 1000"
+                      required
+                      className="mt-1.5 font-data"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Email *</Label>
+                    <Input
+                      name="email"
+                      type="email"
+                      defaultValue={selectedCliente?.email}
+                      placeholder="logistica@empresa.py"
+                      required
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-[13px]">Direccion *</Label>
+                    <Input
+                      name="direccion"
+                      defaultValue={selectedCliente?.direccion}
+                      placeholder="Av. Espana 1234"
+                      required
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Ciudad *</Label>
+                    <Select name="ciudad" defaultValue={selectedCliente?.ciudad}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departamentosPY.map((d) => (
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[13px]">Estado</Label>
+                    <Select name="estado" defaultValue={selectedCliente?.estado || 'activo'}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="activo">Activo</SelectItem>
+                        <SelectItem value="inactivo">Inactivo</SelectItem>
+                        <SelectItem value="suspendido">Suspendido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-[13px]">Notas internas</Label>
+                    <Textarea
+                      name="notas"
+                      defaultValue={selectedCliente?.notas}
+                      placeholder="Observaciones..."
+                      className="mt-1.5 resize-none"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" disabled={createMut.isPending || updateMut.isPending}>
+                  {selectedCliente ? 'Guardar' : 'Crear Cliente'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Detail / Portal management modal */}
+        <Dialog open={!!detailCliente} onOpenChange={(open) => { if (!open) setDetailCliente(null); }}>
+          <DialogContent className="max-w-lg">
+            {detailCliente && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base flex items-center gap-2">
+                    {detailCliente.razonSocial}
+                    <Badge variant={estadoClienteColors[detailCliente.estado]}>
+                      {estadoClienteLabels[detailCliente.estado]}
+                    </Badge>
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                  {/* Client info */}
+                  <div className="grid grid-cols-2 gap-3 text-[13px]">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">RUC</p>
+                      <p className="font-data">{detailCliente.ruc}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Contacto</p>
+                      <p>{detailCliente.contactoNombre}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Email</p>
+                      <p className="font-data">{detailCliente.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Telefono</p>
+                      <p className="font-data">{detailCliente.telefono}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Ciudad</p>
+                      <p>{detailCliente.ciudad}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Plan</p>
+                      <p className="capitalize">{detailCliente.plan || 'basico'}</p>
+                    </div>
+                  </div>
+
+                  {/* Portal access section */}
+                  <div className="border-t border-border/50 pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Globe size={16} weight="duotone" className="text-primary" />
+                        <h4 className="text-[13px] font-semibold">Acceso al Portal</h4>
+                      </div>
+                      <Badge variant={portalStatusColors[portalStatus(detailCliente)]}>
+                        {portalStatusLabels[portalStatus(detailCliente)]}
+                      </Badge>
+                    </div>
+
+                    {detailCliente.portalInvitedAt && (
+                      <p className="text-[11px] text-muted-foreground mb-3">
+                        Ultima invitacion: {new Date(detailCliente.portalInvitedAt).toLocaleString('es-PY', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      {/* Show "Invitar al Portal" only if not yet invited */}
+                      {portalStatus(detailCliente) === 'sin_invitar' && (
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => handleInvite(detailCliente)}
+                          disabled={inviteMut.isPending}
+                        >
+                          <PaperPlaneTilt size={14} weight="bold" />
+                          {inviteMut.isPending ? 'Enviando...' : 'Invitar al Portal'}
+                        </Button>
+                      )}
+
+                      {/* Show "Reenviar Invitacion" if already invited but not active */}
+                      {(portalStatus(detailCliente) === 'invitado' || portalStatus(detailCliente) === 'desactivado') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => handleReinvite(detailCliente)}
+                          disabled={reinviteMut.isPending}
+                        >
+                          <ArrowClockwise size={14} weight="bold" />
+                          {reinviteMut.isPending ? 'Reenviando...' : 'Reenviar Invitacion'}
+                        </Button>
+                      )}
+
+                      {/* Show "Resetear Password" if portal has been activated */}
+                      {(portalStatus(detailCliente) === 'activo' || portalStatus(detailCliente) === 'invitado') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => handleResetPassword(detailCliente)}
+                          disabled={resetPwMut.isPending}
+                        >
+                          <LockKey size={14} weight="bold" />
+                          {resetPwMut.isPending ? 'Enviando...' : 'Resetear Password'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDetailCliente(null);
+                      setSelectedCliente(detailCliente);
+                      setIsModalOpen(true);
+                    }}
+                    className="gap-1.5"
+                  >
+                    <PencilSimple size={14} weight="bold" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailCliente(null)}
+                  >
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export default Clientes;

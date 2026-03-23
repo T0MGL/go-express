@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /track
+Disallow: /admin
+Disallow: /cliente
+Disallow: /api
+
+Sitemap: https://goexpressparaguay.com/sitemap.xml

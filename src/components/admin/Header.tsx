@@ -1,0 +1,94 @@
+import { Bell, SignOut, GearSix, UserCircle, Command } from '@phosphor-icons/react';
+import { useNavigate } from 'react-router-dom';
+import { GlobalSearch } from './GlobalSearch';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useAuth } from '@/lib/auth';
+import { cn } from '@/lib/utils';
+
+interface HeaderProps {
+  scrolled?: boolean;
+}
+
+export const Header = ({ scrolled }: HeaderProps) => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const initials = user?.nombre
+    ? user.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : 'AD';
+
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
+  return (
+    <header className={cn(
+      'h-12 border-b border-border/30 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 sticky top-0 z-40 transition-[box-shadow,border-color] duration-200',
+      scrolled && 'header-scrolled'
+    )}>
+      <div className="flex-1 max-w-md">
+        <GlobalSearch />
+      </div>
+
+      <div className="flex items-center gap-0.5">
+        {/* Keyboard shortcut hint */}
+        <div className="hidden lg:flex items-center gap-1 mr-2 text-muted-foreground/40">
+          <kbd className="kbd">
+            <Command size={9} weight="bold" />
+          </kbd>
+          <kbd className="kbd">K</kbd>
+        </div>
+
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-foreground">
+          <Bell size={17} weight="duotone" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full ring-2 ring-card" />
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="gap-2 h-8 pl-1.5 pr-2 ml-0.5">
+              <Avatar className="h-6 w-6">
+                <AvatarFallback className="bg-primary/8 text-primary text-[10px] font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-[13px] font-medium hidden md:inline">
+                {user?.nombre ?? 'Admin'}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm font-medium">{user?.nombre ?? 'Administrador'}</p>
+              <p className="text-xs text-muted-foreground">{user?.email ?? ''}</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/admin/configuracion')}>
+              <UserCircle size={16} weight="duotone" className="mr-2" />
+              Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/admin/configuracion')}>
+              <GearSix size={16} weight="duotone" className="mr-2" />
+              Configuracion
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
+              <SignOut size={16} weight="duotone" className="mr-2" />
+              Cerrar Sesion
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+};

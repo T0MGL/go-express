@@ -1,0 +1,741 @@
+import { supabase } from '../config/database.js';
+import { logger } from '../config/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
+import { encryptionService } from './encryption.service.js';
+import { auditoriaService } from './auditoria.service.js';
+import { generateTrackingNumber } from '../lib/trackingNumber.js';
+import type {
+  EnvioRow,
+  EventoEnvioRow,
+  PagoRow,
+  NotaInternaRow,
+  Envio,
+  EventoEnvio,
+  Pago,
+  NotaInterna,
+  EnvioEstado,
+  PaginatedResponse,
+  NotificationEvent,
+} from '../types/index.js';
+import type { CreateEnvioInput, UpdateEnvioEstadoInput, EnvioQuery } from '../lib/validators/envio.schema.js';
+import { escapeLikePattern } from '../lib/validators/common.schema.js';
+
+// ---------------------------------------------------------------------------
+// State machine: valid transitions
+// ---------------------------------------------------------------------------
+
+const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
+  pendiente: ['recolectado', 'problema'],
+  recolectado: ['en_transito', 'problema'],
+  en_transito: ['en_reparto', 'problema'],
+  en_reparto: ['entregado', 'fallido', 'problema'],
+  fallido: ['en_reparto', 'problema'],
+  entregado: [],
+  problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
+};
+
+// ---------------------------------------------------------------------------
+// Row → API mappers (exported for cross-service use)
+// ---------------------------------------------------------------------------
+
+export function mapEnvioRowToApi(row: EnvioRow): Envio {
+  return {
+    id: row.id,
+    trackingNumber: row.tracking_number,
+    clienteId: row.cliente_id,
+    clienteNombre: row.cliente_nombre,
+    codigoReferencia: row.codigo_referencia,
+    origen: row.origen,
+    destino: row.destino,
+    destinatarioNombre: encryptionService.decrypt(row.destinatario_nombre_enc),
+    destinatarioDireccion: encryptionService.decrypt(row.destinatario_direccion_enc),
+    destinatarioTelefono: encryptionService.decrypt(row.destinatario_telefono_enc),
+    destinatarioTelefono2: row.destinatario_telefono2_enc
+      ? encryptionService.decrypt(row.destinatario_telefono2_enc)
+      : null,
+    destinatarioCedula: row.destinatario_cedula_enc
+      ? encryptionService.decrypt(row.destinatario_cedula_enc)
+      : null,
+    destinatarioCiudad: row.destinatario_ciudad,
+    destinatarioDepartamento: row.destinatario_departamento,
+    destinatarioBarrio: row.destinatario_barrio,
+    destinatarioReferencia: row.destinatario_referencia_enc
+      ? encryptionService.decrypt(row.destinatario_referencia_enc)
+      : null,
+    destinatarioUbicacionUrl: row.destinatario_ubicacion_url,
+    cantidad: row.cantidad,
+    producto: row.producto,
+    peso: row.peso,
+    dimensiones: {
+      largo: row.dimensiones_largo,
+      ancho: row.dimensiones_ancho,
+      alto: row.dimensiones_alto,
+    },
+    fragil: row.fragil,
+    valorDeclarado: row.valor_declarado,
+    instruccionesEntrega: row.instrucciones_entrega,
+    horarioEntrega: row.horario_entrega,
+    notas: row.notas,
+    estado: row.estado,
+    costo: row.costo,
+    montoACobrar: row.monto_a_cobrar,
+    tipoPago: row.tipo_pago,
+    repartidorId: row.repartidor_id,
+    repartidorAsignadoEn: row.repartidor_asignado_en,
+    problemaDescripcion: row.problema_descripcion,
+    problemaFecha: row.problema_fecha,
+    tags: row.tags,
+    tarifaId: row.tarifa_id,
+    fecha: row.fecha,
+    eventos: [],
+    pago: null,
+    notasInternas: [],
+    eliminado: row.eliminado,
+    eliminadoPor: row.eliminado_por ?? undefined,
+    eliminadoEn: row.eliminado_en ?? undefined,
+    motivoEliminacion: row.motivo_eliminacion ?? undefined,
+    creadoEn: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapEventoRow(row: EventoEnvioRow): EventoEnvio {
+  return {
+    id: row.id,
+    envioId: row.envio_id,
+    estado: row.estado,
+    descripcion: row.descripcion,
+    ubicacion: row.ubicacion,
+    creadoEn: row.created_at,
+  };
+}
+
+function mapPagoRow(row: PagoRow): Pago {
+  return {
+    id: row.id,
+    envioId: row.envio_id,
+    montoTotal: row.monto_total,
+    montoRecibido: row.monto_recibido,
+    metodoPago: row.metodo_pago,
+    estadoPago: row.estado_pago,
+    fechaPago: row.fecha_pago,
+    referencia: row.referencia_enc ? encryptionService.decrypt(row.referencia_enc) : null,
+    notas: row.notas,
+    creadoPor: row.creado_por,
+    creadoEn: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapNotaRow(row: NotaInternaRow): NotaInterna {
+  return {
+    id: row.id,
+    envioId: row.envio_id,
+    texto: row.texto,
+    usuario: row.usuario,
+    usuarioId: row.usuario_id,
+    creadoEn: row.created_at,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Notification hook placeholder
+// ---------------------------------------------------------------------------
+
+function triggerNotification(event: NotificationEvent, envio: Envio, previousEstado?: EnvioEstado): void {
+  logger.info(
+    { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
+    `Notification hook: ${event}`
+  );
+  // TODO: WhatsApp / email integration
+}
+
+// ---------------------------------------------------------------------------
+// EnvioService — most complex service
+// ---------------------------------------------------------------------------
+
+// Explicit column lists to avoid SELECT *
+const ENVIO_LIST_COLUMNS = [
+  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
+  'origen', 'destino',
+  'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
+  'destinatario_telefono2_enc', 'destinatario_cedula_enc',
+  'destinatario_ciudad', 'destinatario_departamento', 'destinatario_barrio',
+  'destinatario_referencia_enc', 'destinatario_ubicacion_url', 'destinatario_nombre_search',
+  'destinatario_telefono_hash',
+  'cantidad', 'producto', 'peso',
+  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
+  'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
+  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'repartidor_id', 'repartidor_asignado_en',
+  'problema_descripcion', 'problema_fecha',
+  'tags', 'tarifa_id', 'fecha',
+  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+].join(', ');
+
+const EVENTO_COLUMNS = 'id, envio_id, estado, descripcion, ubicacion, created_at';
+const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at';
+const NOTA_COLUMNS = 'id, envio_id, texto, usuario, usuario_id, created_at';
+
+class EnvioService {
+  async list(query: EnvioQuery): Promise<PaginatedResponse<Envio>> {
+    const { limit, page = 1, search, estado, clienteId, repartidorId, fechaDesde, fechaHasta } = query;
+    const offset = (page - 1) * limit;
+
+    let q = supabase.from('envios').select(ENVIO_LIST_COLUMNS, { count: 'exact' })
+      .eq('eliminado', false);
+
+    if (estado) q = q.eq('estado', estado);
+    if (clienteId) q = q.eq('cliente_id', clienteId);
+    if (repartidorId) q = q.eq('repartidor_id', repartidorId);
+    if (fechaDesde) q = q.gte('fecha', fechaDesde);
+    if (fechaHasta) q = q.lte('fecha', fechaHasta);
+    if (search) {
+      const s = escapeLikePattern(search);
+      q = q.or(
+        `tracking_number.ilike.%${s}%,cliente_nombre.ilike.%${s}%,destinatario_nombre_search.ilike.%${s}%`
+      );
+    }
+
+    q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data, count, error } = await q;
+
+    if (error) {
+      throw new AppError('Error fetching envios', 500, 'DB_ERROR');
+    }
+
+    const rows = (data ?? []) as unknown as EnvioRow[];
+
+    return {
+      data: rows.map(mapEnvioRowToApi),
+      pagination: {
+        total: count ?? 0,
+        page,
+        limit,
+        totalPages: Math.ceil((count ?? 0) / limit),
+        hasMore: offset + limit < (count ?? 0),
+        nextCursor: null,
+      },
+    };
+  }
+
+  async getById(id: string): Promise<Envio> {
+    const { data, error } = await supabase
+      .from('envios')
+      .select(ENVIO_LIST_COLUMNS)
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (error || !data) {
+      throw AppError.notFound('Envio', id);
+    }
+
+    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
+
+    // Fetch related data in parallel
+    const [eventosResult, pagoResult, notasResult] = await Promise.all([
+      supabase
+        .from('eventos_envio')
+        .select(EVENTO_COLUMNS)
+        .eq('envio_id', id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('pagos')
+        .select(PAGO_COLUMNS)
+        .eq('envio_id', id)
+        .maybeSingle(),
+      supabase
+        .from('notas_internas')
+        .select(NOTA_COLUMNS)
+        .eq('envio_id', id)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    envio.eventos = ((eventosResult.data ?? []) as unknown as EventoEnvioRow[]).map(mapEventoRow);
+    envio.pago = pagoResult.data ? mapPagoRow(pagoResult.data as unknown as PagoRow) : null;
+    envio.notasInternas = ((notasResult.data ?? []) as unknown as NotaInternaRow[]).map(mapNotaRow);
+
+    return envio;
+  }
+
+  async create(input: CreateEnvioInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
+    // Fetch cliente name for denormalized field — must be active and not deleted
+    const { data: clienteData, error: clienteError } = await supabase
+      .from('clientes')
+      .select('razon_social, estado')
+      .eq('id', input.clienteId)
+      .eq('eliminado', false)
+      .single();
+
+    if (clienteError || !clienteData) {
+      throw AppError.notFound('Cliente no encontrado o inactivo');
+    }
+
+    if ((clienteData as { razon_social: string; estado: string }).estado !== 'activo') {
+      throw AppError.badRequest('No se pueden crear envíos para clientes inactivos o suspendidos');
+    }
+
+    // Generate tracking number
+    const trackingNumber = await generateTrackingNumber(supabase);
+
+    const today = new Date().toISOString().split('T')[0]!;
+
+    const { data, error } = await supabase
+      .from('envios')
+      .insert({
+        tracking_number: trackingNumber,
+        cliente_id: input.clienteId,
+        cliente_nombre: (clienteData as { razon_social: string }).razon_social,
+        codigo_referencia: input.codigoReferencia ?? null,
+        origen: input.origen,
+        destino: input.destino,
+        destinatario_nombre_enc: encryptionService.encrypt(input.destinatarioNombre),
+        destinatario_direccion_enc: encryptionService.encrypt(input.destinatarioDireccion),
+        destinatario_telefono_enc: encryptionService.encrypt(input.destinatarioTelefono),
+        destinatario_telefono2_enc: input.destinatarioTelefono2
+          ? encryptionService.encrypt(input.destinatarioTelefono2)
+          : null,
+        destinatario_cedula_enc: input.destinatarioCedula
+          ? encryptionService.encrypt(input.destinatarioCedula)
+          : null,
+        destinatario_ciudad: input.destinatarioCiudad,
+        destinatario_departamento: input.destinatarioDepartamento ?? '',
+        destinatario_barrio: input.destinatarioBarrio ?? null,
+        destinatario_referencia_enc: input.destinatarioReferencia
+          ? encryptionService.encrypt(input.destinatarioReferencia)
+          : null,
+        destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+        destinatario_nombre_search: encryptionService.normalizeForSearch(input.destinatarioNombre),
+        destinatario_telefono_hash: encryptionService.hashForSearch(input.destinatarioTelefono),
+        cantidad: input.cantidad,
+        producto: input.producto ?? '',
+        peso: input.peso,
+        dimensiones_largo: input.dimensiones?.largo ?? null,
+        dimensiones_ancho: input.dimensiones?.ancho ?? null,
+        dimensiones_alto: input.dimensiones?.alto ?? null,
+        fragil: input.fragil,
+        valor_declarado: input.valorDeclarado ?? 0,
+        instrucciones_entrega: input.instruccionesEntrega ?? null,
+        horario_entrega: input.horarioEntrega ?? null,
+        notas: input.notas ?? null,
+        estado: 'pendiente' as const,
+        costo: input.costo,
+        monto_a_cobrar: input.montoACobrar,
+        tipo_pago: input.tipoPago,
+        tags: input.tags ?? [],
+        tarifa_id: input.tarifaId ?? null,
+        fecha: today,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error creating envio', 500, 'DB_ERROR');
+    }
+
+    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
+
+    // Insert initial evento
+    await supabase.from('eventos_envio').insert({
+      envio_id: envio.id,
+      estado: 'pendiente',
+      descripcion: 'Envío creado',
+    });
+
+    // Audit
+    await auditoriaService.log({
+      usuario: userName ?? 'Admin GoExpress',
+      usuarioId: userId,
+      accion: 'crear',
+      entidad: 'envio',
+      entidadId: envio.id,
+      descripcion: `Envio creado: ${trackingNumber} para ${envio.clienteNombre}`,
+      ipAddress,
+      userAgent,
+    });
+
+    // Notification hook
+    triggerNotification('envio_creado', envio);
+
+    return envio;
+  }
+
+  async update(id: string, input: Partial<CreateEnvioInput>, userId?: string): Promise<Envio> {
+    // Lightweight existence check (no related data fetching)
+    const { data: existing, error: checkError } = await supabase
+      .from('envios')
+      .select('id, tracking_number')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (checkError || !existing) {
+      throw AppError.notFound('Envío no encontrado');
+    }
+
+    const updateData: Record<string, unknown> = {};
+
+    if (input.codigoReferencia !== undefined) updateData['codigo_referencia'] = input.codigoReferencia;
+    if (input.origen !== undefined) updateData['origen'] = input.origen;
+    if (input.destino !== undefined) updateData['destino'] = input.destino;
+    if (input.destinatarioNombre !== undefined) {
+      updateData['destinatario_nombre_enc'] = encryptionService.encrypt(input.destinatarioNombre);
+      updateData['destinatario_nombre_search'] = encryptionService.normalizeForSearch(input.destinatarioNombre);
+    }
+    if (input.destinatarioDireccion !== undefined) {
+      updateData['destinatario_direccion_enc'] = encryptionService.encrypt(input.destinatarioDireccion);
+    }
+    if (input.destinatarioTelefono !== undefined) {
+      updateData['destinatario_telefono_enc'] = encryptionService.encrypt(input.destinatarioTelefono);
+      updateData['destinatario_telefono_hash'] = encryptionService.hashForSearch(input.destinatarioTelefono);
+    }
+    if (input.destinatarioTelefono2 !== undefined) {
+      updateData['destinatario_telefono2_enc'] = input.destinatarioTelefono2
+        ? encryptionService.encrypt(input.destinatarioTelefono2)
+        : null;
+    }
+    if (input.destinatarioCedula !== undefined) {
+      updateData['destinatario_cedula_enc'] = input.destinatarioCedula
+        ? encryptionService.encrypt(input.destinatarioCedula)
+        : null;
+    }
+    if (input.destinatarioCiudad !== undefined) updateData['destinatario_ciudad'] = input.destinatarioCiudad;
+    if (input.destinatarioDepartamento !== undefined) updateData['destinatario_departamento'] = input.destinatarioDepartamento;
+    if (input.destinatarioBarrio !== undefined) updateData['destinatario_barrio'] = input.destinatarioBarrio;
+    if (input.destinatarioReferencia !== undefined) {
+      updateData['destinatario_referencia_enc'] = input.destinatarioReferencia
+        ? encryptionService.encrypt(input.destinatarioReferencia)
+        : null;
+    }
+    if (input.destinatarioUbicacionUrl !== undefined) {
+      updateData['destinatario_ubicacion_url'] = input.destinatarioUbicacionUrl || null;
+    }
+    if (input.cantidad !== undefined) updateData['cantidad'] = input.cantidad;
+    if (input.producto !== undefined) updateData['producto'] = input.producto;
+    if (input.peso !== undefined) updateData['peso'] = input.peso;
+    if (input.dimensiones !== undefined) {
+      updateData['dimensiones_largo'] = input.dimensiones.largo;
+      updateData['dimensiones_ancho'] = input.dimensiones.ancho;
+      updateData['dimensiones_alto'] = input.dimensiones.alto;
+    }
+    if (input.fragil !== undefined) updateData['fragil'] = input.fragil;
+    if (input.valorDeclarado !== undefined) updateData['valor_declarado'] = input.valorDeclarado;
+    if (input.instruccionesEntrega !== undefined) updateData['instrucciones_entrega'] = input.instruccionesEntrega;
+    if (input.horarioEntrega !== undefined) updateData['horario_entrega'] = input.horarioEntrega;
+    if (input.notas !== undefined) updateData['notas'] = input.notas;
+    if (input.costo !== undefined) updateData['costo'] = input.costo;
+    if (input.montoACobrar !== undefined) updateData['monto_a_cobrar'] = input.montoACobrar;
+    if (input.tipoPago !== undefined) updateData['tipo_pago'] = input.tipoPago;
+    if (input.tags !== undefined) updateData['tags'] = input.tags;
+    if (input.tarifaId !== undefined) updateData['tarifa_id'] = input.tarifaId;
+
+    const { data, error } = await supabase
+      .from('envios')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error updating envio', 500, 'DB_ERROR');
+    }
+
+    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
+
+    if (userId) {
+      await auditoriaService.log({
+        usuario: 'Admin GoExpress',
+        usuarioId: userId,
+        accion: 'editar',
+        entidad: 'envio',
+        entidadId: id,
+        descripcion: `Envío actualizado: ${envio.trackingNumber}`,
+      });
+    }
+
+    return envio;
+  }
+
+  async updateEstado(id: string, input: UpdateEnvioEstadoInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
+    // Lightweight fetch for current state (optimistic locking)
+    const { data: currentData, error: fetchError } = await supabase
+      .from('envios')
+      .select('estado, tracking_number')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (fetchError || !currentData) {
+      throw AppError.notFound('Envío no encontrado');
+    }
+
+    const previousEstado = (currentData as { estado: EnvioEstado; tracking_number: string }).estado;
+    const newEstado = input.estado;
+
+    // Validate state transition
+    const allowed = VALID_TRANSITIONS[previousEstado];
+    if (!allowed || !allowed.includes(newEstado)) {
+      throw AppError.unprocessable(
+        `Invalid state transition: "${previousEstado}" → "${newEstado}"`,
+        { currentEstado: previousEstado, requestedEstado: newEstado, allowedTransitions: allowed }
+      );
+    }
+
+    const updateData: Record<string, unknown> = { estado: newEstado };
+
+    // If estado='problema': set problema fields
+    if (newEstado === 'problema') {
+      updateData['problema_descripcion'] = input.descripcion;
+      updateData['problema_fecha'] = new Date().toISOString();
+    }
+
+    // If resolving from problema, clear problema fields
+    if (previousEstado === 'problema' && newEstado !== 'problema') {
+      updateData['problema_descripcion'] = null;
+      updateData['problema_fecha'] = null;
+    }
+
+    // Optimistic locking: only update if estado still matches what we read
+    const { data, error } = await supabase
+      .from('envios')
+      .update(updateData)
+      .eq('id', id)
+      .eq('estado', previousEstado)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      throw new AppError('Error updating envio estado', 500, 'DB_ERROR');
+    }
+
+    // If no rows matched, it means someone else changed the state concurrently
+    if (!data) {
+      throw AppError.conflict('El estado del envío fue modificado por otro usuario. Recargue e intente de nuevo.');
+    }
+
+    // Insert evento
+    await supabase.from('eventos_envio').insert({
+      envio_id: id,
+      estado: newEstado,
+      descripcion: input.descripcion,
+      ubicacion: input.ubicacion ?? null,
+    });
+
+    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
+
+    // Audit
+    await auditoriaService.log({
+      usuario: userName ?? 'Admin GoExpress',
+      usuarioId: userId,
+      accion: 'cambio_estado',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Envio ${envio.trackingNumber}: "${previousEstado}" a "${newEstado}". ${input.descripcion}`,
+      ipAddress,
+      userAgent,
+    });
+
+    // Notification hook
+    let event: NotificationEvent = 'cambio_estado';
+    if (newEstado === 'entregado') event = 'entregado';
+    else if (newEstado === 'problema') event = 'problema';
+    else if (newEstado === 'fallido') event = 'fallido';
+
+    triggerNotification(event, envio, previousEstado);
+
+    return envio;
+  }
+
+  async asignarRepartidor(id: string, repartidorId: string, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
+    // Verify envio exists and is not deleted
+    const { data: envioCheck, error: envioCheckError } = await supabase
+      .from('envios')
+      .select('id, estado, tracking_number')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (envioCheckError || !envioCheck) {
+      throw AppError.notFound('Envío no encontrado');
+    }
+
+    // Only allow assignment for active delivery states
+    const allowedStates: EnvioEstado[] = ['pendiente', 'recolectado', 'en_transito', 'en_reparto'];
+    const envioState = (envioCheck as { id: string; estado: EnvioEstado; tracking_number: string }).estado;
+    if (!allowedStates.includes(envioState)) {
+      throw AppError.badRequest(`No se puede asignar repartidor a un envío en estado "${envioState}"`);
+    }
+
+    // Verify repartidor exists, is active, and not deleted
+    const { data: repartidor } = await supabase
+      .from('repartidores')
+      .select('nombre, estado')
+      .eq('id', repartidorId)
+      .eq('eliminado', false)
+      .single();
+
+    if (!repartidor) {
+      throw AppError.notFound('Repartidor', repartidorId);
+    }
+
+    const rep = repartidor as { nombre: string; estado: string };
+    if (rep.estado !== 'activo') {
+      throw AppError.badRequest('Cannot assign an inactive repartidor');
+    }
+
+    const { data, error } = await supabase
+      .from('envios')
+      .update({
+        repartidor_id: repartidorId,
+        repartidor_asignado_en: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error assigning repartidor', 500, 'DB_ERROR');
+    }
+
+    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
+
+    await auditoriaService.log({
+      usuario: userName ?? 'Admin GoExpress',
+      usuarioId: userId,
+      accion: 'asignar',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Repartidor "${rep.nombre}" asignado al envio ${envio.trackingNumber}`,
+      ipAddress,
+      userAgent,
+    });
+
+    return envio;
+  }
+
+  async reportarProblema(id: string, descripcion: string, userId: string): Promise<Envio> {
+    return this.updateEstado(
+      id,
+      { estado: 'problema', descripcion },
+      userId
+    );
+  }
+
+  async agregarNota(id: string, texto: string, userId: string, usuarioNombre: string): Promise<NotaInterna> {
+    // Verify envio exists
+    await this.getById(id);
+
+    const { data, error } = await supabase
+      .from('notas_internas')
+      .insert({
+        envio_id: id,
+        texto,
+        usuario: usuarioNombre,
+        usuario_id: userId,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error adding nota', 500, 'DB_ERROR');
+    }
+
+    await auditoriaService.log({
+      usuario: usuarioNombre,
+      usuarioId: userId,
+      accion: 'nota',
+      entidad: 'nota_interna',
+      entidadId: (data as unknown as NotaInternaRow).id,
+      descripcion: `Nota interna agregada al envío ${id}`,
+    });
+
+    return mapNotaRow(data as unknown as NotaInternaRow);
+  }
+
+  async getEventos(id: string): Promise<EventoEnvio[]> {
+    const { data, error } = await supabase
+      .from('eventos_envio')
+      .select(EVENTO_COLUMNS)
+      .eq('envio_id', id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new AppError('Error fetching eventos', 500, 'DB_ERROR');
+    }
+
+    return ((data ?? []) as unknown as EventoEnvioRow[]).map(mapEventoRow);
+  }
+
+  async bulkImport(
+    envios: CreateEnvioInput[],
+    userId: string,
+    userName?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{ exitosos: number; fallidos: { fila: number; errores: string[] }[]; trackingNumbers: string[] }> {
+    const exitosos: string[] = [];
+    const fallidos: { fila: number; errores: string[] }[] = [];
+
+    for (let i = 0; i < envios.length; i++) {
+      try {
+        const envio = await this.create(envios[i]!, userId, userName, ipAddress, userAgent);
+        exitosos.push(envio.trackingNumber);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        fallidos.push({ fila: i + 1, errores: [message] });
+      }
+    }
+
+    if (exitosos.length > 0) {
+      await auditoriaService.log({
+        usuario: userName ?? 'Admin GoExpress',
+        usuarioId: userId,
+        accion: 'importar',
+        entidad: 'envio',
+        entidadId: '',
+        descripcion: `Importacion masiva: ${exitosos.length} exitosos, ${fallidos.length} fallidos`,
+        ipAddress,
+        userAgent,
+      });
+    }
+
+    return {
+      exitosos: exitosos.length,
+      fallidos,
+      trackingNumbers: exitosos,
+    };
+  }
+
+  async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
+    const envio = await this.getById(id);
+
+    const { error } = await supabase
+      .from('envios')
+      .update({
+        eliminado: true,
+        eliminado_por: userId,
+        eliminado_en: new Date().toISOString(),
+        motivo_eliminacion: motivo,
+      })
+      .eq('id', id);
+
+    if (error) {
+      logger.error({ error }, 'Error deleting envio');
+      throw new AppError('Error deleting envio', 500, 'DB_ERROR');
+    }
+
+    await auditoriaService.log({
+      usuario: usuarioNombre,
+      usuarioId: userId,
+      accion: 'eliminar',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Envío ${envio.trackingNumber} eliminado. Motivo: ${motivo}`,
+    });
+  }
+}
+
+export const envioService = new EnvioService();

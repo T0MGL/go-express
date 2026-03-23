@@ -6,9 +6,6 @@ import {
   MagnifyingGlass,
   MapPin,
   ArrowRight,
-  User,
-  Phone,
-  MapTrifold,
   Warning,
   CircleNotch,
   ShieldCheck,
@@ -18,30 +15,23 @@ import {
   InstagramLogo,
   LinkedinLogo,
   WhatsappLogo,
-  Cube,
   CalendarBlank,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Timeline } from '@/components/tracking/Timeline';
-import { mockEnvios, estadoLabels, estadoColors, type Envio } from '@/data/mockData';
+import { estadoLabels, estadoColors } from '@/data/constants';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
-import { useTracking, type PublicTrackingResult } from '@/hooks/api/use-tracking';
+import type { PublicTrackingResult } from '@/hooks/api/use-tracking';
+import { useTracking } from '@/hooks/api/use-tracking';
 
-// Unified display type for the tracking page — works for both mock and API modes
 type TrackingDisplay = {
   trackingNumber: string;
   estado: string;
   origen: string;
   destino: string;
   fecha: string;
-  // Fields only available in mock mode (full Envio)
-  destinatarioNombre?: string;
-  destinatarioDireccion?: string;
-  destinatarioTelefono?: string;
   destinatarioCiudad?: string;
-  cantidad?: number;
-  producto?: string;
   eventos: Array<{
     id?: string;
     estado: string;
@@ -51,22 +41,6 @@ type TrackingDisplay = {
     hora?: string;
   }>;
 };
-
-function envioToDisplay(envio: Envio): TrackingDisplay {
-  return {
-    trackingNumber: envio.trackingNumber,
-    estado: envio.estado,
-    origen: envio.origen,
-    destino: envio.destino,
-    fecha: envio.fecha,
-    destinatarioNombre: envio.destinatarioNombre,
-    destinatarioDireccion: envio.destinatarioDireccion,
-    destinatarioTelefono: envio.destinatarioTelefono,
-    cantidad: envio.cantidad,
-    producto: envio.producto,
-    eventos: envio.eventos,
-  };
-}
 
 function apiResultToDisplay(result: PublicTrackingResult): TrackingDisplay {
   return {
@@ -163,20 +137,6 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } },
 } as const;
 
-/** Mask phone for privacy: +595 981 *** 234 */
-const maskPhone = (phone: string) => {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length < 6) return phone;
-  return phone.slice(0, -6) + '*** ' + phone.slice(-3);
-};
-
-/** Mask address: show only city/dept */
-const maskAddress = (address: string) => {
-  const parts = address.split(',').map(p => p.trim());
-  if (parts.length <= 1) return address;
-  return parts.slice(-2).join(', ');
-};
-
 // ═══════════════════════════════════════════════════════════════
 // Track Component
 // ═══════════════════════════════════════════════════════════════
@@ -185,24 +145,16 @@ const Track = () => {
   const [searchParams] = useSearchParams();
   const [trackingNumber, setTrackingNumber] = useState(searchParams.get('q') || '');
   const [searched, setSearched] = useState(false);
-  const [mockSearching, setMockSearching] = useState(false);
-  const [mockEnvio, setMockEnvio] = useState<Envio | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const typedPlaceholder = useTypewriter(trackingPlaceholders);
 
-  // API tracking hook — only used when not in mock mode
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: apiResult, isLoading: apiSearching, isError: apiError } = useTracking(
-    false ? '' : searchQuery
-  );
+  const { data: apiResult, isLoading: apiSearching, isError: apiError } = useTracking(searchQuery);
 
-  // Determine the display data — unified type for both modes
-  const envio: TrackingDisplay | null = false
-    ? (mockEnvio ? envioToDisplay(mockEnvio!) : null)
-    : (apiResult ? apiResultToDisplay(apiResult) : null);
-  const searching = false ? mockSearching : apiSearching;
+  const envio: TrackingDisplay | null = apiResult ? apiResultToDisplay(apiResult) : null;
+  const searching = apiSearching;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -218,22 +170,19 @@ const Track = () => {
     };
   }, []);
 
-  // When API returns data
   useEffect(() => {
-    if (!false && searchQuery) {
+    if (searchQuery) {
       if (apiResult) {
         setSearched(true);
         toast.success('Envio encontrado');
       } else if (!apiSearching && !apiError) {
-        // Query finished but no data
         setSearched(true);
       }
     }
   }, [apiResult, apiSearching, apiError, searchQuery]);
 
-  // When API errors
   useEffect(() => {
-    if (!false && apiError && searchQuery) {
+    if (apiError && searchQuery) {
       setSearched(true);
     }
   }, [apiError, searchQuery]);
@@ -244,27 +193,8 @@ const Track = () => {
       return;
     }
 
-    if (false) {
-      setMockSearching(true);
-      searchTimeoutRef.current = setTimeout(() => {
-        const found = mockEnvios.find(
-          (e) => e.trackingNumber.toLowerCase() === trackingNumber.toLowerCase()
-        );
-
-        if (found) {
-          setMockEnvio(found);
-          toast.success('Envio encontrado');
-        } else {
-          setMockEnvio(null);
-        }
-        setSearched(true);
-        setMockSearching(false);
-      }, 600);
-    } else {
-      // Trigger the API query
-      setSearched(false);
-      setSearchQuery(trackingNumber.trim());
-    }
+    setSearched(false);
+    setSearchQuery(trackingNumber.trim());
   }, [trackingNumber]);
 
   // Auto-search if query param present
@@ -272,23 +202,7 @@ const Track = () => {
     const q = searchParams.get('q');
     if (q && !searched) {
       setTrackingNumber(q);
-      if (false) {
-        // Do mock search
-        setMockSearching(true);
-        const found = mockEnvios.find(
-          (e) => e.trackingNumber.toLowerCase() === q!.toLowerCase()
-        );
-        if (found) {
-          setMockEnvio(found ?? null);
-          toast.success('Envio encontrado');
-        } else {
-          setMockEnvio(null);
-        }
-        setSearched(true);
-        setMockSearching(false);
-      } else {
-        setSearchQuery(q);
-      }
+      setSearchQuery(q);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -453,7 +367,7 @@ const Track = () => {
                   </div>
 
                   {/* Quick info row */}
-                  <div className={`grid grid-cols-2 ${envio.cantidad != null || envio.producto != null ? 'sm:grid-cols-3' : ''} gap-4 mt-5`}>
+                  <div className="grid grid-cols-2 gap-4 mt-5">
                     <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-muted/40">
                       <CalendarBlank weight="duotone" className="w-4 h-4 text-sidebar/40 flex-shrink-0" />
                       <div>
@@ -470,24 +384,6 @@ const Track = () => {
                         </div>
                       </div>
                     )}
-                    {envio.cantidad != null && (
-                      <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-muted/40">
-                        <Cube weight="duotone" className="w-4 h-4 text-sidebar/40 flex-shrink-0" />
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-sidebar/30">Bultos</p>
-                          <p className="text-[13px] font-semibold text-sidebar">{envio.cantidad || 1}</p>
-                        </div>
-                      </div>
-                    )}
-                    {envio.producto != null && (
-                      <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-muted/40 col-span-2 sm:col-span-1">
-                        <Package weight="duotone" className="w-4 h-4 text-sidebar/40 flex-shrink-0" />
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-sidebar/30">Producto</p>
-                          <p className="text-[13px] font-semibold text-sidebar truncate">{envio.producto || 'Paquete'}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </motion.div>
 
@@ -497,53 +393,13 @@ const Track = () => {
                   <Timeline eventos={envio.eventos} />
                 </motion.div>
 
-                {/* Recipient info — only shown in mock mode (full Envio has PII fields) */}
-                {envio.destinatarioNombre && (
-                <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-muted/80 p-6 md:p-8 shadow-sm">
-                  <h3 className="font-display text-lg font-bold text-sidebar mb-5">Informacion del destinatario</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-sidebar/5 flex items-center justify-center flex-shrink-0">
-                        <User weight="duotone" className="w-4.5 h-4.5 text-sidebar/50" />
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar/40 mb-1">Nombre</p>
-                        <p className="text-sm font-semibold text-sidebar">{envio.destinatarioNombre}</p>
-                      </div>
-                    </div>
-                    {envio.destinatarioDireccion && (
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-sidebar/5 flex items-center justify-center flex-shrink-0">
-                        <MapTrifold weight="duotone" className="w-4.5 h-4.5 text-sidebar/50" />
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar/40 mb-1">Zona de entrega</p>
-                        <p className="text-sm font-semibold text-sidebar">{maskAddress(envio.destinatarioDireccion)}</p>
-                      </div>
-                    </div>
-                    )}
-                    {envio.destinatarioTelefono && (
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-sidebar/5 flex items-center justify-center flex-shrink-0">
-                        <Phone weight="duotone" className="w-4.5 h-4.5 text-sidebar/50" />
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar/40 mb-1">Telefono</p>
-                        <p className="text-sm font-semibold text-sidebar font-data">{maskPhone(envio.destinatarioTelefono)}</p>
-                      </div>
-                    </div>
-                    )}
-                  </div>
-                </motion.div>
-                )}
-
                 {/* New search CTA */}
                 <motion.div variants={fadeUp} className="text-center pt-4">
                   <Button
                     variant="outline"
                     size="sm"
                     className="rounded-full px-6 border-muted/80 text-sidebar/60 hover:text-sidebar font-bold text-xs gap-2"
-                    onClick={() => { setMockEnvio(null); setSearchQuery(''); setSearched(false); setTrackingNumber(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => { setSearchQuery(''); setSearched(false); setTrackingNumber(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   >
                     <MagnifyingGlass weight="bold" className="w-4 h-4" />
                     Buscar otro envio

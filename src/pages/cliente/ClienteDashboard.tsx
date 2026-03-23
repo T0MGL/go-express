@@ -6,7 +6,7 @@ import {
   PlusCircle, UploadSimple, Calculator, Tag, ArrowRight, ArrowUpRight,
   CircleNotch,
 } from '@phosphor-icons/react';
-import { mockEnvios, estadoLabels } from '@/data/mockData';
+import { estadoLabels } from '@/data/constants';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@/lib/utils';
 import { useClienteDashboardStats } from '@/hooks/api/use-cliente-dashboard';
@@ -38,24 +38,13 @@ const quickActions = [
   { icon: Tag, label: 'Etiquetas', desc: 'Descargar e imprimir', path: '/cliente/etiquetas' },
 ];
 
-// Mock fallback data
-const mockClienteEnvios = mockEnvios.slice(0, 5);
-
-const mockStats = (() => {
-  const activos = mockEnvios.filter(e => e.estado === 'en_transito' || e.estado === 'en_reparto').length;
-  const entregados = mockEnvios.filter(e => e.estado === 'entregado').length;
-  const pendientes = mockEnvios.filter(e => e.estado === 'pendiente' || e.estado === 'recolectado').length;
-  const problemas = mockEnvios.filter(e => e.estado === 'problema').length;
-  return { activos, entregados, pendientes, problemas };
-})();
+const defaultStats = { activos: 0, entregados: 0, pendientes: 0, problemas: 0 };
 
 const ClienteDashboard = () => {
   const { data: apiStats, isLoading } = useClienteDashboardStats();
 
-  const dashStats = false ? mockStats : (apiStats ?? mockStats);
-  const clienteEnvios = false
-    ? mockClienteEnvios
-    : (apiStats?.enviosRecientes ?? mockClienteEnvios);
+  const dashStats = apiStats ?? defaultStats;
+  const clienteEnvios = apiStats?.enviosRecientes ?? [];
 
   const stats = [
     { label: 'Activos', value: dashStats.activos, icon: Truck, color: 'text-primary', bg: 'bg-primary/6' },
@@ -84,7 +73,7 @@ const ClienteDashboard = () => {
 
       {/* Stats */}
       <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoading && !false ? (
+        {isLoading ? (
           <div className="col-span-full flex items-center justify-center py-8">
             <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
           </div>
@@ -131,7 +120,7 @@ const ClienteDashboard = () => {
           </Link>
         </div>
 
-        {isLoading && !false ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
           </div>

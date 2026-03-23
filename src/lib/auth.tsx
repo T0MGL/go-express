@@ -44,35 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Initialize: check for existing session
+  // Initialize via onAuthStateChange only (avoids lock race with getSession)
   useEffect(() => {
     let mounted = true;
 
-    async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      if (session) {
-        const profile = await fetchProfile(session.access_token);
-        if (mounted) {
-          setState({
-            user: profile,
-            session,
-            loading: false,
-            error: null,
-          });
-        }
-      } else {
-        if (mounted) {
-          setState({ user: null, session: null, loading: false, error: null });
-        }
-      }
-    }
-
-    init();
-
-    // Listen for auth state changes (token refresh, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
@@ -81,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         const profile = await fetchProfile(session.access_token);
         if (mounted) {
           setState({

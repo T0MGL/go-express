@@ -20,13 +20,13 @@ const ClienteCuenta = () => {
   const { data: apiCuenta, isLoading } = useCuenta();
   const updateMutation = useUpdateCuenta();
 
-  const cuentaData: CuentaData = false ? defaultCuenta : (apiCuenta ?? defaultCuenta);
+  const cuentaData: CuentaData = apiCuenta ?? defaultCuenta;
 
   const [form, setForm] = useState<CuentaData>(cuentaData);
 
   // Sync form when API data loads
   useEffect(() => {
-    if (!false && apiCuenta) {
+    if (apiCuenta) {
       setForm(apiCuenta);
     }
   }, [apiCuenta]);
@@ -38,11 +38,6 @@ const ClienteCuenta = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (false) {
-      toast.success('Datos actualizados correctamente');
-      return;
-    }
-
     updateMutation.mutate(form, {
       onSuccess: () => {
         toast.success('Datos actualizados correctamente');
@@ -53,7 +48,7 @@ const ClienteCuenta = () => {
     });
   };
 
-  if (isLoading && !false) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <CircleNotch size={24} weight="bold" className="animate-spin text-muted-foreground" />

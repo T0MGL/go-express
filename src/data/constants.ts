@@ -1,7 +1,6 @@
 /**
  * Shared constants: labels, colors, departamentos, payment methods.
- * These are NOT mock data. They are used in both production and mock mode.
- * Extracted from mockData.ts to allow production builds to tree-shake mock arrays.
+ * Used across all pages for consistent display of statuses and categories.
  */
 
 export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'success' | 'warning' | 'muted' | 'outline';

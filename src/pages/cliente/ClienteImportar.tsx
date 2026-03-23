@@ -124,16 +124,7 @@ const ClienteImportar = () => {
       return;
     }
 
-    if (false) {
-      setImportado(true);
-      toast({
-        title: `${filasValidas.length} envios importados correctamente`,
-        description: 'Los envios quedaron registrados y estan pendientes de procesamiento por Go Express.',
-      });
-      return;
-    }
-
-    // TODO: clienteId should come from auth context once integrated
+    // clienteId should come from auth context once integrated
     const clienteId = 'cli1';
 
     const envios: BulkImportEnvio[] = filasValidas.map((f) => ({

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type { AuditoriaLog } from '@/data/mockData';
 import {
-  mockAuditoriaLogs,
-  mockUsuarios,
-  AuditoriaLog,
   accionLabels,
   accionColors,
-} from '@/data/mockData';
+} from '@/data/constants';
 import {
   ShieldCheck,
   MagnifyingGlass,
@@ -57,7 +55,6 @@ const Auditoria = () => {
   const [filtroEntidad, setFiltroEntidad] = useState('todos');
   const [filtroFecha, setFiltroFecha] = useState('');
 
-  const useMock = false;
 
   // API hooks
   const apiFilters: Record<string, string | undefined> = {};
@@ -70,37 +67,9 @@ const Auditoria = () => {
   const { data: apiAuditoria, isLoading } = useAuditoria(apiFilters);
   const { data: apiUsuarios } = useUsuarios();
 
-  // Mock-derived data
-  const mockLogs = useMemo(() => {
-    return [...mockAuditoriaLogs].sort((a, b) => {
-      const da = new Date(`${a.fecha}T${a.hora}`).getTime();
-      const db = new Date(`${b.fecha}T${b.hora}`).getTime();
-      return db - da;
-    });
-  }, []);
-
-  const mockLogsFiltrados = useMemo(() => {
-    return mockLogs.filter((log) => {
-      if (filtroUsuario !== 'todos' && log.usuarioId !== filtroUsuario) return false;
-      if (filtroAccion !== 'todos' && log.accion !== filtroAccion) return false;
-      if (filtroEntidad !== 'todos' && log.entidad !== filtroEntidad) return false;
-      if (filtroFecha && log.fecha !== filtroFecha) return false;
-      if (busqueda) {
-        const q = busqueda.toLowerCase();
-        return (
-          log.descripcion.toLowerCase().includes(q) ||
-          (log.entidadId ?? '').toLowerCase().includes(q) ||
-          log.usuario.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [mockLogs, filtroUsuario, filtroAccion, filtroEntidad, filtroFecha, busqueda]);
-
-  // Resolve data
-  const logs = useMock ? mockLogs : (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
-  const logsFiltrados = useMock ? mockLogsFiltrados : (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
-  const totalCount = useMock ? mockLogs.length : (apiAuditoria?.pagination?.total ?? logs.length);
+  const logs = (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
+  const logsFiltrados = (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
+  const totalCount = apiAuditoria?.pagination?.total ?? logs.length;
 
   const exportarCSV = () => {
     const headers = ['Fecha', 'Hora', 'Usuario', 'Accion', 'Entidad', 'ID Entidad', 'Descripcion', 'Valor Anterior', 'Valor Nuevo'];
@@ -119,7 +88,7 @@ const Auditoria = () => {
     URL.revokeObjectURL(url);
   };
 
-  const usuariosUnicos = useMock ? mockUsuarios : (apiUsuarios ?? mockUsuarios);
+  const usuariosUnicos = apiUsuarios ?? [];
   const accionesUnicas = Object.keys(accionLabels) as AuditoriaLog['accion'][];
   const entidadesUnicas = Object.keys(entidadLabels) as AuditoriaLog['entidad'][];
 
@@ -216,7 +185,7 @@ const Auditoria = () => {
 
       {/* Log table */}
       <div className="surface-card overflow-hidden">
-        {!useMock && isLoading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>

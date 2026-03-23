@@ -27,10 +27,6 @@ const Dashboard = () => {
   // API data
   const { data: apiStats, isLoading } = useDashboardStats();
 
-  // Resolve data source (mock data is only loaded dynamically when needed)
-  const useMock = false;
-
-  // For production, only API data is used. No mock imports.
   const enviosHoy = apiStats?.enviosHoy ?? 0;
   const enTransito = apiStats?.enTransito ?? 0;
   const entregados = 0;
@@ -48,7 +44,7 @@ const Dashboard = () => {
   const animEnTransito = useAnimatedNumber(enTransito);
   const animTasa = useAnimatedNumber(Math.round(tasaEntregaNum));
 
-  if (!useMock && isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

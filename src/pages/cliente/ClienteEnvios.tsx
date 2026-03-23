@@ -6,7 +6,8 @@ import { Plus } from 'lucide-react';
 import { MagnifyingGlass, Eye, Package, CircleNotch, Barcode } from '@phosphor-icons/react';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import { toast } from 'sonner';
-import { mockEnvios, estadoLabels, type Envio } from '@/data/mockData';
+import { estadoLabels } from '@/data/constants';
+import type { Envio } from '@/data/mockData';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -47,21 +48,7 @@ const ClienteEnvios = () => {
     search: searchTerm,
   });
 
-  // Mock fallback: filter locally
-  const mockFiltered = mockEnvios.filter((e) => {
-    const s = searchTerm.toLowerCase();
-    const matchesSearch =
-      e.trackingNumber.toLowerCase().includes(s) ||
-      e.destinatarioNombre.toLowerCase().includes(s) ||
-      e.destino.toLowerCase().includes(s);
-    const matchesEstado = filterEstado === 'todos' || e.estado === filterEstado;
-    return matchesSearch && matchesEstado;
-  });
-
-  const envios: Envio[] = false ? mockFiltered : (apiData?.data ?? mockFiltered);
-
-  // For pill counts, use mock data when in mock mode
-  // Pill counts available via: apiData?.data ?? mockEnvios
+  const envios: Envio[] = apiData?.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -90,11 +77,7 @@ const ClienteEnvios = () => {
             }`}
           >
             {est.label}
-            {est.value !== 'todos' && false && (
-              <span className="ml-1.5 text-[11px] opacity-60">
-                {mockEnvios.filter(e => e.estado === est.value).length}
-              </span>
-            )}
+
           </button>
         ))}
       </div>
@@ -112,7 +95,7 @@ const ClienteEnvios = () => {
           </div>
         </div>
 
-        {isLoading && !false ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
           </div>

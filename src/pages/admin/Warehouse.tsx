@@ -32,7 +32,6 @@ import {
   estadoAlmacenLabels,
   estadoAlmacenColors,
 } from '@/data/constants';
-import { mockInventario } from '@/data/mockData';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import BarcodeScanner from '@/components/admin/BarcodeScanner';
@@ -67,7 +66,6 @@ export default function Warehouse() {
     motivo: ''
   });
 
-  const useMock = false;
 
   // API hooks
   const apiFilters: Record<string, string | undefined> = {};
@@ -80,44 +78,30 @@ export default function Warehouse() {
   const devolucionMut = useDevolucion();
 
   // Resolve data
-  const inventario = useMock ? mockInventario : (apiInventario?.data ?? []);
+  const inventario = apiInventario?.data ?? [];
 
-  const filteredInventario = useMock
-    ? mockInventario.filter(item => {
-        const search = searchTerm.toLowerCase();
-        return item.trackingNumber.toLowerCase().includes(search) ||
-               item.clienteNombre.toLowerCase().includes(search);
-      })
-    : inventario;
+  const filteredInventario = inventario;
 
   // Picking list with checked status
-  const readyItems = (useMock ? mockInventario : inventario).filter(i => i.estadoAlmacen === 'listo_despacho');
+  const readyItems = inventario.filter(i => i.estadoAlmacen === 'listo_despacho');
   const [pickingList, setPickingList] = useState(
     readyItems.map(item => ({ ...item, picked: false }))
   );
 
   // Stats
-  const stats = useMock
-    ? {
-        total: mockInventario.length,
-        ingresosHoy: mockInventario.filter(i => i.fechaIngreso === format(new Date(), 'yyyy-MM-dd')).length,
-        enAlmacen: mockInventario.filter(i => i.estadoAlmacen === 'en_almacen').length,
-        listos: mockInventario.filter(i => i.estadoAlmacen === 'listo_despacho').length,
-      }
-    : {
-        total: apiStats?.total ?? 0,
-        ingresosHoy: apiStats?.ingresosHoy ?? 0,
-        enAlmacen: apiStats?.enAlmacen ?? 0,
-        listos: apiStats?.listos ?? 0,
-      };
+  const stats = {
+    total: apiStats?.total ?? 0,
+    ingresosHoy: apiStats?.ingresosHoy ?? 0,
+    enAlmacen: apiStats?.enAlmacen ?? 0,
+    listos: apiStats?.listos ?? 0,
+  };
 
   const handleEntrySubmit = () => {
     if (!entryForm.tracking || !entryForm.cliente || !entryForm.peso) {
       toast.error('Completa todos los campos');
       return;
     }
-    if (!useMock) {
-      ingresoMut.mutate(
+    ingresoMut.mutate(
         {
           trackingNumber: entryForm.tracking,
           clienteNombre: entryForm.cliente,
@@ -132,11 +116,6 @@ export default function Warehouse() {
           onError: () => toast.error('Error al ingresar paquete'),
         },
       );
-    } else {
-      toast.success('Paquete ingresado al almacen');
-      setEntryOpen(false);
-      setEntryForm({ tracking: '', cliente: '', peso: '' });
-    }
   };
 
   const handleExitSubmit = () => {
@@ -144,8 +123,7 @@ export default function Warehouse() {
       toast.error('Escanea o ingresa el tracking');
       return;
     }
-    if (!useMock) {
-      despachoMut.mutate(
+    despachoMut.mutate(
         { paqueteId: exitTracking },
         {
           onSuccess: () => {
@@ -156,11 +134,6 @@ export default function Warehouse() {
           onError: () => toast.error('Error al despachar paquete'),
         },
       );
-    } else {
-      toast.success('Paquete despachado');
-      setExitOpen(false);
-      setExitTracking('');
-    }
   };
 
   const handleScanEntry = (code: string) => {
@@ -182,7 +155,7 @@ export default function Warehouse() {
   };
 
   const handleGeneratePickingList = () => {
-    const currentReadyItems = (useMock ? mockInventario : inventario).filter(i => i.estadoAlmacen === 'listo_despacho');
+    const currentReadyItems = inventario.filter(i => i.estadoAlmacen === 'listo_despacho');
     const sorted = [...currentReadyItems].sort((a, b) => a.ubicacion.localeCompare(b.ubicacion));
     setPickingList(sorted.map(item => ({ ...item, picked: false })));
     setPickingOpen(true);
@@ -194,8 +167,7 @@ export default function Warehouse() {
       toast.error('Completa todos los campos');
       return;
     }
-    if (!useMock) {
-      devolucionMut.mutate(
+    devolucionMut.mutate(
         {
           paqueteId: returnsForm.tracking,
           ubicacionDestino: 'Zona A - Estante 1',
@@ -210,20 +182,15 @@ export default function Warehouse() {
           onError: () => toast.error('Error al reingresar paquete'),
         },
       );
-    } else {
-      toast.success('Paquete devuelto reingresado al inventario');
-      setReturnsOpen(false);
-      setReturnsForm({ tracking: '', motivo: '' });
-    }
   };
 
   // Packing summary data
-  const todayDispatch = (useMock ? mockInventario : inventario).filter(i => i.estadoAlmacen === 'listo_despacho');
+  const todayDispatch = inventario.filter(i => i.estadoAlmacen === 'listo_despacho');
   const packingSummary = {
     totalEnvios: todayDispatch.length,
     pesoTotal: todayDispatch.reduce((sum, i) => sum + i.peso, 0).toFixed(1),
     destinos: [...new Set(todayDispatch.map(i => i.ubicacion.split('-')[0]))].length,
-    repartidores: 3 // Mock count
+    repartidores: 0
   };
 
   return (
@@ -500,7 +467,7 @@ export default function Warehouse() {
             />
           </div>
         </div>
-        {!useMock && isLoading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>

@@ -24,8 +24,12 @@ export function getClienteId(): string | null {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function request<T>(
@@ -38,8 +42,9 @@ async function request<T>(
     'Content-Type': 'application/json',
   };
 
-  // Add auth token
-  const token = await getAccessToken();
+  // Skip auth for public endpoints
+  const isPublic = endpoint.startsWith('/public');
+  const token = isPublic ? null : await getAccessToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }

@@ -6,14 +6,7 @@ import { Tag, PlusCircle, X, CircleNotch } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useTags, useCreateTag, useDeleteTag, type TagData } from '@/hooks/api/use-tags';
 
-const defaultTags: TagData[] = [
-  { id: 'mock-1', clienteId: 'cli1', nombre: 'Fragil', color: '#EF4444', envioCount: 5, creadoEn: '2026-02-10' },
-  { id: 'mock-2', clienteId: 'cli1', nombre: 'Urgente', color: '#0643F7', envioCount: 3, creadoEn: '2026-02-10' },
-  { id: 'mock-3', clienteId: 'cli1', nombre: 'Documentos', color: '#6B7280', envioCount: 8, creadoEn: '2026-02-10' },
-  { id: 'mock-4', clienteId: 'cli1', nombre: 'Electronicos', color: '#8B5CF6', envioCount: 4, creadoEn: '2026-02-10' },
-  { id: 'mock-5', clienteId: 'cli1', nombre: 'Ropa', color: '#10B981', envioCount: 12, creadoEn: '2026-02-10' },
-  { id: 'mock-6', clienteId: 'cli1', nombre: 'Alimentos', color: '#F59E0B', envioCount: 2, creadoEn: '2026-02-10' },
-];
+
 
 // Map hex color to a badge variant for display
 function colorToBadgeVariant(hex: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -24,7 +17,6 @@ function colorToBadgeVariant(hex: string): 'default' | 'secondary' | 'destructiv
 }
 
 const ClienteEtiquetas = () => {
-  const [localTags, setLocalTags] = useState(defaultTags);
   const [newTag, setNewTag] = useState('');
 
   // API hooks
@@ -32,25 +24,11 @@ const ClienteEtiquetas = () => {
   const createTagMutation = useCreateTag();
   const deleteTagMutation = useDeleteTag();
 
-  const tags: TagData[] = false ? localTags : (apiTags?.data ?? localTags);
+  const tags: TagData[] = apiTags?.data ?? [];
 
   const addTag = () => {
     const nombre = newTag.trim();
     if (!nombre || tags.find((t) => t.nombre.toLowerCase() === nombre.toLowerCase())) return;
-
-    if (false) {
-      setLocalTags((prev) => [...prev, {
-        id: `mock-${Date.now()}`,
-        clienteId: 'cli1',
-        nombre,
-        color: '#6B7280',
-        envioCount: 0,
-        creadoEn: new Date().toISOString(),
-      }]);
-      setNewTag('');
-      toast.success(`Etiqueta "${nombre}" creada`);
-      return;
-    }
 
     createTagMutation.mutate(
       { nombre, color: '#6B7280' },
@@ -67,12 +45,6 @@ const ClienteEtiquetas = () => {
   };
 
   const removeTag = (tag: TagData) => {
-    if (false) {
-      setLocalTags((prev) => prev.filter((t) => t.id !== tag.id));
-      toast.info(`Etiqueta "${tag.nombre}" eliminada`);
-      return;
-    }
-
     deleteTagMutation.mutate(tag.id, {
       onSuccess: () => {
         toast.info(`Etiqueta "${tag.nombre}" eliminada`);
@@ -118,7 +90,7 @@ const ClienteEtiquetas = () => {
       <div className="surface-card p-5">
         <p className="section-label mb-4">Mis Etiquetas</p>
 
-        {isLoading && !false ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
           </div>

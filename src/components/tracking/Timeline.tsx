@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { MapPin, Clock } from '@phosphor-icons/react';
 
-// Accepts both full EventoEnvio (mock) and limited PublicTrackingEvent (API)
+// Accepts both full EventoEnvio and limited PublicTrackingEvent
 interface TimelineEvent {
   id?: string;
   estado: string;

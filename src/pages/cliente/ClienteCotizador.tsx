@@ -11,57 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockTarifas, Tarifa, tipoServicioLabels } from '@/data/mockData';
+import { tipoServicioLabels } from '@/data/constants';
+import type { Tarifa } from '@/data/mockData';
 import { formatCurrency } from '@/lib/utils';
 import { Calculator, Package, Truck, Info, CheckCircle, ArrowRight, CircleNotch } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { useCiudadesDisponibles, useCotizar, type CotizarResponse } from '@/hooks/api/use-cotizador';
 
-// Mock fallback cities
-const mockCiudadesDisponibles = [...new Set([
-  ...mockTarifas.filter((t) => !t.eliminado).map((t) => t.origen),
-  ...mockTarifas.filter((t) => !t.eliminado).map((t) => t.destino),
-])].sort();
-
-interface ResultadoCotizacion {
-  tarifa: Tarifa;
-  pesoReal: number;
-  pesoVolumetrico: number;
-  pesoTarificado: number;
-  esVolumetrico: boolean;
-  pesoExtra: number;
-  costoBase: number;
-  costoExtra: number;
-  costoTotal: number;
-}
-
-const calcularCotizacion = (
-  tarifa: Tarifa,
-  pesoKg: number,
-  largo: number,
-  ancho: number,
-  alto: number
-): ResultadoCotizacion => {
-  const pesoVolumetrico = (largo * ancho * alto) / tarifa.factorDimensional;
-  const pesoTarificado = Math.max(pesoKg, pesoVolumetrico);
-  const esVolumetrico = pesoVolumetrico > pesoKg;
-  const pesoExtra = Math.max(0, pesoTarificado - tarifa.pesoBase);
-  const costoBase = tarifa.precioBase;
-  const costoExtra = pesoExtra * tarifa.precioPorKgExtra;
-  return {
-    tarifa,
-    pesoReal: pesoKg,
-    pesoVolumetrico: Math.round(pesoVolumetrico * 100) / 100,
-    pesoTarificado: Math.round(pesoTarificado * 100) / 100,
-    esVolumetrico,
-    pesoExtra: Math.round(pesoExtra * 100) / 100,
-    costoBase,
-    costoExtra,
-    costoTotal: costoBase + costoExtra,
-  };
-};
-
-// Adapter: convert API result to display format
+// Display format for cotizacion results
 interface DisplayResultado {
   tipoServicio: string;
   pesoReal: number;
@@ -85,40 +42,15 @@ const ClienteCotizador = () => {
   const [ancho, setAncho] = useState('');
   const [alto, setAlto] = useState('');
   const [cotizando, setCotizando] = useState(false);
-  const [mockResultados, setMockResultados] = useState<ResultadoCotizacion[]>([]);
 
   // API hooks
   const { data: apiCiudades } = useCiudadesDisponibles();
   const cotizarMutation = useCotizar();
 
-  const ciudadesDisponibles = false
-    ? mockCiudadesDisponibles
-    : (apiCiudades ?? mockCiudadesDisponibles);
+  const ciudadesDisponibles = apiCiudades ?? [];
 
-  const tarifasDisponibles = useMemo(() => {
-    if (!origen || !destino) return [];
-    return mockTarifas.filter(
-      (t) => !t.eliminado && t.activo && t.origen === origen && t.destino === destino
-    );
-  }, [origen, destino]);
-
-  // Compute display results depending on mode
+  // Compute display results
   const displayResultados: DisplayResultado[] = useMemo(() => {
-    if (false) {
-      return mockResultados.map((r) => ({
-        tipoServicio: r.tarifa.tipoServicio,
-        pesoReal: r.pesoReal,
-        pesoVolumetrico: r.pesoVolumetrico,
-        pesoTarificado: r.pesoTarificado,
-        esVolumetrico: r.esVolumetrico,
-        pesoExtra: r.pesoExtra,
-        costoBase: r.costoBase,
-        costoExtra: r.costoExtra,
-        costoTotal: r.costoTotal,
-        pesoBase: r.tarifa.pesoBase,
-        precioPorKgExtra: r.tarifa.precioPorKgExtra,
-      }));
-    }
     const r = cotizarMutation.data as CotizarResponse | undefined;
     if (!r) return [];
     return [{
@@ -134,22 +66,10 @@ const ClienteCotizador = () => {
       pesoBase: 0,
       precioPorKgExtra: 0,
     }];
-  }, [mockResultados, cotizarMutation.data, false]);
+  }, [cotizarMutation.data]);
 
   const cotizar = () => {
     if (!origen || !destino || !peso) return;
-
-    if (false) {
-      const p = parseFloat(peso) || 0;
-      const l = parseFloat(largo) || 0;
-      const a = parseFloat(ancho) || 0;
-      const al = parseFloat(alto) || 0;
-      if (p > 0) {
-        setMockResultados(tarifasDisponibles.map((t) => calcularCotizacion(t, p, l, a, al)));
-      }
-      setCotizando(true);
-      return;
-    }
 
     const l = parseFloat(largo) || 0;
     const a = parseFloat(ancho) || 0;
@@ -173,7 +93,6 @@ const ClienteCotizador = () => {
 
   const resetear = () => {
     setCotizando(false);
-    setMockResultados([]);
     setOrigen('');
     setDestino('');
     setPeso('');
@@ -194,13 +113,8 @@ const ClienteCotizador = () => {
   const pesoRealNum = parseFloat(peso) || 0;
   const esTarificadoVol = pesoVolPreview !== null && pesoVolPreview > pesoRealNum;
 
-  // In mock mode, check route availability locally; in API mode the backend handles it
-  const noTarifasDisponibles = false
-    ? (origen && destino && tarifasDisponibles.length === 0)
-    : false;
-  const canCotizar = false
-    ? (!(!origen || !destino || !peso || tarifasDisponibles.length === 0))
-    : (!(!origen || !destino || !peso));
+  const noTarifasDisponibles = false;
+  const canCotizar = !(!origen || !destino || !peso);
 
   return (
     <div>

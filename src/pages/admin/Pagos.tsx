@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockEnvios } from '@/data/mockData';
+
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { exportToCSV } from '@/lib/exportCSV';
 import { Link } from 'react-router-dom';
 import { DownloadSimple, Eye, CurrencyDollar, Clock, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { toast } from 'sonner';
-import { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/mockData';
 import { usePagos, usePagoStats } from '@/hooks/api/use-pagos';
 
 const Pagos = () => {
@@ -18,8 +18,6 @@ const Pagos = () => {
   const [selectedEnvio, setSelectedEnvio] = useState<Envio | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-  const useMock = false;
-  const today = new Date().toISOString().split('T')[0];
 
   // API hooks
   const apiFilters: Record<string, string | undefined> = {};
@@ -29,31 +27,11 @@ const Pagos = () => {
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();
 
-  // Mock-derived data
-  const mockEnviosFiltrados = mockEnvios.filter(envio => {
-    if (filtroEstado !== 'todos' && envio.pago?.estadoPago !== filtroEstado) return false;
-    if (filtroMetodo !== 'todos' && envio.pago?.metodoPago !== filtroMetodo) return false;
-    return true;
-  });
-
-  const mockTotalCobrado = mockEnvios
-    .filter(e => e.pago?.estadoPago === 'pagado')
-    .reduce((sum, e) => sum + (e.pago?.montoRecibido || 0), 0);
-
-  const mockTotalPendiente = mockEnvios
-    .filter(e => e.pago?.estadoPago !== 'pagado')
-    .reduce((sum, e) => sum + ((e.costo || 0) - (e.pago?.montoRecibido || 0)), 0);
-
-  const mockCobradoHoy = mockEnvios
-    .filter(e => e.pago?.estadoPago === 'pagado' && e.pago?.fechaPago === today)
-    .reduce((sum, e) => sum + (e.pago?.montoRecibido || 0), 0);
-
-  // Resolve data
-  const enviosFiltrados = useMock ? mockEnviosFiltrados : (apiPagos?.data ?? []) as unknown as Envio[];
-  const totalCobrado = useMock ? mockTotalCobrado : (apiStats?.totalCobrado ?? 0);
-  const totalPendiente = useMock ? mockTotalPendiente : (apiStats?.totalPendiente ?? 0);
-  const cobradoHoy = useMock ? mockCobradoHoy : (apiStats?.cobradoHoy ?? 0);
-  const totalCount = useMock ? mockEnvios.length : (apiPagos?.pagination?.total ?? enviosFiltrados.length);
+  const enviosFiltrados = (apiPagos?.data ?? []) as unknown as Envio[];
+  const totalCobrado = apiStats?.totalCobrado ?? 0;
+  const totalPendiente = apiStats?.totalPendiente ?? 0;
+  const cobradoHoy = apiStats?.cobradoHoy ?? 0;
+  const totalCount = apiPagos?.pagination?.total ?? enviosFiltrados.length;
 
   const handleCobrar = (envio: Envio) => {
     setSelectedEnvio(envio);
@@ -178,7 +156,7 @@ const Pagos = () => {
             </Select>
           </div>
 
-          {!useMock && isLoading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { departamentosPY, mockClientes } from '@/data/mockData';
+import { departamentosPY } from '@/data/constants';
 import {
   CaretLeft,
   CaretRight,
@@ -82,31 +82,17 @@ const PASOS = [
   { numero: 5, titulo: 'Pago', icon: CreditCard, descripcion: 'Informacion de pago' },
 ];
 
-// Solo clientes activos pueden generar envios (mock fallback)
-const MOCK_CLIENTES = mockClientes
-  .filter(c => c.estado === 'activo')
-  .map(c => ({
-    value: c.id,
-    label: c.razonSocial,
-    contacto: c.contactoNombre,
-    telefono: c.telefono,
-  }));
-
 export function EnvioWizard() {
   const navigate = useNavigate();
   const [pasoActual, setPasoActual] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const useMock = false;
 
   // API hooks
   const { data: apiClientes } = useClientes({ estado: 'activo' });
   const createEnvioMut = useCreateEnvio();
 
-  // Resolve clientes list
-  const CLIENTES = useMock
-    ? MOCK_CLIENTES
-    : (apiClientes?.data ?? []).map(c => ({
+  const CLIENTES = (apiClientes?.data ?? []).map(c => ({
         value: c.id,
         label: c.razonSocial,
         contacto: c.contactoNombre,
@@ -265,8 +251,7 @@ export function EnvioWizard() {
 
     setIsSubmitting(true);
 
-    if (!useMock) {
-      createEnvioMut.mutate(
+    createEnvioMut.mutate(
         {
           clienteId: formData.cliente,
           origen: formData.origen,
@@ -300,19 +285,6 @@ export function EnvioWizard() {
           },
         },
       );
-    } else {
-      // Simular guardado
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const mensaje = formData.tipoPago === 'anticipado'
-        ? 'Envio creado con pago anticipado'
-        : 'Envio creado exitosamente';
-
-      toast.success(mensaje);
-      localStorage.removeItem('envio-borrador');
-      setIsSubmitting(false);
-      navigate('/admin/envios');
-    }
   };
 
   const clienteSeleccionado = CLIENTES.find(c => c.value === formData.cliente);

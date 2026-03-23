@@ -1,16 +1,5 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  mockClientes, departamentosPY, Cliente,
-  estadoClienteLabels, estadoClienteColors,
-  portalStatusLabels, portalStatusColors,
-} from '@/data/mockData';
+import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
+import type { Cliente } from '@/data/mockData';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
   MagnifyingGlass, Buildings, Phone, EnvelopeSimple, UserCircle,
@@ -34,7 +23,6 @@ const Clientes = () => {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null);
 
-  const useMock = false;
 
   // API hooks
   const apiFilters: Record<string, string | undefined> = {};
@@ -49,36 +37,17 @@ const Clientes = () => {
   const resetPwMut = useResetClientePassword();
 
   // Resolve data
-  const allClientes = useMock ? mockClientes : (apiClientes?.data ?? []);
+  const allClientes = apiClientes?.data ?? [];
 
-  const filteredClientes = useMock
-    ? mockClientes.filter((c) => {
-        const q = searchTerm.toLowerCase();
-        const matchesSearch =
-          c.razonSocial.toLowerCase().includes(q) ||
-          c.ruc.toLowerCase().includes(q) ||
-          c.contactoNombre.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q);
-        const matchesEstado = filterEstado === 'todos' || c.estado === filterEstado;
-        return matchesSearch && matchesEstado;
-      })
-    : allClientes;
+  const filteredClientes = allClientes;
 
-  const totales = useMock
-    ? {
-        activos: mockClientes.filter(c => c.estado === 'activo').length,
-        totalEnvios: mockClientes.reduce((sum, c) => sum + c.totalEnvios, 0),
-        deudaTotal: mockClientes
-          .filter(c => c.saldoCuentaCorriente < 0)
-          .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente), 0),
-      }
-    : {
-        activos: allClientes.filter(c => c.estado === 'activo').length,
-        totalEnvios: allClientes.reduce((sum, c) => sum + (c.totalEnvios ?? 0), 0),
-        deudaTotal: allClientes
-          .filter(c => (c.saldoCuentaCorriente ?? 0) < 0)
-          .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente ?? 0), 0),
-      };
+  const totales = {
+    activos: allClientes.filter(c => c.estado === 'activo').length,
+    totalEnvios: allClientes.reduce((sum, c) => sum + (c.totalEnvios ?? 0), 0),
+    deudaTotal: allClientes
+      .filter(c => (c.saldoCuentaCorriente ?? 0) < 0)
+      .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente ?? 0), 0),
+  };
 
   const handleExport = () => {
     const columns = [
@@ -115,30 +84,25 @@ const Clientes = () => {
       notas: fd.get('notas'),
     };
 
-    if (!useMock) {
-      if (selectedCliente) {
-        updateMut.mutate(
-          { id: selectedCliente.id, ...body },
-          {
-            onSuccess: () => {
-              setIsModalOpen(false);
-              toast.success('Cliente actualizado');
-            },
-            onError: () => toast.error('Error al actualizar cliente'),
-          },
-        );
-      } else {
-        createMut.mutate(body, {
+    if (selectedCliente) {
+      updateMut.mutate(
+        { id: selectedCliente.id, ...body },
+        {
           onSuccess: () => {
             setIsModalOpen(false);
-            toast.success('Cliente creado correctamente');
+            toast.success('Cliente actualizado');
           },
-          onError: () => toast.error('Error al crear cliente'),
-        });
-      }
+          onError: () => toast.error('Error al actualizar cliente'),
+        },
+      );
     } else {
-      setIsModalOpen(false);
-      toast.success(selectedCliente ? 'Cliente actualizado' : 'Cliente creado correctamente');
+      createMut.mutate(body, {
+        onSuccess: () => {
+          setIsModalOpen(false);
+          toast.success('Cliente creado correctamente');
+        },
+        onError: () => toast.error('Error al crear cliente'),
+      });
     }
   };
 
@@ -271,7 +235,7 @@ const Clientes = () => {
         </div>
 
         {/* Loading */}
-        {!useMock && isLoading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>

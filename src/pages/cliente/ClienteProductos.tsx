@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { mockProductosGuardados, type ProductoGuardado } from '@/data/mockData';
+import type { ProductoGuardado } from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/api/use-productos';
 
 const ClienteProductos = () => {
-  const [localProductos, setLocalProductos] = useState<ProductoGuardado[]>(mockProductosGuardados);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductoGuardado | null>(null);
@@ -44,9 +44,7 @@ const ClienteProductos = () => {
   const updateMutation = useUpdateProducto();
   const deleteMutation = useDeleteProducto();
 
-  const productos: ProductoGuardado[] = false
-    ? localProductos
-    : (apiProductos?.data ?? localProductos);
+  const productos: ProductoGuardado[] = apiProductos?.data ?? [];
 
   const filtered = productos.filter((p) => {
     const q = searchTerm.toLowerCase();
@@ -75,12 +73,6 @@ const ClienteProductos = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (false) {
-      setLocalProductos((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Producto eliminado');
-      return;
-    }
-
     deleteMutation.mutate(id, {
       onSuccess: () => toast.success('Producto eliminado'),
       onError: () => toast.error('Error al eliminar el producto'),
@@ -98,28 +90,6 @@ const ClienteProductos = () => {
       fragil: form.fragil,
       valorDeclarado: form.valorDeclarado ? Number(form.valorDeclarado) : undefined,
     };
-
-    if (false) {
-      if (editingProduct !== null) {
-        setLocalProductos((prev) =>
-          prev.map((p) =>
-            p.id === editingProduct?.id ? { ...p, ...productData } : p
-          ),
-        );
-        toast.success('Producto actualizado');
-      } else {
-        const newProduct: ProductoGuardado = {
-          id: `prod_${Date.now()}`,
-          clienteId: 'cli1',
-          ...productData,
-          creadoEn: new Date().toISOString().split('T')[0],
-        };
-        setLocalProductos((prev) => [newProduct, ...prev]);
-        toast.success('Producto guardado');
-      }
-      setIsModalOpen(false);
-      return;
-    }
 
     if (editingProduct) {
       updateMutation.mutate(
@@ -187,7 +157,7 @@ const ClienteProductos = () => {
       )}
 
       {/* Product grid */}
-      {isLoading && !false ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
         </div>

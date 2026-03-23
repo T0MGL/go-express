@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockEnvios, mockRepartidores, estadoLabels, estadoColors, estadosPagoColors } from '@/data/mockData';
+import { estadoLabels, estadoColors, estadosPagoColors } from '@/data/constants';
 import { Plus, Download, ArrowUpRight } from 'lucide-react';
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportCSV';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/mockData';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEnvios } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
@@ -30,28 +30,11 @@ const EnviosList = () => {
   const { data: apiEnvios, isLoading: loadingEnvios } = useEnvios(apiFilters);
   const { data: apiRepartidores } = useRepartidores();
 
-  const useMock = false;
+  const repartidores = apiRepartidores?.data ?? [];
 
-  // Repartidores list
-  const repartidores = useMock
-    ? mockRepartidores
-    : (apiRepartidores?.data ?? []);
+  const filteredEnvios = apiEnvios?.data ?? [];
 
-  // Envios list - mock uses client-side filtering, API uses server-side
-  const filteredEnvios = useMock
-    ? mockEnvios.filter((envio) => {
-        const matchesSearch = envio.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          envio.clienteNombre.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterEstado === 'todos' || envio.estado === filterEstado;
-        const matchesRepartidor =
-          filterRepartidor === 'todos' ||
-          (filterRepartidor === 'sin_asignar' && !envio.repartidorId) ||
-          envio.repartidorId === filterRepartidor;
-        return matchesSearch && matchesFilter && matchesRepartidor;
-      })
-    : (apiEnvios?.data ?? []);
-
-  const totalCount = useMock ? mockEnvios.length : (apiEnvios?.pagination?.total ?? filteredEnvios.length);
+  const totalCount = apiEnvios?.pagination?.total ?? filteredEnvios.length;
 
   const getInitials = (nombre: string) => {
     return nombre
@@ -150,7 +133,7 @@ const EnviosList = () => {
             </div>
           </div>
 
-          {!useMock && loadingEnvios ? (
+          {loadingEnvios ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>

@@ -7,7 +7,7 @@ import { Timeline } from '@/components/tracking/Timeline';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { ProblemaModal } from '@/components/admin/ProblemaModal';
 import { NotasInternas } from '@/components/admin/NotasInternas';
-import { mockEnvios, mockRepartidores, estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels } from '@/data/mockData';
+import { estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels } from '@/data/constants';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import {
   CaretLeft,
@@ -42,8 +42,6 @@ const EnvioDetail = () => {
   const [isProblemaModalOpen, setIsProblemaModalOpen] = useState(false);
   const [showRepartidorModal, setShowRepartidorModal] = useState(false);
 
-  const useMock = false;
-
   // API hooks
   const { data: apiEnvio, isLoading } = useEnvio(id);
   const { data: apiRepartidores } = useRepartidores();
@@ -53,11 +51,8 @@ const EnvioDetail = () => {
   const agregarNotaMut = useAgregarNota();
   void useCreatePago();
 
-  // Resolve data
-  const envio = useMock ? mockEnvios.find((e) => e.id === id) : apiEnvio;
-  const repartidoresList = useMock
-    ? mockRepartidores
-    : (apiRepartidores?.data ?? []);
+  const envio = apiEnvio;
+  const repartidoresList = apiRepartidores?.data ?? [];
 
   const repartidor = envio?.repartidorId
     ? repartidoresList.find(r => r.id === envio.repartidorId)
@@ -73,7 +68,7 @@ const EnvioDetail = () => {
   };
 
   // Loading state (API mode only)
-  if (!useMock && isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -105,7 +100,7 @@ const EnvioDetail = () => {
   }
 
   const handleUpdateStatus = () => {
-    if (!useMock && id) {
+    if (id) {
       updateEstadoMut.mutate(
         { id, estado: 'en_transito', descripcion: 'Estado actualizado manualmente' },
         {
@@ -113,8 +108,6 @@ const EnvioDetail = () => {
           onError: () => toast.error('Error al actualizar estado'),
         },
       );
-    } else {
-      toast.success('Estado actualizado');
     }
   };
 
@@ -134,7 +127,7 @@ const EnvioDetail = () => {
   };
 
   const handleProblemaRegistered = (descripcion: string) => {
-    if (!useMock && id) {
+    if (id) {
       reportarProbMut.mutate(
         { id, descripcion },
         {
@@ -145,14 +138,11 @@ const EnvioDetail = () => {
           onError: () => toast.error('Error al reportar problema'),
         },
       );
-    } else {
-      toast.success('Problema registrado correctamente');
-      setIsProblemaModalOpen(false);
     }
   };
 
   const handleNotaAdded = (texto: string) => {
-    if (!useMock && id) {
+    if (id) {
       agregarNotaMut.mutate(
         { id, texto },
         {
@@ -160,13 +150,11 @@ const EnvioDetail = () => {
           onError: () => toast.error('Error al agregar nota'),
         },
       );
-    } else {
-      toast.success('Nota agregada correctamente');
     }
   };
 
   const handleAsignarRepartidor = (repartidorId: string) => {
-    if (!useMock && id) {
+    if (id) {
       asignarRepMut.mutate(
         { id, repartidorId },
         {
@@ -177,9 +165,6 @@ const EnvioDetail = () => {
           onError: () => toast.error('Error al asignar repartidor'),
         },
       );
-    } else {
-      toast.success('Repartidor asignado correctamente');
-      setShowRepartidorModal(false);
     }
   };
 

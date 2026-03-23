@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { mockUsuarios, estadoLabels } from '@/data/mockData';
+import { estadoLabels } from '@/data/constants';
 import { Plus } from 'lucide-react';
 import { PencilSimple, Trash, UserPlus } from '@phosphor-icons/react';
 import { useUsuarios, useCreateUsuario } from '@/hooks/api/use-usuarios';
@@ -22,59 +22,48 @@ const Configuracion = () => {
     'Hola {customer_name},\n\nTu envio con numero de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
   );
 
-  const useMock = false;
-
   // API hooks
   const { data: apiUsuarios, isLoading: isLoadingUsuarios } = useUsuarios();
   useConfiguracion();
   const createUsuarioMut = useCreateUsuario();
   const updateConfigMut = useUpdateConfiguracion();
 
-  // Resolve data
-  const usuarios = useMock ? mockUsuarios : (apiUsuarios ?? mockUsuarios);
+  const usuarios = apiUsuarios ?? [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!useMock) {
-      const form = e.target as HTMLFormElement;
-      const fd = new FormData(form);
-      createUsuarioMut.mutate(
-        {
-          nombre: fd.get('nombre') as string,
-          email: fd.get('email') as string,
-          rol: fd.get('rol') as string,
+    const form = e.target as HTMLFormElement;
+    const fd = new FormData(form);
+    createUsuarioMut.mutate(
+      {
+        nombre: fd.get('nombre') as string,
+        email: fd.get('email') as string,
+        rol: fd.get('rol') as string,
+      },
+      {
+        onSuccess: () => {
+          setIsInviteModalOpen(false);
+          toast.success('Usuario invitado correctamente');
         },
-        {
-          onSuccess: () => {
-            setIsInviteModalOpen(false);
-            toast.success('Usuario invitado correctamente');
-          },
-          onError: () => toast.error('Error al invitar usuario'),
-        },
-      );
-    } else {
-      setIsInviteModalOpen(false);
-    }
+        onError: () => toast.error('Error al invitar usuario'),
+      },
+    );
   };
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!useMock) {
-      const form = e.target as HTMLFormElement;
-      const fd = new FormData(form);
-      const telefono = fd.get('telefono') as string;
-      const email = fd.get('email') as string;
-      const direccion = fd.get('direccion') as string;
-      Promise.all([
-        updateConfigMut.mutateAsync({ key: 'telefono', value: telefono }),
-        updateConfigMut.mutateAsync({ key: 'email', value: email }),
-        updateConfigMut.mutateAsync({ key: 'direccion', value: direccion }),
-      ])
-        .then(() => toast.success('Configuracion guardada'))
-        .catch(() => toast.error('Error al guardar configuracion'));
-    } else {
-      toast.success('Configuracion guardada');
-    }
+    const form = e.target as HTMLFormElement;
+    const fd = new FormData(form);
+    const telefono = fd.get('telefono') as string;
+    const email = fd.get('email') as string;
+    const direccion = fd.get('direccion') as string;
+    Promise.all([
+      updateConfigMut.mutateAsync({ key: 'telefono', value: telefono }),
+      updateConfigMut.mutateAsync({ key: 'email', value: email }),
+      updateConfigMut.mutateAsync({ key: 'direccion', value: direccion }),
+    ])
+      .then(() => toast.success('Configuracion guardada'))
+      .catch(() => toast.error('Error al guardar configuracion'));
   };
 
   return (
@@ -223,7 +212,7 @@ const Configuracion = () => {
               </Button>
             </div>
 
-            {!useMock && isLoadingUsuarios ? (
+            {isLoadingUsuarios ? (
               <div className="flex items-center justify-center py-16">
                 <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>

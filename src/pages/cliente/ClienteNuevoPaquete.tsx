@@ -5,7 +5,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { departamentosPY, mockProductosGuardados, type ProductoGuardado } from '@/data/mockData';
+import { departamentosPY } from '@/data/constants';
+import type { ProductoGuardado } from '@/data/mockData';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, CircleNotch } from '@phosphor-icons/react';
@@ -32,9 +33,7 @@ const ClienteNuevoPaquete = () => {
   const createEnvioMutation = useClienteCreateEnvio();
   const { data: apiProductos } = useProductos();
 
-  const productos: ProductoGuardado[] = false
-    ? mockProductosGuardados
-    : (apiProductos?.data ?? mockProductosGuardados);
+  const productos: ProductoGuardado[] = apiProductos?.data ?? [];
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -54,12 +53,6 @@ const ClienteNuevoPaquete = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (false) {
-      toast.success('Paquete registrado exitosamente. Se generara tu numero de tracking.');
-      navigate('/cliente/envios');
-      return;
-    }
 
     createEnvioMutation.mutate(
       {

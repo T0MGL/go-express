@@ -1,30 +1,5 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import {
-  mockTarifas,
-  Tarifa,
-  tipoServicioLabels,
-  departamentosPY,
-} from '@/data/mockData';
+import { tipoServicioLabels, tipoServicioColors } from '@/data/constants';
+import type { Tarifa } from '@/data/mockData';
 import { formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
 import {
@@ -80,10 +55,7 @@ const emptyForm: Partial<Tarifa> = {
 
 const Tarifas = () => {
   const { toast } = useToast();
-  const useMock = false;
 
-  // Local state for mock mode
-  const [localTarifas, setLocalTarifas] = useState<Tarifa[]>(mockTarifas);
   const [busqueda, setBusqueda] = useState('');
   const [mostrarEliminadas, setMostrarEliminadas] = useState(false);
 
@@ -106,7 +78,7 @@ const Tarifas = () => {
   const restoreMut = useRestoreTarifa();
 
   // Resolve data
-  const tarifas = useMock ? localTarifas : (apiTarifas?.data ?? []);
+  const tarifas = apiTarifas?.data ?? [];
 
   const tarifasFiltradas = tarifas.filter((t) => {
     if (!mostrarEliminadas && t.eliminado) return false;
@@ -136,62 +108,37 @@ const Tarifas = () => {
       return;
     }
 
-    if (!useMock) {
-      const body = {
-        origen: form.origen,
-        destino: form.destino,
-        tipoServicio: form.tipoServicio,
-        precioBase: form.precioBase,
-        pesoBase: form.pesoBase,
-        precioPorKgExtra: form.precioPorKgExtra,
-        factorDimensional: form.factorDimensional,
-      };
+    const body = {
+      origen: form.origen,
+      destino: form.destino,
+      tipoServicio: form.tipoServicio,
+      precioBase: form.precioBase,
+      pesoBase: form.pesoBase,
+      precioPorKgExtra: form.precioPorKgExtra,
+      factorDimensional: form.factorDimensional,
+    };
 
-      if (editando) {
-        updateMut.mutate(
-          { id: editando.id, ...body },
-          {
-            onSuccess: () => {
-              sonnerToast.success('Tarifa actualizada correctamente');
-              setModalOpen(false);
-            },
-            onError: () => sonnerToast.error('Error al actualizar tarifa'),
-          },
-        );
-      } else {
-        createMut.mutate(body, {
+    if (editando) {
+      updateMut.mutate(
+        { id: editando.id, ...body },
+        {
           onSuccess: () => {
-            sonnerToast.success('Tarifa creada correctamente');
+            sonnerToast.success('Tarifa actualizada correctamente');
             setModalOpen(false);
           },
-          onError: () => sonnerToast.error('Error al crear tarifa'),
-        });
-      }
+          onError: () => sonnerToast.error('Error al actualizar tarifa'),
+        },
+      );
     } else {
-      // Mock mode
-      if (editando) {
-        setLocalTarifas((prev) =>
-          prev.map((t) =>
-            t.id === editando.id
-              ? { ...t, ...form, creadoPor: t.creadoPor, creadoEn: t.creadoEn }
-              : t
-          )
-        );
-        toast({ title: 'Tarifa actualizada correctamente' });
-      } else {
-        const nueva: Tarifa = {
-          ...(form as Tarifa),
-          id: `t${Date.now()}`,
-          creadoPor: USUARIO_ACTUAL,
-          creadoEn: new Date().toISOString(),
-          activo: true,
-          eliminado: false,
-        };
-        setLocalTarifas((prev) => [nueva, ...prev]);
-        toast({ title: 'Tarifa creada correctamente' });
-      }
-      setModalOpen(false);
+      createMut.mutate(body, {
+        onSuccess: () => {
+          sonnerToast.success('Tarifa creada correctamente');
+          setModalOpen(false);
+        },
+        onError: () => sonnerToast.error('Error al crear tarifa'),
+      });
     }
+    setModalOpen(false);
   };
 
   const confirmarEliminar = () => {
@@ -200,55 +147,24 @@ const Tarifas = () => {
       return;
     }
 
-    if (!useMock) {
-      deleteMut.mutate(
-        { id: deleteModal.tarifa.id, motivo: motivoEliminacion.trim() },
-        {
-          onSuccess: () => {
-            sonnerToast.success('Tarifa desactivada. Registro conservado en el sistema.');
-            setDeleteModal({ open: false, tarifa: null });
-            setMotivoEliminacion('');
-          },
-          onError: () => sonnerToast.error('Error al desactivar tarifa'),
+    deleteMut.mutate(
+      { id: deleteModal.tarifa.id, motivo: motivoEliminacion.trim() },
+      {
+        onSuccess: () => {
+          sonnerToast.success('Tarifa desactivada. Registro conservado en el sistema.');
+          setDeleteModal({ open: false, tarifa: null });
+          setMotivoEliminacion('');
         },
-      );
-    } else {
-      setLocalTarifas((prev) =>
-        prev.map((t) =>
-          t.id === deleteModal.tarifa!.id
-            ? {
-                ...t,
-                activo: false,
-                eliminado: true,
-                eliminadoPor: USUARIO_ACTUAL,
-                eliminadoEn: new Date().toISOString(),
-                motivoEliminacion: motivoEliminacion.trim(),
-              }
-            : t
-        )
-      );
-      toast({ title: 'Tarifa desactivada. Registro conservado en el sistema.' });
-      setDeleteModal({ open: false, tarifa: null });
-      setMotivoEliminacion('');
-    }
+        onError: () => sonnerToast.error('Error al desactivar tarifa'),
+      },
+    );
   };
 
   const restaurar = (id: string) => {
-    if (!useMock) {
-      restoreMut.mutate(id, {
-        onSuccess: () => sonnerToast.success('Tarifa restaurada'),
-        onError: () => sonnerToast.error('Error al restaurar tarifa'),
-      });
-    } else {
-      setLocalTarifas((prev) =>
-        prev.map((t) =>
-          t.id === id
-            ? { ...t, activo: true, eliminado: false, eliminadoPor: undefined, eliminadoEn: undefined, motivoEliminacion: undefined }
-            : t
-        )
-      );
-      toast({ title: 'Tarifa restaurada' });
-    }
+    restoreMut.mutate(id, {
+      onSuccess: () => sonnerToast.success('Tarifa restaurada'),
+      onError: () => sonnerToast.error('Error al restaurar tarifa'),
+    });
   };
 
   const activas = tarifas.filter((t) => !t.eliminado).length;
@@ -304,7 +220,7 @@ const Tarifas = () => {
 
       {/* Tabla */}
       <div className="surface-card overflow-hidden">
-        {!useMock && isLoading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>

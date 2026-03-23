@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { mockRepartidores, mockEnvios, estadoLabels } from '@/data/mockData';
+import { estadoLabels } from '@/data/constants';
 import { Plus } from 'lucide-react';
 import { Eye, PencilSimple, UserMinus, UsersThree } from '@phosphor-icons/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -21,7 +21,6 @@ const Repartidores = () => {
   const [selectedRepartidor, setSelectedRepartidor] = useState<string | null>(null);
   const [showEnviosModal, setShowEnviosModal] = useState(false);
 
-  const useMock = false;
 
   // API hooks
   const apiFilters: Record<string, string | undefined> = {};
@@ -29,26 +28,19 @@ const Repartidores = () => {
 
   const { data: apiRepartidores, isLoading } = useRepartidores(apiFilters);
   const { data: apiEnviosAsignados } = useRepartidorEnvios(
-    !useMock && selectedRepartidor && showEnviosModal ? selectedRepartidor : undefined,
+    selectedRepartidor && showEnviosModal ? selectedRepartidor : undefined,
   );
   const createMut = useCreateRepartidor();
   const toggleEstadoMut = useToggleRepartidorEstado();
 
   // Resolve data
-  const allRepartidores = useMock ? mockRepartidores : (apiRepartidores?.data ?? []);
+  const allRepartidores = apiRepartidores?.data ?? [];
 
-  const filteredRepartidores = useMock
-    ? mockRepartidores.filter((repartidor) => {
-        if (filterEstado === 'todos') return true;
-        return repartidor.estado === filterEstado;
-      })
-    : allRepartidores;
+  const filteredRepartidores = allRepartidores;
 
-  const totalCount = useMock ? mockRepartidores.length : (apiRepartidores?.pagination?.total ?? allRepartidores.length);
+  const totalCount = apiRepartidores?.pagination?.total ?? allRepartidores.length;
 
-  const enviosAsignados = useMock
-    ? (selectedRepartidor ? mockEnvios.filter(e => e.repartidorId === selectedRepartidor) : [])
-    : (apiEnviosAsignados ?? []);
+  const enviosAsignados = apiEnviosAsignados ?? [];
 
   const getInitials = (nombre: string) => {
     return nombre
@@ -75,8 +67,7 @@ const Repartidores = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!useMock) {
-      const form = e.target as HTMLFormElement;
+    const form = e.target as HTMLFormElement;
       const fd = new FormData(form);
       createMut.mutate(
         {
@@ -95,18 +86,14 @@ const Repartidores = () => {
           onError: () => toast.error('Error al crear repartidor'),
         },
       );
-    } else {
-      setIsModalOpen(false);
-    }
+    
   };
 
   const handleToggleEstado = (id: string) => {
-    if (!useMock) {
-      toggleEstadoMut.mutate(id, {
+    toggleEstadoMut.mutate(id, {
         onSuccess: () => toast.success('Estado actualizado'),
         onError: () => toast.error('Error al actualizar estado'),
       });
-    }
   };
 
   return (
@@ -143,7 +130,7 @@ const Repartidores = () => {
             </Select>
           </div>
 
-          {!useMock && isLoading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>

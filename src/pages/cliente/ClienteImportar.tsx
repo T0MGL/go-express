@@ -124,8 +124,8 @@ const ClienteImportar = () => {
       return;
     }
 
-    // clienteId should come from auth context once integrated
-    const clienteId = 'cli1';
+    const stored = sessionStorage.getItem('go_express_cliente');
+    const clienteId = stored ? (JSON.parse(stored) as { id: string }).id : '';
 
     const envios: BulkImportEnvio[] = filasValidas.map((f) => ({
       clienteId,

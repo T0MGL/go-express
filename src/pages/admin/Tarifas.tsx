@@ -1,4 +1,5 @@
-import { tipoServicioLabels, tipoServicioColors } from '@/data/constants';
+import { useState } from 'react';
+import { tipoServicioLabels, departamentosPY } from '@/data/constants';
 import type { Tarifa } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
@@ -9,6 +10,14 @@ import {
   Warning,
   Calculator,
 } from '@phosphor-icons/react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import {
   useTarifas,
   useCreateTarifa,
@@ -17,8 +26,6 @@ import {
   useRestoreTarifa,
 } from '@/hooks/api/use-tarifas';
 import { toast as sonnerToast } from 'sonner';
-
-const USUARIO_ACTUAL = 'Admin Principal';
 
 const ciudadesPY = [
   'Asuncion',

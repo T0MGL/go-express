@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { tipoServicioLabels } from '@/data/constants';
-import type { Tarifa } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { Calculator, Package, Truck, Info, CheckCircle, ArrowRight, CircleNotch } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';

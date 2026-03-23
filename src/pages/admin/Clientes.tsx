@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
+import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
@@ -9,6 +11,13 @@ import {
 import { exportToCSV } from '@/lib/exportCSV';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Link } from 'react-router-dom';
 import {

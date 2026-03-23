@@ -3,7 +3,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { MagnifyingGlass, Eye, Package, CircleNotch } from '@phosphor-icons/react';
+import { MagnifyingGlass, Eye, Package, CircleNotch, Barcode } from '@phosphor-icons/react';
+import { printShippingLabel } from '@/components/printing/generateShippingLabel';
+import { toast } from 'sonner';
 import { mockEnvios, estadoLabels, type Envio } from '@/data/mockData';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -220,6 +222,22 @@ const ClienteEnvios = () => {
                 <p className="text-[13px] font-semibold mb-3">Historial de seguimiento</p>
                 <Timeline eventos={selectedEnvio.eventos} />
               </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={() => {
+                  const success = printShippingLabel(selectedEnvio);
+                  if (success) {
+                    toast.success('Etiqueta generada');
+                  } else {
+                    toast.error('Error al generar etiqueta');
+                  }
+                }}
+              >
+                <Barcode size={14} weight="duotone" />
+                Imprimir Etiqueta
+              </Button>
             </div>
           )}
         </DialogContent>

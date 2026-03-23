@@ -7,12 +7,12 @@ import { Timeline } from '@/components/tracking/Timeline';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { ProblemaModal } from '@/components/admin/ProblemaModal';
 import { NotasInternas } from '@/components/admin/NotasInternas';
-import { PrintableGuide } from '@/components/admin/PrintableGuide';
 import { mockEnvios, mockRepartidores, estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels } from '@/data/mockData';
+import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import {
   CaretLeft,
   PencilSimple,
-  Printer,
+  Barcode,
   ArrowsClockwise,
   CheckCircle,
   Warning,
@@ -118,8 +118,14 @@ const EnvioDetail = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrintLabel = () => {
+    if (!envio) return;
+    const success = printShippingLabel(envio);
+    if (success) {
+      toast.success('Etiqueta generada correctamente');
+    } else {
+      toast.error('Error al generar la etiqueta');
+    }
   };
 
   const handlePaymentRegistered = () => {
@@ -214,9 +220,9 @@ const EnvioDetail = () => {
             <Warning size={14} weight="duotone" />
             Reportar Problema
           </Button>
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrint}>
-            <Printer size={14} weight="duotone" />
-            Imprimir Guia
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrintLabel}>
+            <Barcode size={14} weight="duotone" />
+            Imprimir Etiqueta
           </Button>
         </div>
       </div>
@@ -460,7 +466,6 @@ const EnvioDetail = () => {
         </DialogContent>
       </Dialog>
 
-      <PrintableGuide envio={envio} />
     </div>
   );
 };

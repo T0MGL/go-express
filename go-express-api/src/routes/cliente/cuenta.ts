@@ -52,9 +52,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
 
+    const CLIENTE_COLUMNS = 'id, auth_id, razon_social, ruc_enc, ruc_hash, contacto_nombre_enc, contacto_cargo, telefono_enc, email_enc, email_hash, direccion_enc, ciudad, estado, plan, saldo_cuenta_corriente, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at';
+
     const { data, error } = await supabase
       .from('clientes')
-      .select('*')
+      .select(CLIENTE_COLUMNS)
       .eq('id', clienteId)
       .single();
 
@@ -109,7 +111,7 @@ router.put(
       .from('clientes')
       .update(updateData)
       .eq('id', clienteId)
-      .select('*')
+      .select('id, auth_id, razon_social, ruc_enc, ruc_hash, contacto_nombre_enc, contacto_cargo, telefono_enc, email_enc, email_hash, direccion_enc, ciudad, estado, plan, saldo_cuenta_corriente, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
       .single();
 
     if (error) {

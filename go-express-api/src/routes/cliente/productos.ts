@@ -65,7 +65,7 @@ router.get(
 
     const { data, error } = await supabase
       .from('productos_guardados')
-      .select('*')
+      .select('id, cliente_id, nombre, descripcion, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil, valor_declarado, created_at, updated_at')
       .eq('cliente_id', clienteId)
       .order('created_at', { ascending: false });
 
@@ -104,7 +104,7 @@ router.post(
     const { data, error } = await supabase
       .from('productos_guardados')
       .insert(insertData)
-      .select('*')
+      .select('id, cliente_id, nombre, descripcion, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil, valor_declarado, created_at, updated_at')
       .single();
 
     if (error) {
@@ -146,7 +146,7 @@ router.put(
       .update(updateData)
       .eq('id', id)
       .eq('cliente_id', clienteId)
-      .select('*')
+      .select('id, cliente_id, nombre, descripcion, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil, valor_declarado, created_at, updated_at')
       .single();
 
     if (error) {

@@ -15,6 +15,26 @@ import type { CreateEnvioInput, EnvioQuery } from '../../lib/validators/envio.sc
 
 const router = Router();
 
+// Explicit column list for envio queries (no SELECT *)
+const ENVIO_COLUMNS = [
+  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
+  'origen', 'destino',
+  'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
+  'destinatario_telefono2_enc', 'destinatario_cedula_enc',
+  'destinatario_ciudad', 'destinatario_departamento', 'destinatario_barrio',
+  'destinatario_referencia_enc', 'destinatario_ubicacion_url', 'destinatario_nombre_search',
+  'destinatario_telefono_hash',
+  'cantidad', 'producto', 'peso',
+  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
+  'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
+  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'repartidor_id', 'repartidor_asignado_en',
+  'problema_descripcion', 'problema_fecha',
+  'tags', 'tarifa_id', 'fecha',
+  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+].join(', ');
+
 // ---------------------------------------------------------------------------
 // Helpers — map DB row to API response
 // ---------------------------------------------------------------------------
@@ -89,7 +109,7 @@ router.get(
 
     let q = supabase
       .from('envios')
-      .select('*', { count: 'exact' })
+      .select(ENVIO_COLUMNS, { count: 'exact' })
       .eq('cliente_id', clienteId)
       .eq('eliminado', false);
 
@@ -110,7 +130,7 @@ router.get(
       throw new AppError(`Error fetching envios: ${error.message}`, 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as EnvioRow[];
+    const rows = (data ?? []) as unknown as EnvioRow[];
 
     res.json({
       data: rows.map(mapEnvioRow),
@@ -140,7 +160,7 @@ router.get(
     // Fetch envio — must belong to this client
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
-      .select('*')
+      .select(ENVIO_COLUMNS)
       .eq('id', id)
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
@@ -153,12 +173,12 @@ router.get(
       throw new AppError(`Error fetching envio: ${envioError.message}`, 500, 'DB_ERROR');
     }
 
-    const envio = mapEnvioRow(envioData as EnvioRow);
+    const envio = mapEnvioRow(envioData as unknown as EnvioRow);
 
     // Fetch eventos
     const { data: eventosData } = await supabase
       .from('eventos_envio')
-      .select('*')
+      .select('id, envio_id, estado, descripcion, ubicacion, created_at')
       .eq('envio_id', id)
       .order('created_at', { ascending: false });
 
@@ -176,7 +196,7 @@ router.get(
     // Fetch pago
     const { data: pagoData } = await supabase
       .from('pagos')
-      .select('*')
+      .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at')
       .eq('envio_id', id)
       .single();
 
@@ -288,7 +308,7 @@ router.post(
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
       .insert(envioInsert)
-      .select('*')
+      .select(ENVIO_COLUMNS)
       .single();
 
     if (insertError) {
@@ -296,7 +316,7 @@ router.post(
       throw new AppError(`Error creating envio: ${insertError.message}`, 500, 'DB_ERROR');
     }
 
-    const envio = mapEnvioRow(insertedData as EnvioRow);
+    const envio = mapEnvioRow(insertedData as unknown as EnvioRow);
 
     // Create initial evento
     await supabase.from('eventos_envio').insert({

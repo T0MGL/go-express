@@ -41,7 +41,7 @@ router.get(
     // Fetch recent envios (last 5) with basic info
     const { data: recientesData, error: recientesError } = await supabase
       .from('envios')
-      .select('*')
+      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_enc, destinatario_ciudad, destinatario_departamento, estado, costo, monto_a_cobrar, tipo_pago, fecha, created_at')
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
       .order('created_at', { ascending: false })

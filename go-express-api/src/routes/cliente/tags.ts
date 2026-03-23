@@ -46,7 +46,7 @@ router.get(
     // Fetch all tags for this client
     const { data: tagsData, error: tagsError } = await supabase
       .from('tags')
-      .select('*')
+      .select('id, cliente_id, nombre, color, created_at')
       .eq('cliente_id', clienteId)
       .order('created_at', { ascending: false });
 
@@ -100,7 +100,7 @@ router.post(
         nombre: input.nombre,
         color: input.color,
       })
-      .select('*')
+      .select('id, cliente_id, nombre, color, created_at')
       .single();
 
     if (error) {

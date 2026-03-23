@@ -55,7 +55,7 @@ router.post(
     // Find matching tarifa (origen, destino, tipoServicio) that is activo and not eliminado
     let q = supabase
       .from('tarifas')
-      .select('*')
+      .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, creado_por, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
       .eq('origen', input.origen)
       .eq('destino', input.destino)
       .eq('activo', true)

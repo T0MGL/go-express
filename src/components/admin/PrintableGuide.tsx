@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Envio } from '@/data/mockData';
+import { Envio } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { Package } from '@phosphor-icons/react';
 

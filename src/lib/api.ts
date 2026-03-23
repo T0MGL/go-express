@@ -12,8 +12,8 @@ export class ApiError extends Error {
   }
 }
 
-// Cliente context for portal routes (fallback when not using JWT auth)
-let currentClienteId: string | null = env.isDev ? 'cli1' : null;
+// Cliente context for portal routes (set after portal login)
+let currentClienteId: string | null = null;
 
 export function setClienteId(id: string) {
   currentClienteId = id;

@@ -549,7 +549,7 @@ const Landing = () => {
                 {/* Screenshot */}
                 <img
                   src="/dashboardclientes.png"
-                  alt="Portal de clientes GO Express — dashboard de envíos"
+                  alt="Portal de clientes GO Express, dashboard de envios"
                   className="w-full h-auto block"
                   loading="lazy"
                 />

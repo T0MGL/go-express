@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { NotaInterna } from '@/data/mockData';
+import { NotaInterna } from '@/data/types';
 import { ChatCircle, Clock, UserCircle } from '@phosphor-icons/react';
 import { Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

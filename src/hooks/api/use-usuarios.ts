@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { usuarioKeys } from './use-envios';
-import type { Usuario } from '@/data/mockData';
+import type { Usuario } from '@/data/types';
 
 export function useUsuarios() {
   return useQuery({

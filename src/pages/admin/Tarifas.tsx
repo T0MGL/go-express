@@ -1,5 +1,5 @@
 import { tipoServicioLabels, tipoServicioColors } from '@/data/constants';
-import type { Tarifa } from '@/data/mockData';
+import type { Tarifa } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
 import {

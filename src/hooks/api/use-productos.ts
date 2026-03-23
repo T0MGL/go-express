@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { ProductoGuardado } from '@/data/mockData';
+import type { ProductoGuardado } from '@/data/types';
 
 const productoKeys = {
   all: ['productos'] as const,

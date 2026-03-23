@@ -7,7 +7,7 @@ import { MagnifyingGlass, Eye, Package, CircleNotch, Barcode } from '@phosphor-i
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import { toast } from 'sonner';
 import { estadoLabels } from '@/data/constants';
-import type { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/types';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,

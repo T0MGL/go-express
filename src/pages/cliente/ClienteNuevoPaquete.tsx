@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { departamentosPY } from '@/data/constants';
-import type { ProductoGuardado } from '@/data/mockData';
+import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, CircleNotch } from '@phosphor-icons/react';
@@ -151,7 +151,7 @@ const ClienteNuevoPaquete = () => {
                         largo: String(prod.dimensiones.largo),
                         ancho: String(prod.dimensiones.ancho),
                         alto: String(prod.dimensiones.alto),
-                        contenido: prod.nombre + (prod.descripcion ? ` — ${prod.descripcion}` : ''),
+                        contenido: prod.nombre + (prod.descripcion ? `: ${prod.descripcion}` : ''),
                       }));
                       if (prod.fragil && !etiquetas.includes('Fragil')) {
                         setEtiquetas((prev) => [...prev, 'Fragil']);

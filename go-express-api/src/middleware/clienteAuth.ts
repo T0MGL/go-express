@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler.js';
-import { env } from '../config/env.js';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 
@@ -80,26 +79,24 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
     return;
   }
 
-  // In production, validate the clienteId exists in DB
-  if (env.NODE_ENV !== 'development') {
-    try {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('id')
-        .eq('id', clienteId)
-        .eq('eliminado', false)
-        .single();
+  // Validate the clienteId exists in DB
+  try {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('id')
+      .eq('id', clienteId)
+      .eq('eliminado', false)
+      .single();
 
-      if (error || !data) {
-        logger.warn({ clienteId }, 'Client portal access with invalid clienteId');
-        next(AppError.unauthorized('Invalid client identifier'));
-        return;
-      }
-    } catch (err: unknown) {
-      logger.error({ err, clienteId }, 'Error validating clienteId');
-      next(AppError.unauthorized('Client authentication failed'));
+    if (error || !data) {
+      logger.warn({ clienteId }, 'Client portal access with invalid clienteId');
+      next(AppError.unauthorized('Invalid client identifier'));
       return;
     }
+  } catch (err: unknown) {
+    logger.error({ err, clienteId }, 'Error validating clienteId');
+    next(AppError.unauthorized('Client authentication failed'));
+    return;
   }
 
   req.clienteId = clienteId;

@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { AuditoriaLog } from '@/data/mockData';
+import type { AuditoriaLog } from '@/data/types';
 import {
   accionLabels,
   accionColors,

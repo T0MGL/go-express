@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import type { ProductoGuardado } from '@/data/mockData';
+import type { ProductoGuardado } from '@/data/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
@@ -362,7 +362,7 @@ const ClienteProductos = () => {
                   type="number"
                   value={form.valorDeclarado}
                   onChange={(e) => setForm({ ...form, valorDeclarado: e.target.value })}
-                  placeholder="Opcional — para seguro"
+                  placeholder="Opcional, para seguro"
                   className="mt-1.5 font-data"
                 />
               </div>

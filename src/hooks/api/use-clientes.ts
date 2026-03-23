@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { clienteKeys } from './use-envios';
-import type { Cliente } from '@/data/mockData';
+import type { Cliente } from '@/data/types';
 
 interface PaginatedResponse<T> {
   data: T[];

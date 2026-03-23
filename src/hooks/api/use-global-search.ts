@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { SearchResult } from '@/lib/search';
-import type { Envio, Cliente } from '@/data/mockData';
+import type { Envio, Cliente } from '@/data/types';
 
 const globalSearchKeys = {
   all: ['global-search'] as const,

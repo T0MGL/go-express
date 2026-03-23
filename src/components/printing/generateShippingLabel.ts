@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import JsBarcode from 'jsbarcode';
-import { type Envio } from '@/data/mockData';
+import { type Envio } from '@/data/types';
 
 // Page dimensions in inches (4x6 thermal label, portrait)
 const PAGE_W = 4;

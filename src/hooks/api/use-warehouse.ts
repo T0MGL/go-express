@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { warehouseKeys } from './use-envios';
-import type { PaqueteInventario, PickingItem } from '@/data/mockData';
+import type { PaqueteInventario, PickingItem } from '@/data/types';
 
 interface PaginatedResponse<T> {
   data: T[];

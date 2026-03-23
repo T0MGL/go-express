@@ -21,24 +21,12 @@ declare global {
  * Validates the Bearer token via Supabase Auth, then looks up the user
  * in the usuarios table to get role and name. Falls back to ADMIN_API_TOKEN
  * for external integrations (CI/CD, webhooks).
- *
- * In development without any auth configured, allows access with dev identity.
  */
 export async function requireAdmin(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
   // No auth header at all
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // In development, allow unauthenticated access for local dev
-    if (env.NODE_ENV === 'development' && !env.ADMIN_API_TOKEN) {
-      req.userId = '00000000-0000-4000-a000-000000000001';
-      req.userName = 'Admin GoExpress';
-      req.userRole = 'admin';
-      req.userEmail = 'admin@goexpress.com.py';
-      next();
-      return;
-    }
-
     next(AppError.unauthorized('Missing or invalid Authorization header'));
     return;
   }

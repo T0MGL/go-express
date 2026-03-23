@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { auditoriaKeys } from './use-envios';
-import type { AuditoriaLog } from '@/data/mockData';
+import type { AuditoriaLog } from '@/data/types';
 
 interface PaginatedResponse<T> {
   data: T[];

@@ -1,5 +1,5 @@
 import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
-import type { Cliente } from '@/data/mockData';
+import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
   MagnifyingGlass, Buildings, Phone, EnvelopeSimple, UserCircle,

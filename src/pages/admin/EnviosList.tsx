@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportCSV';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEnvios } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';

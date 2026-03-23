@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { tipoServicioLabels } from '@/data/constants';
-import type { Tarifa } from '@/data/mockData';
+import type { Tarifa } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { Calculator, Package, Truck, Info, CheckCircle, ArrowRight, CircleNotch } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
@@ -186,7 +186,7 @@ const ClienteCotizador = () => {
                 />
               </div>
               <div>
-                <Label className="text-[11px]">Dimensiones (cm) — para calculo volumetrico</Label>
+                <Label className="text-[11px]">Dimensiones (cm), para calculo volumetrico</Label>
                 <div className="grid grid-cols-3 gap-2 mt-1.5">
                   <Input type="number" value={largo} onChange={(e) => { setLargo(e.target.value); setCotizando(false); }} placeholder="Largo" className="font-data" />
                   <Input type="number" value={ancho} onChange={(e) => { setAncho(e.target.value); setCotizando(false); }} placeholder="Ancho" className="font-data" />

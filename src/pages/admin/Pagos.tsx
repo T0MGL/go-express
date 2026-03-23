@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { DownloadSimple, Eye, CurrencyDollar, Clock, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { toast } from 'sonner';
-import type { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/types';
 import { usePagos, usePagoStats } from '@/hooks/api/use-pagos';
 
 const Pagos = () => {

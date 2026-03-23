@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
-import type { Envio } from '@/data/mockData';
+import type { Envio } from '@/data/types';
 
 const clienteEnvioKeys = {
   all: ['cliente-envios'] as const,

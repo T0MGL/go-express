@@ -35,10 +35,24 @@ export function decrypt(encryptedData: string, key: Buffer): string {
 }
 
 /**
+ * Check whether a string looks like AES-256-GCM encrypted data (iv:authTag:ciphertext).
+ */
+function isEncryptedFormat(data: string): boolean {
+  const parts = data.split(':');
+  return parts.length === 3 && parts.every(p => p !== undefined && p.length > 0);
+}
+
+/**
  * Decrypt with key rotation support.
  * Tries primary key first, falls back to rotation key.
+ * If the data is plaintext (not in encrypted format), returns it as-is
+ * to support records created before encryption was enabled.
  */
 export function decryptWithRotation(encryptedData: string, primaryKey: Buffer, rotationKey?: Buffer): string {
+  if (!isEncryptedFormat(encryptedData)) {
+    return encryptedData;
+  }
+
   try {
     return decrypt(encryptedData, primaryKey);
   } catch (err) {

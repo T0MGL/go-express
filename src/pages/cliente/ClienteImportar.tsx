@@ -286,7 +286,7 @@ const ClienteImportar = () => {
           {/* Tabla preview */}
           <div className="surface-card overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border/40 text-[11px] font-medium text-muted-foreground">
-              Vista previa — <span className="font-data">{nombreArchivo}</span>
+              Vista previa: <span className="font-data">{nombreArchivo}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="premium-table">

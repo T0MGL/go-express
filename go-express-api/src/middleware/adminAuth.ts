@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { AppError } from './errorHandler.js';
 import { env } from '../config/env.js';
 import { supabase } from '../config/database.js';
@@ -34,7 +35,12 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
   const token = authHeader.slice(7);
 
   // Check for static ADMIN_API_TOKEN (external integrations, CI/CD)
-  if (env.ADMIN_API_TOKEN && token === env.ADMIN_API_TOKEN) {
+  // Uses timing-safe comparison to prevent timing attacks on token value.
+  if (
+    env.ADMIN_API_TOKEN &&
+    token.length === env.ADMIN_API_TOKEN.length &&
+    timingSafeEqual(Buffer.from(token), Buffer.from(env.ADMIN_API_TOKEN))
+  ) {
     req.userId = '00000000-0000-4000-a000-000000000001';
     req.userName = 'Admin GoExpress';
     req.userRole = 'admin';

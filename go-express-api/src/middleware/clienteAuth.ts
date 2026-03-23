@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler.js';
+import { env } from '../config/env.js';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 
@@ -64,11 +65,17 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
     }
   }
 
-  // Fallback: X-Cliente-Id header (development only, or when ADMIN_API_TOKEN is used)
+  // Fallback: X-Cliente-Id header (development only, for testing convenience)
+  // SECURITY: This bypass is disabled in production to prevent client impersonation.
+  if (env.NODE_ENV !== 'development') {
+    next(AppError.unauthorized('Client authentication required. Provide a valid Bearer token.'));
+    return;
+  }
+
   const clienteId = req.headers['x-cliente-id'] as string | undefined;
 
   if (!clienteId) {
-    next(AppError.unauthorized('Client authentication required. Provide a Bearer token or X-Cliente-Id header.'));
+    next(AppError.unauthorized('Client authentication required. Provide a Bearer token or X-Cliente-Id header (dev only).'));
     return;
   }
 
@@ -78,6 +85,8 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
     next(AppError.unauthorized('Invalid client identifier format'));
     return;
   }
+
+  logger.warn({ clienteId }, 'X-Cliente-Id fallback used in development mode');
 
   // Validate the clienteId exists in DB
   try {

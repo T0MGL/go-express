@@ -1,9 +1,6 @@
 import { encrypt, decrypt, decryptWithRotation, hashForSearch, normalizeForSearch, parseEncryptionKey } from '../lib/encryption.js';
 import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// EncryptionService — singleton wrapper around encryption primitives
-// ---------------------------------------------------------------------------
 
 class EncryptionService {
   private readonly primaryKey: Buffer;

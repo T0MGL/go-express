@@ -3,9 +3,7 @@ import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import type { EventoEnvioRow } from '../types/index.js';
 
-// ---------------------------------------------------------------------------
-// PublicTrackingResult — LIMITED data, no PII
-// ---------------------------------------------------------------------------
+// Limited data, no PII
 
 export interface PublicTrackingResult {
   trackingNumber: string;
@@ -22,9 +20,6 @@ export interface PublicTrackingResult {
   }>;
 }
 
-// ---------------------------------------------------------------------------
-// TrackingService — public tracking lookup
-// ---------------------------------------------------------------------------
 
 class TrackingService {
   /**
@@ -32,7 +27,7 @@ class TrackingService {
    * Does NOT include: destinatario name, address, phone, cedula, internal notes, payment info.
    */
   async getByTrackingNumber(trackingNumber: string): Promise<PublicTrackingResult | null> {
-    // Fetch envio — only safe columns plus id (for eventos lookup)
+    // Only safe columns plus id (for eventos lookup)
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
       .select('id, tracking_number, estado, origen, destino, destinatario_ciudad, fecha')
@@ -61,7 +56,6 @@ class TrackingService {
       fecha: string;
     };
 
-    // Fetch eventos using envio.id
     let eventos: PublicTrackingResult['eventos'] = [];
 
     const { data: eventosRows, error: evtError } = await supabase
@@ -72,7 +66,7 @@ class TrackingService {
 
     if (evtError) {
       logger.error({ error: evtError, trackingNumber }, 'Error fetching eventos for tracking');
-      // Don't throw — return envio without eventos
+      // Non-critical: return envio without eventos
     } else if (eventosRows) {
       eventos = (eventosRows as Array<Pick<EventoEnvioRow, 'estado' | 'descripcion' | 'ubicacion' | 'created_at'>>).map((e) => ({
         estado: e.estado,

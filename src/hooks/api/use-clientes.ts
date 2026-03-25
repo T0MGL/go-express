@@ -86,9 +86,7 @@ export function useDeleteCliente() {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Portal management hooks (admin actions)
-// ---------------------------------------------------------------------------
 
 export function useInviteCliente() {
   const qc = useQueryClient();

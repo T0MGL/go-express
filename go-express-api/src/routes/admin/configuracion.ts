@@ -17,7 +17,7 @@ const updateConfigSchema = z.object({
 });
 
 /**
- * GET / — Get all config
+ * GET /:Get all config
  */
 router.get(
   '/',
@@ -43,7 +43,7 @@ router.get(
 );
 
 /**
- * PUT /:key — Update config value
+ * PUT /:key:Update config value
  */
 router.put(
   '/:key',

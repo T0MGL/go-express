@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink } from '@/components/NavLink';
@@ -24,16 +24,6 @@ interface ClienteProfile {
   email: string;
 }
 
-const GoIsotipo = ({ size = 24 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 2L36 11V29L20 38L4 29V11L20 2Z" fill="hsl(var(--primary))" />
-    <rect x="11" y="11" width="15" height="3" fill="white" />
-    <rect x="11" y="11" width="3" height="18" fill="white" />
-    <rect x="11" y="26" width="15" height="3" fill="white" />
-    <rect x="23" y="19" width="3" height="10" fill="white" />
-    <rect x="17" y="19" width="9" height="3" fill="white" />
-  </svg>
-);
 
 const navItems = [
   { icon: ChartBar, label: 'Dashboard', path: '/cliente', end: true },
@@ -46,10 +36,10 @@ const navItems = [
 ];
 
 const pageTransition = {
-  initial: { opacity: 0, y: 4 },
+  initial: { opacity: 0, y: 3 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0 },
-  transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  exit: { opacity: 0, y: -2 },
+  transition: { duration: 0.12, ease: [0.25, 0.46, 0.45, 0.94] as const },
 };
 
 function getInitials(name: string): string {
@@ -63,30 +53,25 @@ export const ClienteLayout = () => {
   const [profile, setProfile] = useState<ClienteProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Resolve the authenticated client on mount
   useEffect(() => {
     let mounted = true;
 
     async function resolveClient() {
-      // Try sessionStorage first (set during portal login)
       const stored = sessionStorage.getItem('go_express_cliente');
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as ClienteProfile;
           if (mounted) setProfile(parsed);
         } catch {
-          // Invalid stored data
         }
       }
 
-      // Verify the session is still valid
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         if (mounted) navigate('/portal/login', { replace: true });
         return;
       }
 
-      // Fetch the profile from the backend
       try {
         const me = await api.get<{
           id: string;
@@ -108,12 +93,10 @@ export const ClienteLayout = () => {
           setProfile(p);
           sessionStorage.setItem('go_express_cliente', JSON.stringify(p));
         } else {
-          // This is an admin user, redirect to admin
           navigate('/admin', { replace: true });
           return;
         }
       } catch {
-        // Token invalid, redirect to portal login
         if (mounted) navigate('/portal/login', { replace: true });
         return;
       }
@@ -128,7 +111,6 @@ export const ClienteLayout = () => {
     return () => { mounted = false; };
   }, [navigate]);
 
-  // Scroll to top on route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
@@ -172,7 +154,7 @@ export const ClienteLayout = () => {
       <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="h-12 flex items-center justify-between px-6 max-w-[1400px] mx-auto w-full">
           <div className="flex items-center gap-2.5">
-            <GoIsotipo size={22} />
+            <img src="/isotipo.png" alt="Go Express" className="h-5 w-5" />
             <div className="flex items-baseline gap-2">
               <span className="font-display font-extrabold text-[12px] tracking-tight">GO EXPRESS</span>
               <span className="text-[10px] text-muted-foreground font-medium">Portal</span>
@@ -237,14 +219,16 @@ export const ClienteLayout = () => {
         </nav>
       </header>
 
-      <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin">
-        <AnimatePresence mode="wait">
+      <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin relative">
+        <AnimatePresence initial={false}>
           <motion.div
             key={location.pathname}
             {...pageTransition}
             className="p-6 lg:p-8 max-w-[1400px] mx-auto w-full"
           >
-            <Outlet />
+            <Suspense fallback={<div className="h-[60vh] bg-background" />}>
+              <Outlet />
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

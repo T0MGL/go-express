@@ -88,7 +88,6 @@ export function EnvioWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
 
-  // API hooks
   const { data: apiClientes } = useClientes({ estado: 'activo' });
   const createEnvioMut = useCreateEnvio();
 

@@ -45,7 +45,7 @@ export async function testConnection(): Promise<boolean> {
     if (error) {
       // If table doesn't exist yet, that's okay during initial setup
       if (error.code === '42P01' || error.message.includes('does not exist')) {
-        logger.warn('Database tables not yet created — connection is healthy but schema is missing');
+        logger.warn('Database tables not yet created. Connection is healthy but schema is missing');
         return true;
       }
       logger.error({ error }, 'Database connection test failed');

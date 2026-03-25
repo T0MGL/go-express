@@ -34,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error: null,
   });
 
-  // Fetch user profile from our backend
   const fetchProfile = useCallback(async (_accessToken: string): Promise<AuthUser | null> => {
     try {
       const profile = await api.get<AuthUser>('/auth/me');
@@ -44,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Initialize via onAuthStateChange only (avoids lock race with getSession)
+  // Single listener avoids lock race with getSession
   useEffect(() => {
     let mounted = true;
 
@@ -109,7 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      // Notify backend
       const session = state.session;
       if (session?.access_token) {
         try {

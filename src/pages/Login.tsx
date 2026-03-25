@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Truck } from 'lucide-react';
+
 
 const Login = () => {
   const { login, loading, error } = useAuth();
@@ -14,10 +14,8 @@ const Login = () => {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await login(email, password);
-    // Navigation happens via the auth state change in AdminLayout
   }
 
-  // Check if already authenticated, redirect
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) {
     navigate('/admin', { replace: true });
@@ -33,9 +31,7 @@ const Login = () => {
         className="w-full max-w-sm"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-            <Truck className="w-6 h-6 text-primary" />
-          </div>
+          <img src="/isotipo.png" alt="Go Express" className="w-12 h-12 mb-4" />
           <h1 className="text-xl font-semibold tracking-tight">GO EXPRESS</h1>
           <p className="text-sm text-muted-foreground mt-1">Panel de administracion</p>
         </div>

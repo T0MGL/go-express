@@ -9,10 +9,6 @@ import type {
 import type { CreateTarifaInput, UpdateTarifaInput, TarifaQuery } from '../lib/validators/tarifa.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row → API mapping
-// ---------------------------------------------------------------------------
-
 function toApi(row: TarifaRow): Tarifa {
   return {
     id: row.id,
@@ -33,10 +29,6 @@ function toApi(row: TarifaRow): Tarifa {
     updatedAt: row.updated_at,
   };
 }
-
-// ---------------------------------------------------------------------------
-// TarifaService
-// ---------------------------------------------------------------------------
 
 const TARIFA_COLUMNS = [
   'id', 'origen', 'destino', 'tipo_servicio',
@@ -139,7 +131,6 @@ class TarifaService {
   }
 
   async update(id: string, input: UpdateTarifaInput, userId?: string): Promise<Tarifa> {
-    // Ensure tarifa exists
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot update a deleted tarifa');

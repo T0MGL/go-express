@@ -10,14 +10,9 @@ import type { CotizarInput } from '../../lib/validators/tarifa.schema.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// GET /ciudades — Available cities from active tarifas
-// ---------------------------------------------------------------------------
-
 router.get(
   '/ciudades',
   asyncHandler(async (_req, res) => {
-    // Get distinct origen/destino pairs from active, non-deleted tarifas
     const { data, error } = await supabase
       .from('tarifas')
       .select('origen, destino')
@@ -41,10 +36,6 @@ router.get(
     res.json(Array.from(ciudades).sort());
   })
 );
-
-// ---------------------------------------------------------------------------
-// POST /cotizar — Calculate shipping cost
-// ---------------------------------------------------------------------------
 
 router.post(
   '/cotizar',

@@ -1,12 +1,3 @@
-// ============================================================================
-// GO EXPRESS API — Type Definitions
-// All TypeScript interfaces for DB rows (snake_case) and API responses (camelCase)
-// ============================================================================
-
-// ---------------------------------------------------------------------------
-// Enums (matching PostgreSQL ENUM types)
-// ---------------------------------------------------------------------------
-
 export type UserRole = 'admin' | 'operador';
 export type UserStatus = 'activo' | 'inactivo';
 export type ClienteEstado = 'activo' | 'inactivo' | 'suspendido';
@@ -56,10 +47,8 @@ export type AuditoriaEntidad =
   | 'almacen'
   | 'sistema';
 
-// ---------------------------------------------------------------------------
-// DB Row types (snake_case — match PostgreSQL column names exactly)
+// DB Row types (snake_case, match PostgreSQL column names exactly)
 // Fields suffixed with _enc are encrypted at-rest, _hash are HMAC hashes
-// ---------------------------------------------------------------------------
 
 export interface UsuarioRow {
   id: string;
@@ -317,9 +306,7 @@ export interface ConfiguracionRow {
   updated_by: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// API Response types (camelCase — decrypted, frontend-friendly)
-// ---------------------------------------------------------------------------
+// API Response types (camelCase, decrypted, frontend-friendly)
 
 export interface Usuario {
   id: string;
@@ -589,9 +576,7 @@ export interface PagoStats {
   enviosPendientesCobro: number;
 }
 
-// ---------------------------------------------------------------------------
 // Pagination
-// ---------------------------------------------------------------------------
 
 export interface PaginationMeta {
   total: number;
@@ -607,9 +592,7 @@ export interface PaginatedResponse<T> {
   pagination: PaginationMeta;
 }
 
-// ---------------------------------------------------------------------------
 // Notifications (WhatsApp / email extensibility hook)
-// ---------------------------------------------------------------------------
 
 export type NotificationEvent =
   | 'envio_creado'

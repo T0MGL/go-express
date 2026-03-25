@@ -12,10 +12,6 @@ import type {
 import type { CreateRepartidorInput, UpdateRepartidorInput, RepartidorQuery } from '../lib/validators/repartidor.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row → API mapping (decrypt phone)
-// ---------------------------------------------------------------------------
-
 function toApi(row: RepartidorRow): Repartidor {
   return {
     id: row.id,
@@ -33,10 +29,6 @@ function toApi(row: RepartidorRow): Repartidor {
     updatedAt: row.updated_at,
   };
 }
-
-// ---------------------------------------------------------------------------
-// RepartidorService
-// ---------------------------------------------------------------------------
 
 const REPARTIDOR_COLUMNS = [
   'id', 'nombre', 'telefono_enc', 'vehiculo', 'placa', 'licencia',
@@ -237,10 +229,8 @@ class RepartidorService {
   }
 
   async getEnviosAsignados(id: string): Promise<Envio[]> {
-    // Verify repartidor exists
     await this.getById(id);
 
-    // Use the envio column list from envio.service for consistency
     const { data, error } = await supabase
       .from('envios')
       .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_enc, destinatario_direccion_enc, destinatario_telefono_enc, destinatario_telefono2_enc, destinatario_cedula_enc, destinatario_ciudad, destinatario_departamento, destinatario_barrio, destinatario_referencia_enc, destinatario_ubicacion_url, destinatario_nombre_search, destinatario_telefono_hash, cantidad, producto, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil, valor_declarado, instrucciones_entrega, horario_entrega, notas, estado, costo, monto_a_cobrar, tipo_pago, repartidor_id, repartidor_asignado_en, problema_descripcion, problema_fecha, tags, tarifa_id, fecha, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')

@@ -8,7 +8,7 @@ import { auditoriaQuerySchema } from '../../lib/validators/auditoria.schema.js';
 const router = Router();
 
 /**
- * GET / — List audit logs + filters (read-only, no mutations)
+ * GET /:List audit logs + filters (read-only, no mutations)
  */
 router.get(
   '/',
@@ -20,7 +20,7 @@ router.get(
 );
 
 /**
- * GET /export — CSV export
+ * GET /export:CSV export
  */
 router.get(
   '/export',

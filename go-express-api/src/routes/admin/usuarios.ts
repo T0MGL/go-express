@@ -9,9 +9,6 @@ import { idParamSchema } from '../../lib/validators/common.schema.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Schemas
-// ---------------------------------------------------------------------------
 
 const createUsuarioSchema = z.object({
   nombre: z.string().min(2).max(200),
@@ -26,9 +23,6 @@ const updateUsuarioSchema = z.object({
   estado: z.enum(['activo', 'inactivo']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Row → API mapping
-// ---------------------------------------------------------------------------
 
 function toApi(row: UsuarioRow): Usuario {
   return {
@@ -44,7 +38,7 @@ function toApi(row: UsuarioRow): Usuario {
 }
 
 /**
- * GET / — List users
+ * GET /:List users
  */
 router.get(
   '/',
@@ -63,7 +57,7 @@ router.get(
 );
 
 /**
- * POST / — Create user
+ * POST /:Create user
  */
 router.post(
   '/',
@@ -100,7 +94,7 @@ router.post(
 );
 
 /**
- * PUT /:id — Update user
+ * PUT /:id:Update user
  */
 router.put(
   '/:id',

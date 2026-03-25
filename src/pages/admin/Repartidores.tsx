@@ -22,7 +22,6 @@ const Repartidores = () => {
   const [showEnviosModal, setShowEnviosModal] = useState(false);
 
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
 

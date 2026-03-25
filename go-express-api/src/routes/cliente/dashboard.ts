@@ -7,16 +7,11 @@ import type { EnvioRow } from '../../types/index.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// GET /api/cliente/dashboard/stats — Client dashboard statistics
-// ---------------------------------------------------------------------------
-
 router.get(
   '/stats',
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
 
-    // Fetch counts by estado for this client
     const { data: enviosData, error: enviosError } = await supabase
       .from('envios')
       .select('id, estado')

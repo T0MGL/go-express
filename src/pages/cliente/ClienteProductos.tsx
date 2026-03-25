@@ -38,7 +38,6 @@ const ClienteProductos = () => {
     valorDeclarado: '',
   });
 
-  // API hooks
   const { data: apiProductos, isLoading } = useProductos();
   const createMutation = useCreateProducto();
   const updateMutation = useUpdateProducto();

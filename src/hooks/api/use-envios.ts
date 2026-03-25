@@ -1,13 +1,8 @@
-/**
- * Envios API hooks — query key factory + TanStack Query hooks
- */
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import type { Envio } from '@/data/types';
 
-// ── Key factories ──────────────────────────────────────────────────────────────
 
 export const envioKeys = {
   all: ['envios'] as const,
@@ -87,7 +82,6 @@ export const configuracionKeys = {
   all: ['configuracion'] as const,
 };
 
-// ── Envios hooks ───────────────────────────────────────────────────────────────
 
 interface PaginatedResponse<T> {
   data: T[];

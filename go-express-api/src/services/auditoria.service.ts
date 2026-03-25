@@ -11,9 +11,6 @@ import type {
 import type { AuditoriaQuery } from '../lib/validators/auditoria.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row → API mapping
-// ---------------------------------------------------------------------------
 
 function toApi(row: AuditoriaLogRow): AuditoriaLog {
   return {
@@ -32,9 +29,7 @@ function toApi(row: AuditoriaLogRow): AuditoriaLog {
   };
 }
 
-// ---------------------------------------------------------------------------
-// AuditoriaService — append-only audit log
-// ---------------------------------------------------------------------------
+// Append-only audit log
 
 class AuditoriaService {
   /**
@@ -66,7 +61,7 @@ class AuditoriaService {
     });
 
     if (error) {
-      // Audit log failures should never crash the app — log and move on
+      // Non-critical: never crash the app for audit failures
       logger.error({ error, params }, 'Failed to write audit log');
     }
   }

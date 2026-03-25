@@ -1,11 +1,4 @@
-/**
- * GO EXPRESS — API Hooks
- *
- * TanStack Query hooks for backend integration.
- * TanStack Query hooks for all API endpoints.
- */
-
-// ─── Query key factories ─────────────────────────────────────
+// Query key factories
 export {
   envioKeys,
   clienteKeys,
@@ -19,8 +12,6 @@ export {
   usuarioKeys,
   configuracionKeys,
 } from './use-envios';
-
-// ─── Admin hooks ─────────────────────────────────────────────
 
 // Envios
 export {
@@ -103,7 +94,7 @@ export {
   useUpdateConfiguracion,
 } from './use-configuracion';
 
-// ─── Client portal hooks ─────────────────────────────────────
+// Client portal
 export { useTracking } from './use-tracking';
 export { useProductos, useCreateProducto, useUpdateProducto, useDeleteProducto } from './use-productos';
 export { useClienteDashboardStats } from './use-cliente-dashboard';
@@ -112,8 +103,8 @@ export { useCiudadesDisponibles, useCotizar } from './use-cotizador';
 export { useCuenta, useUpdateCuenta } from './use-cuenta';
 export { useTags, useCreateTag, useDeleteTag } from './use-tags';
 
-// ─── Global search ───────────────────────────────────────────
+// Global search
 export { useGlobalSearch } from './use-global-search';
 
-// ─── Helpers ─────────────────────────────────────────────────
+// Helpers
 export { buildQueryString } from './helpers';

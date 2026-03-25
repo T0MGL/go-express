@@ -1,64 +1,28 @@
 /**
- * GO EXPRESS — Integration Architecture
+ * GO EXPRESS Integration Architecture
  *
- * This module documents planned third-party integrations.
- * None are implemented yet — this serves as architectural documentation.
+ * Documents planned third-party integrations.
+ * None are implemented yet: this serves as architectural documentation.
  *
- * ─── 1. SHOPIFY ──────────────────────────────────────────────────
+ * 1. SHOPIFY
+ *    Auto-create Envios from Shopify orders.
+ *    Shopify order.created webhook > POST /api/webhooks/shopify/orders
+ *    > Validate HMAC > Map to Envio > Create via envio.service > Sync tracking back.
+ *    Config: SHOPIFY_WEBHOOK_SECRET, SHOPIFY_API_KEY, SHOPIFY_API_SECRET
+ *    Frontend: "Conectar Shopify" in ClienteImportar, sync status in ClienteDashboard.
  *
- * Purpose: Auto-create Envios from Shopify orders
- * Flow:
- *   Shopify order.created webhook → POST /api/webhooks/shopify/orders
- *   → Validate HMAC signature
- *   → Map Shopify order to Envio fields
- *   → Create Envio via envio.service
- *   → Sync tracking number back to Shopify fulfillment
+ * 2. WHATSAPP NOTIFICATIONS
+ *    Push status updates to destinatarios via WhatsApp templates.
+ *    Provider: Meta Cloud API (Twilio fallback).
+ *    Templates: envio_creado, cambio_estado, entregado, problema.
+ *    Config: WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_TEMPLATE_NAMESPACE
+ *    Frontend: toggle in Configuracion, delivery status in EnvioDetail timeline.
  *
- * Config (backend only):
- *   SHOPIFY_WEBHOOK_SECRET — HMAC validation
- *   SHOPIFY_API_KEY — REST Admin API
- *   SHOPIFY_API_SECRET — REST Admin API
- *
- * Frontend impact:
- *   - ClienteImportar page: add "Conectar Shopify" option alongside CSV
- *   - ClienteDashboard: show Shopify sync status
- *
- * ─── 2. WHATSAPP NOTIFICATIONS ───────────────────────────────────
- *
- * Purpose: Push status updates to destinatarios via WhatsApp templates
- * Provider: Meta Cloud API (or Twilio as fallback)
- * Flow:
- *   Envio status change → email.service checks notification config
- *   → If WhatsApp enabled, send template message to destinatario phone
- *
- * Templates needed:
- *   - envio_creado: "Tu paquete de {empresa} esta en camino. Tracking: {tracking}"
- *   - cambio_estado: "Tu paquete {tracking} ahora esta: {estado}"
- *   - entregado: "Tu paquete {tracking} fue entregado exitosamente"
- *   - problema: "Hubo un problema con tu paquete {tracking}: {descripcion}"
- *
- * Config (backend only):
- *   WHATSAPP_API_TOKEN — Meta Cloud API token
- *   WHATSAPP_PHONE_ID — Business phone number ID
- *   WHATSAPP_TEMPLATE_NAMESPACE — Template namespace
- *
- * Frontend impact:
- *   - Configuracion page: toggle WhatsApp notifications on/off
- *   - EnvioDetail: show WhatsApp delivery status in timeline
- *
- * ─── 3. SUPABASE AUTH ────────────────────────────────────────────
- *
- * Purpose: Authentication for admin users and client portal
- * Pools:
- *   - Admin/Operador: email+password → usuarios table
- *   - Cliente portal: email+password → clientes table
- *   - Public tracking: no auth required
- *
- * Frontend impact:
- *   - Add login pages for /admin and /cliente
- *   - Route guards (ProtectedRoute component)
- *   - Auth context provider
- *   - Token management (Supabase handles JWT)
+ * 3. SUPABASE AUTH
+ *    Admin/Operador: email+password > usuarios table.
+ *    Cliente portal: email+password > clientes table.
+ *    Public tracking: no auth required.
+ *    Frontend: login pages, route guards, auth context, JWT via Supabase.
  */
 
 export {};

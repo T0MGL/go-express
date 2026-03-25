@@ -13,7 +13,7 @@ import { idParamSchema, softDeleteSchema } from '../../lib/validators/common.sch
 const router = Router();
 
 /**
- * GET / — List tarifas (includeDeleted=true shows soft-deleted)
+ * GET /:List tarifas (includeDeleted=true shows soft-deleted)
  */
 router.get(
   '/',
@@ -25,7 +25,7 @@ router.get(
 );
 
 /**
- * POST / — Create tarifa
+ * POST /:Create tarifa
  */
 router.post(
   '/',
@@ -37,7 +37,7 @@ router.post(
 );
 
 /**
- * PUT /:id — Update tarifa
+ * PUT /:id:Update tarifa
  */
 router.put(
   '/:id',
@@ -49,7 +49,7 @@ router.put(
 );
 
 /**
- * DELETE /:id — Soft-delete
+ * DELETE /:id:Soft-delete
  */
 router.delete(
   '/:id',
@@ -61,7 +61,7 @@ router.delete(
 );
 
 /**
- * PATCH /:id/restore — Restore soft-deleted tarifa
+ * PATCH /:id/restore:Restore soft-deleted tarifa
  */
 router.patch(
   '/:id/restore',

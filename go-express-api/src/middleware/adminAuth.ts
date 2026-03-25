@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { AppError } from './errorHandler.js';
 import { env } from '../config/env.js';
-import { supabase } from '../config/database.js';
+import { supabase, supabaseAuth } from '../config/database.js';
 import { logger } from '../config/logger.js';
 
 declare global {
@@ -51,7 +51,7 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
 
   // Validate JWT via Supabase Auth
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
 
     if (error || !user) {
       logger.warn({ error: error?.message }, 'Supabase auth token validation failed');

@@ -12,7 +12,6 @@ export class ApiError extends Error {
   }
 }
 
-// Cliente context for portal routes (set after portal login)
 let currentClienteId: string | null = null;
 
 export function setClienteId(id: string) {
@@ -42,14 +41,12 @@ async function request<T>(
     'Content-Type': 'application/json',
   };
 
-  // Skip auth for public endpoints
   const isPublic = endpoint.startsWith('/public');
   const token = isPublic ? null : await getAccessToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Add X-Cliente-Id for cliente portal endpoints (fallback for dev)
   if (currentClienteId && endpoint.startsWith('/cliente') && !token) {
     headers['X-Cliente-Id'] = currentClienteId;
   }
@@ -64,7 +61,6 @@ async function request<T>(
 
   const response = await fetch(url, config);
 
-  // Handle 401: token might be expired, try refresh
   if (response.status === 401 && token) {
     const { data } = await supabase.auth.refreshSession();
     if (data.session) {

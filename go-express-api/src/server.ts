@@ -17,29 +17,13 @@ import clienteRoutes from './routes/cliente/index.js';
 import trackingRoutes from './routes/public/tracking.js';
 import authRoutes from './routes/auth.js';
 
-// ---------------------------------------------------------------------------
-// Express app
-// ---------------------------------------------------------------------------
-
 const app = express();
 
-// ---------------------------------------------------------------------------
-// Trust proxy (Railway, render.com, nginx, etc.)
-// ---------------------------------------------------------------------------
-
 app.set('trust proxy', 1);
-
-// ---------------------------------------------------------------------------
-// Security headers
-// ---------------------------------------------------------------------------
 
 app.use(helmet({
   contentSecurityPolicy: false,
 }));
-
-// ---------------------------------------------------------------------------
-// CORS
-// ---------------------------------------------------------------------------
 
 const corsOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
 
@@ -54,20 +38,12 @@ app.use(
   })
 );
 
-// ---------------------------------------------------------------------------
-// Request ID middleware
-// ---------------------------------------------------------------------------
-
 app.use((req, res, next) => {
   const requestId = randomUUID();
   req.headers['x-request-id'] = requestId;
   res.setHeader('X-Request-Id', requestId);
   next();
 });
-
-// ---------------------------------------------------------------------------
-// Request logging (pino-http)
-// ---------------------------------------------------------------------------
 
 app.use(
   (pinoHttp as unknown as typeof pinoHttp.default)({
@@ -85,22 +61,10 @@ app.use(
   })
 );
 
-// ---------------------------------------------------------------------------
-// Body parsing
-// ---------------------------------------------------------------------------
-
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// ---------------------------------------------------------------------------
-// General rate limiter
-// ---------------------------------------------------------------------------
-
 app.use(generalLimiter);
-
-// ---------------------------------------------------------------------------
-// Health check
-// ---------------------------------------------------------------------------
 
 let dbHealthy = false;
 
@@ -116,18 +80,10 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// API routes
-// ---------------------------------------------------------------------------
-
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/public', trackingRoutes);
-
-// ---------------------------------------------------------------------------
-// 404 catch-all (before error handler)
-// ---------------------------------------------------------------------------
 
 app.use((_req, res) => {
   res.status(404).json({
@@ -136,15 +92,7 @@ app.use((_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Global error handler (MUST be last middleware)
-// ---------------------------------------------------------------------------
-
 app.use(globalErrorHandler);
-
-// ---------------------------------------------------------------------------
-// Server start
-// ---------------------------------------------------------------------------
 
 const server = app.listen(env.PORT, async () => {
   logger.info(
@@ -156,7 +104,6 @@ const server = app.listen(env.PORT, async () => {
     `GO EXPRESS API running on port ${env.PORT}`
   );
 
-  // Test database connection at startup
   const dbOk = await testConnection();
   dbHealthy = dbOk;
   if (!dbOk) {
@@ -167,10 +114,6 @@ const server = app.listen(env.PORT, async () => {
 server.timeout = 30000;
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
-
-// ---------------------------------------------------------------------------
-// Graceful shutdown
-// ---------------------------------------------------------------------------
 
 function gracefulShutdown(signal: string) {
   logger.info({ signal }, 'Received shutdown signal, closing server...');
@@ -185,7 +128,7 @@ function gracefulShutdown(signal: string) {
     process.exit(0);
   });
 
-  // Force shutdown after 10 seconds if graceful close hangs
+  // Force shutdown after 10s if graceful close hangs
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);
@@ -195,17 +138,13 @@ function gracefulShutdown(signal: string) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// ---------------------------------------------------------------------------
-// Unhandled errors — log and crash (let process manager restart)
-// ---------------------------------------------------------------------------
-
 process.on('unhandledRejection', (reason: unknown) => {
-  logger.fatal({ err: reason }, 'Unhandled promise rejection — shutting down');
+  logger.fatal({ err: reason }, 'Unhandled promise rejection, shutting down');
   process.exit(1);
 });
 
 process.on('uncaughtException', (err: Error) => {
-  logger.fatal({ err }, 'Uncaught exception — shutting down');
+  logger.fatal({ err }, 'Uncaught exception, shutting down');
   process.exit(1);
 });
 

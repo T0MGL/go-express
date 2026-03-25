@@ -7,16 +7,6 @@ import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const GoIsotipo = ({ size = 28 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 2L36 11V29L20 38L4 29V11L20 2Z" fill="hsl(var(--brand-lime))" />
-    <rect x="11" y="11" width="15" height="3" fill="white" />
-    <rect x="11" y="11" width="3" height="18" fill="white" />
-    <rect x="11" y="26" width="15" height="3" fill="white" />
-    <rect x="23" y="19" width="3" height="10" fill="white" />
-    <rect x="17" y="19" width="9" height="3" fill="white" />
-  </svg>
-);
 
 const mainNav = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin' },
@@ -49,7 +39,7 @@ export const Sidebar = () => {
           'flex items-center h-12 border-b border-white/[0.06]',
           collapsed ? 'justify-center px-0' : 'px-4 gap-2.5'
         )}>
-          <GoIsotipo size={collapsed ? 22 : 24} />
+          <img src="/isotipo.png" alt="Go Express" className={collapsed ? 'h-5 w-5' : 'h-6 w-6'} />
           {!collapsed && (
             <div className="min-w-0">
               <h2 className="font-display font-extrabold text-[12px] text-white leading-none tracking-tight">

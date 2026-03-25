@@ -35,9 +35,7 @@ const ENVIO_COLUMNS = [
   'created_at', 'updated_at',
 ].join(', ');
 
-// ---------------------------------------------------------------------------
-// Helpers — map DB row to API response
-// ---------------------------------------------------------------------------
+// Row to API mapping (decrypt PII, camelCase output)
 
 function mapEnvioRow(row: EnvioRow): Envio {
   return {
@@ -95,9 +93,7 @@ function mapEnvioRow(row: EnvioRow): Envio {
   };
 }
 
-// ---------------------------------------------------------------------------
-// GET / — My envios (paginated + filters)
-// ---------------------------------------------------------------------------
+// GET /: my envios (paginated + filters)
 
 router.get(
   '/',
@@ -146,9 +142,7 @@ router.get(
   })
 );
 
-// ---------------------------------------------------------------------------
-// GET /:id — Envio detail (only if mine)
-// ---------------------------------------------------------------------------
+// GET /:id: envio detail (only if mine)
 
 router.get(
   '/:id',
@@ -157,7 +151,7 @@ router.get(
     const clienteId = req.clienteId!;
     const id = req.params['id'] as string;
 
-    // Fetch envio — must belong to this client
+    // Must belong to this client
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
       .select(ENVIO_COLUMNS)
@@ -175,7 +169,6 @@ router.get(
 
     const envio = mapEnvioRow(envioData as unknown as EnvioRow);
 
-    // Fetch eventos
     const { data: eventosData } = await supabase
       .from('eventos_envio')
       .select('id, envio_id, estado, descripcion, ubicacion, created_at')
@@ -193,7 +186,6 @@ router.get(
       }));
     }
 
-    // Fetch pago
     const { data: pagoData } = await supabase
       .from('pagos')
       .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at')
@@ -218,16 +210,14 @@ router.get(
       };
     }
 
-    // Internal notes are NOT exposed to the client portal — they are admin-only.
+    // Internal notes are NOT exposed to the client portal (admin-only).
     // envio.notasInternas remains empty ([]).
 
     res.json(envio);
   })
 );
 
-// ---------------------------------------------------------------------------
-// POST / — Create envio (clienteId from auth)
-// ---------------------------------------------------------------------------
+// POST /: create envio (clienteId from auth)
 
 router.post(
   '/',
@@ -236,8 +226,6 @@ router.post(
     const clienteId = req.clienteId!;
     const input = req.body as CreateEnvioInput;
 
-    // Override clienteId with authenticated client's ID
-    // Fetch client name and validate estado
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social, estado, eliminado')
@@ -256,10 +244,8 @@ router.post(
 
     const clienteNombre = (clienteData as { razon_social: string }).razon_social;
 
-    // Generate tracking number
     const trackingNumber = await generateTrackingNumber(supabase);
 
-    // Build the DB row
     const envioInsert = {
       tracking_number: trackingNumber,
       cliente_id: clienteId,
@@ -318,23 +304,20 @@ router.post(
 
     const envio = mapEnvioRow(insertedData as unknown as EnvioRow);
 
-    // Create initial evento
     await supabase.from('eventos_envio').insert({
       envio_id: envio.id,
       estado: 'pendiente',
       descripcion: 'Envío creado desde portal cliente',
     });
 
-    // Fire-and-forget email notification
+
     emailService.sendEnvioCreado(envio);
 
     res.status(201).json(envio);
   })
 );
 
-// ---------------------------------------------------------------------------
-// POST /bulk-import — Bulk CSV import
-// ---------------------------------------------------------------------------
+// POST /bulk-import: bulk CSV import
 
 router.post(
   '/bulk-import',
@@ -344,7 +327,6 @@ router.post(
     const clienteId = req.clienteId!;
     const { envios } = req.body as { envios: CreateEnvioInput[] };
 
-    // Fetch client name
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social')
@@ -423,7 +405,6 @@ router.post(
 
         const insertedId = (insertedData as { id: string }).id;
 
-        // Create initial evento
         await supabase.from('eventos_envio').insert({
           envio_id: insertedId,
           estado: 'pendiente',

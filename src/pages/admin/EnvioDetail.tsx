@@ -25,6 +25,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   useEnvio,
   useUpdateEnvioEstado,
@@ -33,7 +34,6 @@ import {
   useAgregarNota,
 } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
-import { useCreatePago } from '@/hooks/api/use-pagos';
 
 const EnvioDetail = () => {
   const { id } = useParams();
@@ -41,15 +41,16 @@ const EnvioDetail = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isProblemaModalOpen, setIsProblemaModalOpen] = useState(false);
   const [showRepartidorModal, setShowRepartidorModal] = useState(false);
+  const [showEstadoModal, setShowEstadoModal] = useState(false);
+  const [nuevoEstado, setNuevoEstado] = useState('');
+  const [estadoDescripcion, setEstadoDescripcion] = useState('');
 
-  // API hooks
   const { data: apiEnvio, isLoading } = useEnvio(id);
   const { data: apiRepartidores } = useRepartidores();
   const updateEstadoMut = useUpdateEnvioEstado();
   const asignarRepMut = useAsignarRepartidor();
   const reportarProbMut = useReportarProblema();
   const agregarNotaMut = useAgregarNota();
-  void useCreatePago();
 
   const envio = apiEnvio;
   const repartidoresList = apiRepartidores?.data ?? [];
@@ -67,7 +68,6 @@ const EnvioDetail = () => {
       .substring(0, 2);
   };
 
-  // Loading state (API mode only)
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -100,15 +100,19 @@ const EnvioDetail = () => {
   }
 
   const handleUpdateStatus = () => {
-    if (id) {
-      updateEstadoMut.mutate(
-        { id, estado: 'en_transito', descripcion: 'Estado actualizado manualmente' },
-        {
-          onSuccess: () => toast.success('Estado actualizado'),
-          onError: () => toast.error('Error al actualizar estado'),
+    if (!id || !nuevoEstado) return;
+    updateEstadoMut.mutate(
+      { id, estado: nuevoEstado, descripcion: estadoDescripcion.trim() || 'Estado actualizado manualmente' },
+      {
+        onSuccess: () => {
+          toast.success('Estado actualizado');
+          setShowEstadoModal(false);
+          setNuevoEstado('');
+          setEstadoDescripcion('');
         },
-      );
-    }
+        onError: () => toast.error('Error al actualizar estado'),
+      },
+    );
   };
 
   const handlePrintLabel = () => {
@@ -192,7 +196,7 @@ const EnvioDetail = () => {
             <PencilSimple size={14} weight="duotone" />
             Editar
           </Button>
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handleUpdateStatus}>
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => setShowEstadoModal(true)}>
             <ArrowsClockwise size={14} weight="duotone" />
             Actualizar Estado
           </Button>
@@ -259,7 +263,9 @@ const EnvioDetail = () => {
             <div>
               <p className="section-label mb-1">Dimensiones</p>
               <p className="font-medium text-[13px] font-data">
-                {envio.dimensiones.largo} x {envio.dimensiones.ancho} x {envio.dimensiones.alto} cm
+                {envio.dimensiones?.largo ? (
+                  `${envio.dimensiones.largo} x ${envio.dimensiones.ancho} x ${envio.dimensiones.alto} cm`
+                ) : 'No especificadas'}
               </p>
             </div>
           </div>
@@ -451,6 +457,50 @@ const EnvioDetail = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showEstadoModal} onOpenChange={(open) => { setShowEstadoModal(open); if (!open) { setNuevoEstado(''); setEstadoDescripcion(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Actualizar Estado del Envio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-[12px] font-medium mb-1.5 block">Nuevo estado</label>
+              <Select value={nuevoEstado} onValueChange={setNuevoEstado}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="recolectado">Recolectado</SelectItem>
+                  <SelectItem value="en_transito">En Transito</SelectItem>
+                  <SelectItem value="en_reparto">En Reparto</SelectItem>
+                  <SelectItem value="entregado">Entregado</SelectItem>
+                  <SelectItem value="fallido">Fallido</SelectItem>
+                  <SelectItem value="problema">Problema/Incidencia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[12px] font-medium mb-1.5 block">Descripcion (opcional)</label>
+              <textarea
+                value={estadoDescripcion}
+                onChange={(e) => setEstadoDescripcion(e.target.value)}
+                placeholder="Detalle del cambio de estado..."
+                rows={3}
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowEstadoModal(false)} disabled={updateEstadoMut.isPending}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleUpdateStatus} disabled={!nuevoEstado || updateEstadoMut.isPending}>
+              {updateEstadoMut.isPending ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

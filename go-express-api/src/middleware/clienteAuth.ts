@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler.js';
 import { env } from '../config/env.js';
-import { supabase } from '../config/database.js';
+import { supabase, supabaseAuth } from '../config/database.js';
 import { logger } from '../config/logger.js';
 
 declare global {
@@ -27,7 +27,7 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
     const token = authHeader.slice(7);
 
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
 
       if (error || !user) {
         throw AppError.unauthorized('Invalid or expired token');

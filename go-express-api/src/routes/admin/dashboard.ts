@@ -5,7 +5,7 @@ import { supabase } from '../../config/database.js';
 const router = Router();
 
 /**
- * GET /stats — Dashboard KPIs
+ * GET /stats:Dashboard KPIs
  */
 router.get(
   '/stats',
@@ -88,6 +88,7 @@ router.get(
     res.json({
       enviosHoy: enviosHoyResult.count ?? 0,
       enTransito: enTransitoResult.count ?? 0,
+      entregados: totalDelivered,
       tasaEntrega,
       porCobrar,
       problemasHoy: problemasHoyResult.count ?? 0,

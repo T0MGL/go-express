@@ -1,7 +1,3 @@
-/**
- * Shared utilities for API hooks
- */
-
 export function buildQueryString(
   params?: Record<string, string | number | boolean | undefined>,
 ): string {

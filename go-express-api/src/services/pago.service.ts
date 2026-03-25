@@ -11,10 +11,6 @@ import type {
 import type { CreatePagoInput, UpdatePagoInput, PagoQuery } from '../lib/validators/pago.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row → API mapping
-// ---------------------------------------------------------------------------
-
 function toApi(row: PagoRow): Pago {
   return {
     id: row.id,
@@ -32,19 +28,11 @@ function toApi(row: PagoRow): Pago {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Auto-calculate estado_pago
-// ---------------------------------------------------------------------------
-
 function calcularEstadoPago(montoRecibido: number, montoTotal: number): EstadoPago {
   if (montoRecibido >= montoTotal) return 'pagado';
   if (montoRecibido > 0) return 'pago_parcial';
   return 'pendiente';
 }
-
-// ---------------------------------------------------------------------------
-// PagoService
-// ---------------------------------------------------------------------------
 
 class PagoService {
   async list(query: PagoQuery): Promise<PaginatedResponse<Pago & { trackingNumber?: string; clienteNombre?: string; costoEnvio?: number }>> {
@@ -149,7 +137,6 @@ class PagoService {
   }
 
   async create(input: CreatePagoInput, userId: string): Promise<Pago> {
-    // Verify envio exists
     const { data: envioData } = await supabase
       .from('envios')
       .select('tracking_number')

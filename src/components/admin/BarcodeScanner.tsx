@@ -19,7 +19,6 @@ export default function BarcodeScanner({ onScan, onClose, className }: BarcodeSc
   useEffect(() => {
     if (!isScanning) return;
 
-    // Initialize scanner
     scannerRef.current = new Html5QrcodeScanner(
       scannerId,
       {
@@ -35,7 +34,6 @@ export default function BarcodeScanner({ onScan, onClose, className }: BarcodeSc
 
     scannerRef.current.render(
       (decodedText) => {
-        // Success callback
         onScan(decodedText);
         handleClose();
       },

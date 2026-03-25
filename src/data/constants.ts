@@ -1,8 +1,3 @@
-/**
- * Shared constants: labels, colors, departamentos, payment methods.
- * Used across all pages for consistent display of statuses and categories.
- */
-
 export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'success' | 'warning' | 'muted' | 'outline';
 
 export const estadoLabels: Record<string, string> = {
@@ -124,6 +119,7 @@ export const accionLabels: Record<string, string> = {
   asignar: 'Asignar',
   importar: 'Importar',
   login: 'Login',
+  logout: 'Logout',
 };
 
 export const accionColors: Record<string, string> = {
@@ -137,4 +133,5 @@ export const accionColors: Record<string, string> = {
   asignar: 'default',
   importar: 'default',
   login: 'muted',
+  logout: 'muted',
 };

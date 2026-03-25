@@ -67,7 +67,6 @@ export default function Warehouse() {
   });
 
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (searchTerm) apiFilters.search = searchTerm;
 

@@ -15,7 +15,7 @@ import { idParamSchema } from '../../lib/validators/common.schema.js';
 const router = Router();
 
 /**
- * GET / — Default: returns inventory list (same as /inventario)
+ * GET /:Default: returns inventory list (same as /inventario)
  */
 router.get(
   '/',
@@ -27,7 +27,7 @@ router.get(
 );
 
 /**
- * GET /inventario — List inventory + filters
+ * GET /inventario:List inventory + filters
  */
 router.get(
   '/inventario',
@@ -39,7 +39,7 @@ router.get(
 );
 
 /**
- * POST /ingreso — Receive package
+ * POST /ingreso:Receive package
  */
 router.post(
   '/ingreso',
@@ -51,7 +51,7 @@ router.post(
 );
 
 /**
- * POST /despacho — Dispatch package
+ * POST /despacho:Dispatch package
  */
 router.post(
   '/despacho',
@@ -63,7 +63,7 @@ router.post(
 );
 
 /**
- * POST /devolucion — Return package
+ * POST /devolucion:Return package
  */
 router.post(
   '/devolucion',
@@ -81,7 +81,7 @@ router.post(
 );
 
 /**
- * GET /picking — Picking list
+ * GET /picking:Picking list
  */
 router.get(
   '/picking',
@@ -92,7 +92,7 @@ router.get(
 );
 
 /**
- * PATCH /picking/:id — Update picking status
+ * PATCH /picking/:id:Update picking status
  */
 router.patch(
   '/picking/:id',
@@ -104,7 +104,7 @@ router.patch(
 );
 
 /**
- * GET /stats — Warehouse KPIs
+ * GET /stats:Warehouse KPIs
  */
 router.get(
   '/stats',

@@ -1,8 +1,3 @@
-/**
- * Type definitions for the Go Express application.
- * Constants (labels, colors, departamentos) live in constants.ts.
- */
-
 // Re-export everything from constants so existing imports continue to work
 export {
   type BadgeVariant,
@@ -26,7 +21,7 @@ export {
 
 import type { BadgeVariant } from './constants';
 
-// ── Pago ─────────────────────────────────────────────────────────────────────
+// Pago
 
 export interface Pago {
   id: string;
@@ -54,7 +49,7 @@ export interface NotaInterna {
   creadoEn?: string;
 }
 
-// ── Envio ────────────────────────────────────────────────────────────────────
+// Envio
 
 export interface Envio {
   id: string;
@@ -119,7 +114,7 @@ export interface EventoEnvio {
   creadoEn?: string;
 }
 
-// ── Warehouse ────────────────────────────────────────────────────────────────
+// Warehouse
 
 export interface PaqueteInventario {
   id: string;
@@ -165,7 +160,7 @@ export interface PickingItem {
   fechaCreacion: string;
 }
 
-// ── Cliente ──────────────────────────────────────────────────────────────────
+// Cliente
 
 export type PortalStatus = 'sin_invitar' | 'invitado' | 'activo' | 'desactivado';
 
@@ -210,7 +205,7 @@ export const portalStatusColors: Record<string, BadgeVariant> = {
   desactivado: 'destructive',
 };
 
-// ── Repartidor ───────────────────────────────────────────────────────────────
+// Repartidor
 
 export interface Repartidor {
   id: string;
@@ -229,7 +224,7 @@ export interface Repartidor {
   updatedAt?: string;
 }
 
-// ── Usuario ──────────────────────────────────────────────────────────────────
+// Usuario
 
 export interface Usuario {
   id: string;
@@ -239,7 +234,7 @@ export interface Usuario {
   estado: 'activo' | 'inactivo';
 }
 
-// ── Tarifa ───────────────────────────────────────────────────────────────────
+// Tarifa
 
 export interface Tarifa {
   id: string;
@@ -260,7 +255,7 @@ export interface Tarifa {
   motivoEliminacion?: string;
 }
 
-// ── Auditoria ────────────────────────────────────────────────────────────────
+// Auditoria
 
 export interface AuditoriaLog {
   id: string;
@@ -268,7 +263,7 @@ export interface AuditoriaLog {
   hora: string;
   usuario: string;
   usuarioId: string;
-  accion: 'crear' | 'editar' | 'eliminar' | 'exportar' | 'cambio_estado' | 'pago' | 'nota' | 'asignar' | 'importar' | 'login';
+  accion: 'crear' | 'editar' | 'eliminar' | 'exportar' | 'cambio_estado' | 'pago' | 'nota' | 'asignar' | 'importar' | 'login' | 'logout';
   entidad: 'envio' | 'cliente' | 'repartidor' | 'pago' | 'nota_interna' | 'tarifa' | 'usuario' | 'almacen' | 'sistema';
   entidadId?: string;
   descripcion: string;
@@ -279,7 +274,7 @@ export interface AuditoriaLog {
   userAgent?: string;
 }
 
-// ── Producto Guardado ────────────────────────────────────────────────────────
+// Producto Guardado
 
 export interface ProductoGuardado {
   id: string;

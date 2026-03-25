@@ -19,7 +19,6 @@ const Pagos = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (filtroEstado !== 'todos') apiFilters.estadoPago = filtroEstado;
   if (filtroMetodo !== 'todos') apiFilters.metodoPago = filtroMetodo;

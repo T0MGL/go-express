@@ -14,7 +14,7 @@ import { idParamSchema, softDeleteSchema } from '../../lib/validators/common.sch
 const router = Router();
 
 /**
- * GET / — List clients with pagination + filters
+ * GET /:List clients with pagination + filters
  */
 router.get(
   '/',
@@ -26,7 +26,7 @@ router.get(
 );
 
 /**
- * GET /export — CSV export
+ * GET /export:CSV export
  */
 router.get(
   '/export',
@@ -39,7 +39,7 @@ router.get(
 );
 
 /**
- * GET /:id — Detail (decrypted)
+ * GET /:id:Detail (decrypted)
  */
 router.get(
   '/:id',
@@ -51,7 +51,7 @@ router.get(
 );
 
 /**
- * POST / — Create client
+ * POST /:Create client
  */
 router.post(
   '/',
@@ -63,7 +63,7 @@ router.post(
 );
 
 /**
- * PUT /:id — Update client
+ * PUT /:id:Update client
  */
 router.put(
   '/:id',
@@ -75,7 +75,7 @@ router.put(
 );
 
 /**
- * PATCH /:id/estado — Change estado
+ * PATCH /:id/estado:Change estado
  */
 router.patch(
   '/:id/estado',
@@ -92,7 +92,7 @@ router.patch(
 );
 
 /**
- * DELETE /:id — Soft-delete (requires motivo in body)
+ * DELETE /:id:Soft-delete (requires motivo in body)
  */
 router.delete(
   '/:id',
@@ -103,12 +103,10 @@ router.delete(
   })
 );
 
-// ---------------------------------------------------------------------------
-// Portal management endpoints (admin only)
-// ---------------------------------------------------------------------------
+// Portal management endpoints
 
 /**
- * POST /:id/invite — Invite client to the portal (creates Supabase Auth user, sends email)
+ * POST /:id/invite:Invite client to the portal (creates Supabase Auth user, sends email)
  */
 router.post(
   '/:id/invite',
@@ -120,7 +118,7 @@ router.post(
 );
 
 /**
- * POST /:id/reinvite — Resend portal invitation
+ * POST /:id/reinvite:Resend portal invitation
  */
 router.post(
   '/:id/reinvite',
@@ -132,7 +130,7 @@ router.post(
 );
 
 /**
- * POST /:id/reset-password — Admin triggers password reset for client
+ * POST /:id/reset-password:Admin triggers password reset for client
  */
 router.post(
   '/:id/reset-password',

@@ -3,9 +3,7 @@ import { ZodError } from 'zod';
 import { logger } from '../config/logger.js';
 import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// AppError — structured application error
-// ---------------------------------------------------------------------------
+// Structured application error
 
 export class AppError extends Error {
   public readonly statusCode: number;
@@ -65,9 +63,6 @@ export class AppError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Zod error formatter
-// ---------------------------------------------------------------------------
 
 interface FormattedZodIssue {
   field: string;
@@ -81,9 +76,7 @@ function formatZodError(error: ZodError): FormattedZodIssue[] {
   }));
 }
 
-// ---------------------------------------------------------------------------
-// Global error handler middleware (must be registered LAST)
-// ---------------------------------------------------------------------------
+// Must be registered as the last middleware
 
 export function globalErrorHandler(
   err: unknown,
@@ -91,7 +84,6 @@ export function globalErrorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  // --- AppError (expected application error) ---
   if (err instanceof AppError) {
     logger.warn(
       {
@@ -113,7 +105,6 @@ export function globalErrorHandler(
     return;
   }
 
-  // --- Zod validation error ---
   if (err instanceof ZodError) {
     const details = formatZodError(err);
 
@@ -135,7 +126,6 @@ export function globalErrorHandler(
     return;
   }
 
-  // --- SyntaxError from body parser (malformed JSON) ---
   if (err instanceof SyntaxError && 'body' in err) {
     logger.warn(
       {
@@ -153,7 +143,6 @@ export function globalErrorHandler(
     return;
   }
 
-  // --- Unknown / unexpected error ---
   const error = err instanceof Error ? err : new Error(String(err));
 
   logger.error(
@@ -173,9 +162,7 @@ export function globalErrorHandler(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Async handler wrapper — catches promise rejections in route handlers
-// ---------------------------------------------------------------------------
+// Catches promise rejections in route handlers
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 

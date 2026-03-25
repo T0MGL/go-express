@@ -244,7 +244,7 @@ router.post(
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       // Verify the user first to get their info for audit
-      const { data: { user } } = await supabase.auth.getUser(token);
+      const { data: { user } } = await supabaseAuth.auth.getUser(token);
       if (user) {
         const { data: dbUser } = await supabase
           .from('usuarios')
@@ -288,7 +288,7 @@ router.get(
     }
 
     const token = authHeader.slice(7);
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
 
     if (error || !user) {
       throw AppError.unauthorized('Invalid or expired token');

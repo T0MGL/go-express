@@ -12,10 +12,6 @@ import type {
 import type { CreateClienteInput, UpdateClienteInput, ClienteQuery } from '../lib/validators/cliente.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row to API mapping (decrypt encrypted fields, map portal columns)
-// ---------------------------------------------------------------------------
-
 function toApi(row: ClienteRow): Cliente {
   return {
     id: row.id,
@@ -44,10 +40,6 @@ function toApi(row: ClienteRow): Cliente {
     updatedAt: row.updated_at,
   };
 }
-
-// ---------------------------------------------------------------------------
-// ClienteService
-// ---------------------------------------------------------------------------
 
 const CLIENTE_COLUMNS = [
   'id', 'auth_id', 'razon_social', 'ruc_enc', 'ruc_hash',
@@ -317,12 +309,7 @@ class ClienteService {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Portal: Invite client to create an account
-  // ---------------------------------------------------------------------------
-
   async inviteToPortal(clienteId: string, userId: string): Promise<Cliente> {
-    // Fetch the raw row to get encrypted email and current state
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -341,12 +328,12 @@ class ClienteService {
       throw AppError.badRequest('El cliente no tiene email registrado. No se puede invitar al portal.');
     }
 
-    // If already has an auth_id and portal is active, no need to reinvite from scratch
+    // Already has active portal access, no need to reinvite
     if (clienteRow.auth_id && clienteRow.portal_status === 'activo') {
       throw AppError.conflict('El cliente ya tiene acceso activo al portal.');
     }
 
-    // If already has an auth_id (previously invited), just resend the invite
+    // Previously invited but not yet active, resend
     if (clienteRow.auth_id) {
       return this.reinviteToPortal(clienteId, userId);
     }
@@ -416,10 +403,6 @@ class ClienteService {
     return cliente;
   }
 
-  // ---------------------------------------------------------------------------
-  // Portal: Resend invite
-  // ---------------------------------------------------------------------------
-
   async reinviteToPortal(clienteId: string, userId: string): Promise<Cliente> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
@@ -439,7 +422,6 @@ class ClienteService {
       throw AppError.badRequest('El cliente no ha sido invitado al portal. Use la accion "Invitar" primero.');
     }
 
-    // Re-invite by generating a new invite link
     const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
       data: {
         role: 'cliente',
@@ -458,7 +440,6 @@ class ClienteService {
       );
     }
 
-    // Update the invited_at timestamp
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')
       .update({
@@ -487,10 +468,6 @@ class ClienteService {
     return cliente;
   }
 
-  // ---------------------------------------------------------------------------
-  // Portal: Admin triggers password reset for a client
-  // ---------------------------------------------------------------------------
-
   async resetClientPassword(clienteId: string, userId: string): Promise<{ message: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
@@ -512,7 +489,6 @@ class ClienteService {
 
     const redirectUrl = `${process.env['CORS_ORIGINS']?.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`;
 
-    // Generate a password reset link for the client
     const { data: linkData, error: resetErr } = await supabase.auth.admin.generateLink({
       type: 'recovery',
       email,
@@ -543,10 +519,6 @@ class ClienteService {
 
     return { message: `Enlace de recuperacion enviado a ${email}` };
   }
-
-  // ---------------------------------------------------------------------------
-  // Portal: Mark client portal as active (called after first login)
-  // ---------------------------------------------------------------------------
 
   async activatePortal(clienteId: string): Promise<void> {
     const { error } = await supabase

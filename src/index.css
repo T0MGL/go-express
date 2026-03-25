@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════
-   GO EXPRESS — Premium Design System v2
+   GO EXPRESS: Premium Design System v2
    Brand: #0643F7 (Blue) + #97D700 (Lime)
    Philosophy: Spatial clarity, intentional color, subtle depth
    ═══════════════════════════════════════════════════════════════ */
@@ -42,11 +42,11 @@
     --accent: 225 16% 93.5%;
     --accent-foreground: 225 30% 15%;
 
-    /* Brand Lime — #97D700, kept vibrant */
+    /* Brand Lime: #97D700, kept vibrant */
     --brand-lime: 78 100% 42%;
     --brand-lime-foreground: 225 80% 8%;
 
-    /* ── Status Colors — Refined, muted backgrounds, vivid indicators ── */
+    /* ── Status Colors: Refined, muted backgrounds, vivid indicators ── */
     --success: 152 55% 40%;
     --success-foreground: 0 0% 100%;
 
@@ -69,7 +69,7 @@
     --radius-xl: 0.75rem;
     --radius-2xl: 1rem;
 
-    /* ── Shadow Hierarchy — Apple-inspired layered shadows ── */
+    /* ── Shadow Hierarchy: Apple-inspired layered shadows ── */
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
     --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03);
@@ -111,7 +111,7 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  /* ── Typography Scale — dramatic hierarchy ── */
+  /* ── Typography Scale: dramatic hierarchy ── */
   h1 {
     font-family: var(--font-display);
     @apply text-[1.625rem] font-bold;

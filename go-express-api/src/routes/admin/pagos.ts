@@ -13,7 +13,7 @@ import { idParamSchema } from '../../lib/validators/common.schema.js';
 const router = Router();
 
 /**
- * GET / — List pagos + filters
+ * GET /:List pagos + filters
  */
 router.get(
   '/',
@@ -25,7 +25,7 @@ router.get(
 );
 
 /**
- * GET /stats — Payment KPIs
+ * GET /stats:Payment KPIs
  */
 router.get(
   '/stats',
@@ -36,7 +36,7 @@ router.get(
 );
 
 /**
- * GET /export — CSV export
+ * GET /export:CSV export
  */
 router.get(
   '/export',
@@ -49,7 +49,7 @@ router.get(
 );
 
 /**
- * POST / — Create payment
+ * POST /:Create payment
  */
 router.post(
   '/',
@@ -61,7 +61,7 @@ router.post(
 );
 
 /**
- * PATCH /:id — Update payment
+ * PATCH /:id:Update payment
  */
 router.patch(
   '/:id',

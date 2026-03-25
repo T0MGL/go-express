@@ -20,9 +20,7 @@ import type {
 import type { CreateEnvioInput, UpdateEnvioEstadoInput, EnvioQuery } from '../lib/validators/envio.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
 // State machine: valid transitions
-// ---------------------------------------------------------------------------
 
 const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
   pendiente: ['recolectado', 'problema'],
@@ -34,9 +32,7 @@ const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
   problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
 };
 
-// ---------------------------------------------------------------------------
-// Row → API mappers (exported for cross-service use)
-// ---------------------------------------------------------------------------
+// Row to API mappers (exported for cross-service use)
 
 export function mapEnvioRowToApi(row: EnvioRow): Envio {
   return {
@@ -138,23 +134,16 @@ function mapNotaRow(row: NotaInternaRow): NotaInterna {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Notification hook placeholder
-// ---------------------------------------------------------------------------
+// TODO: WhatsApp / email integration
 
 function triggerNotification(event: NotificationEvent, envio: Envio, previousEstado?: EnvioEstado): void {
   logger.info(
     { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
     `Notification hook: ${event}`
   );
-  // TODO: WhatsApp / email integration
 }
 
-// ---------------------------------------------------------------------------
-// EnvioService — most complex service
-// ---------------------------------------------------------------------------
-
-// Explicit column lists to avoid SELECT *
+// Explicit column lists (no SELECT *)
 const ENVIO_LIST_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
@@ -235,7 +224,6 @@ class EnvioService {
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
 
-    // Fetch related data in parallel
     const [eventosResult, pagoResult, notasResult] = await Promise.all([
       supabase
         .from('eventos_envio')
@@ -262,7 +250,7 @@ class EnvioService {
   }
 
   async create(input: CreateEnvioInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
-    // Fetch cliente name for denormalized field — must be active and not deleted
+    // Cliente must be active and not deleted
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social, estado')
@@ -278,7 +266,6 @@ class EnvioService {
       throw AppError.badRequest('No se pueden crear envíos para clientes inactivos o suspendidos');
     }
 
-    // Generate tracking number
     const trackingNumber = await generateTrackingNumber(supabase);
 
     const today = new Date().toISOString().split('T')[0]!;
@@ -338,14 +325,12 @@ class EnvioService {
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
 
-    // Insert initial evento
     await supabase.from('eventos_envio').insert({
       envio_id: envio.id,
       estado: 'pendiente',
       descripcion: 'Envío creado',
     });
 
-    // Audit
     await auditoriaService.log({
       usuario: userName ?? 'Admin GoExpress',
       usuarioId: userId,
@@ -357,14 +342,12 @@ class EnvioService {
       userAgent,
     });
 
-    // Notification hook
     triggerNotification('envio_creado', envio);
 
     return envio;
   }
 
   async update(id: string, input: Partial<CreateEnvioInput>, userId?: string): Promise<Envio> {
-    // Lightweight existence check (no related data fetching)
     const { data: existing, error: checkError } = await supabase
       .from('envios')
       .select('id, tracking_number')
@@ -460,7 +443,6 @@ class EnvioService {
   }
 
   async updateEstado(id: string, input: UpdateEnvioEstadoInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
-    // Lightweight fetch for current state (optimistic locking)
     const { data: currentData, error: fetchError } = await supabase
       .from('envios')
       .select('estado, tracking_number')
@@ -475,7 +457,6 @@ class EnvioService {
     const previousEstado = (currentData as { estado: EnvioEstado; tracking_number: string }).estado;
     const newEstado = input.estado;
 
-    // Validate state transition
     const allowed = VALID_TRANSITIONS[previousEstado];
     if (!allowed || !allowed.includes(newEstado)) {
       throw AppError.unprocessable(
@@ -486,19 +467,17 @@ class EnvioService {
 
     const updateData: Record<string, unknown> = { estado: newEstado };
 
-    // If estado='problema': set problema fields
     if (newEstado === 'problema') {
       updateData['problema_descripcion'] = input.descripcion;
       updateData['problema_fecha'] = new Date().toISOString();
     }
 
-    // If resolving from problema, clear problema fields
     if (previousEstado === 'problema' && newEstado !== 'problema') {
       updateData['problema_descripcion'] = null;
       updateData['problema_fecha'] = null;
     }
 
-    // Optimistic locking: only update if estado still matches what we read
+    // Optimistic locking: only update if estado still matches
     const { data, error } = await supabase
       .from('envios')
       .update(updateData)
@@ -511,12 +490,10 @@ class EnvioService {
       throw new AppError('Error updating envio estado', 500, 'DB_ERROR');
     }
 
-    // If no rows matched, it means someone else changed the state concurrently
     if (!data) {
       throw AppError.conflict('El estado del envío fue modificado por otro usuario. Recargue e intente de nuevo.');
     }
 
-    // Insert evento
     await supabase.from('eventos_envio').insert({
       envio_id: id,
       estado: newEstado,
@@ -526,7 +503,6 @@ class EnvioService {
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
 
-    // Audit
     await auditoriaService.log({
       usuario: userName ?? 'Admin GoExpress',
       usuarioId: userId,
@@ -538,7 +514,6 @@ class EnvioService {
       userAgent,
     });
 
-    // Notification hook
     let event: NotificationEvent = 'cambio_estado';
     if (newEstado === 'entregado') event = 'entregado';
     else if (newEstado === 'problema') event = 'problema';
@@ -550,7 +525,6 @@ class EnvioService {
   }
 
   async asignarRepartidor(id: string, repartidorId: string, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
-    // Verify envio exists and is not deleted
     const { data: envioCheck, error: envioCheckError } = await supabase
       .from('envios')
       .select('id, estado, tracking_number')
@@ -562,14 +536,12 @@ class EnvioService {
       throw AppError.notFound('Envío no encontrado');
     }
 
-    // Only allow assignment for active delivery states
     const allowedStates: EnvioEstado[] = ['pendiente', 'recolectado', 'en_transito', 'en_reparto'];
     const envioState = (envioCheck as { id: string; estado: EnvioEstado; tracking_number: string }).estado;
     if (!allowedStates.includes(envioState)) {
       throw AppError.badRequest(`No se puede asignar repartidor a un envío en estado "${envioState}"`);
     }
 
-    // Verify repartidor exists, is active, and not deleted
     const { data: repartidor } = await supabase
       .from('repartidores')
       .select('nombre, estado')
@@ -625,7 +597,6 @@ class EnvioService {
   }
 
   async agregarNota(id: string, texto: string, userId: string, usuarioNombre: string): Promise<NotaInterna> {
-    // Verify envio exists
     await this.getById(id);
 
     const { data, error } = await supabase

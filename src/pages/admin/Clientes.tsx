@@ -33,7 +33,6 @@ const Clientes = () => {
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null);
 
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (searchTerm) apiFilters.search = searchTerm;
   if (filterEstado !== 'todos') apiFilters.estado = filterEstado;

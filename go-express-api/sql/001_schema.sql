@@ -1,16 +1,7 @@
--- ═══════════════════════════════════════════════════════════════
--- GO EXPRESS — Database Schema v1.1
--- Execute this in Supabase Dashboard > SQL Editor
--- ═══════════════════════════════════════════════════════════════
 
--- Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-
--- ═══════════════════════════════════════════════════════════════
--- ENUM TYPES
--- ═══════════════════════════════════════════════════════════════
 
 DO $$ BEGIN
   CREATE TYPE user_role AS ENUM ('admin', 'operador');
@@ -87,10 +78,6 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ═══════════════════════════════════════════════════════════════
--- USUARIOS DEL SISTEMA (Operadores GoExpress)
--- ═══════════════════════════════════════════════════════════════
-
 CREATE TABLE IF NOT EXISTS usuarios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   auth_id UUID UNIQUE,
@@ -101,10 +88,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- ═══════════════════════════════════════════════════════════════
--- CLIENTES (Empresas que contratan GoExpress)
--- ═══════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS clientes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -117,8 +100,8 @@ CREATE TABLE IF NOT EXISTS clientes (
   telefono_enc TEXT NOT NULL,
   email_enc TEXT NOT NULL,
   email_hash VARCHAR(64) NOT NULL,
-  direccion_enc TEXT,                                   -- Fix #6: nullable (service allows null)
-  ciudad VARCHAR(100),                                  -- Fix #6: nullable (service allows null)
+  direccion_enc TEXT,
+  ciudad VARCHAR(100),
   estado cliente_estado NOT NULL DEFAULT 'activo',
   plan cliente_plan NOT NULL DEFAULT 'basico',
   saldo_cuenta_corriente BIGINT NOT NULL DEFAULT 0,
@@ -139,11 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_clientes_ruc_hash ON clientes(ruc_hash);
 CREATE INDEX IF NOT EXISTS idx_clientes_email_hash ON clientes(email_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_ruc_unique ON clientes(ruc_hash) WHERE eliminado = FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_email_unique ON clientes(email_hash) WHERE eliminado = FALSE;
-CREATE INDEX IF NOT EXISTS idx_clientes_created_at ON clientes(created_at DESC) WHERE eliminado = FALSE;  -- Fix #9: missing index
-
--- ═══════════════════════════════════════════════════════════════
--- REPARTIDORES
--- ═══════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_clientes_created_at ON clientes(created_at DESC) WHERE eliminado = FALSE;
 
 CREATE TABLE IF NOT EXISTS repartidores (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -163,18 +142,14 @@ CREATE TABLE IF NOT EXISTS repartidores (
 
 CREATE INDEX IF NOT EXISTS idx_repartidores_estado ON repartidores(estado) WHERE eliminado = FALSE;
 
--- ═══════════════════════════════════════════════════════════════
--- TARIFAS
--- ═══════════════════════════════════════════════════════════════
-
 CREATE TABLE IF NOT EXISTS tarifas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   origen VARCHAR(100) NOT NULL,
   destino VARCHAR(100) NOT NULL,
   tipo_servicio tipo_servicio NOT NULL,
-  precio_base BIGINT NOT NULL CHECK (precio_base > 0),                          -- Fix #8: CHECK constraint
+  precio_base BIGINT NOT NULL CHECK (precio_base > 0),
   peso_base DECIMAL(6,2) NOT NULL,
-  precio_por_kg_extra BIGINT NOT NULL DEFAULT 0 CHECK (precio_por_kg_extra >= 0), -- Fix #8: CHECK + DEFAULT
+  precio_por_kg_extra BIGINT NOT NULL DEFAULT 0 CHECK (precio_por_kg_extra >= 0),
   factor_dimensional INT NOT NULL DEFAULT 5000,
   activo BOOLEAN NOT NULL DEFAULT TRUE,
   creado_por UUID NOT NULL REFERENCES usuarios(id),
@@ -188,14 +163,10 @@ CREATE TABLE IF NOT EXISTS tarifas (
 
 CREATE INDEX IF NOT EXISTS idx_tarifas_ruta ON tarifas(origen, destino) WHERE eliminado = FALSE AND activo = TRUE;
 
--- ═══════════════════════════════════════════════════════════════
--- ENVÍOS (tabla principal)
--- ═══════════════════════════════════════════════════════════════
-
 CREATE TABLE IF NOT EXISTS envios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tracking_number VARCHAR(20) NOT NULL UNIQUE,
-  cliente_id UUID NOT NULL REFERENCES clientes(id) ON DELETE RESTRICT,           -- Fix #13: explicit RESTRICT
+  cliente_id UUID NOT NULL REFERENCES clientes(id) ON DELETE RESTRICT,
   cliente_nombre VARCHAR(300) NOT NULL,
   codigo_referencia VARCHAR(100),
   origen VARCHAR(100) NOT NULL,
@@ -210,40 +181,38 @@ CREATE TABLE IF NOT EXISTS envios (
   destinatario_barrio VARCHAR(100),
   destinatario_referencia_enc TEXT,
   destinatario_ubicacion_url TEXT,
-  destinatario_nombre_search VARCHAR(300) NOT NULL,                              -- Fix #6: NOT NULL (service always populates)
-  destinatario_telefono_hash VARCHAR(64) NOT NULL,                               -- Fix #6: NOT NULL (service always populates)
+  destinatario_nombre_search VARCHAR(300) NOT NULL,
+  destinatario_telefono_hash VARCHAR(64) NOT NULL,
   cantidad INT NOT NULL DEFAULT 1,
   producto VARCHAR(500) NOT NULL DEFAULT '',
-  peso DECIMAL(8,2) NOT NULL CHECK (peso >= 0),                                  -- Fix #8 + #15: CHECK >= 0 (allow 0 for cotización)
+  peso DECIMAL(8,2) NOT NULL CHECK (peso >= 0),
   dimensiones_largo DECIMAL(6,1),
   dimensiones_ancho DECIMAL(6,1),
   dimensiones_alto DECIMAL(6,1),
   fragil BOOLEAN NOT NULL DEFAULT FALSE,
-  valor_declarado BIGINT NOT NULL DEFAULT 0 CHECK (valor_declarado >= 0),        -- Fix #8: CHECK constraint
+  valor_declarado BIGINT NOT NULL DEFAULT 0 CHECK (valor_declarado >= 0),
   instrucciones_entrega TEXT,
   horario_entrega VARCHAR(100),
   notas TEXT,
   estado envio_estado NOT NULL DEFAULT 'pendiente',
-  costo BIGINT NOT NULL DEFAULT 0 CHECK (costo >= 0),                            -- Fix #8: CHECK + DEFAULT
-  monto_a_cobrar BIGINT NOT NULL DEFAULT 0 CHECK (monto_a_cobrar >= 0),          -- Fix #8: CHECK constraint
+  costo BIGINT NOT NULL DEFAULT 0 CHECK (costo >= 0),
+  monto_a_cobrar BIGINT NOT NULL DEFAULT 0 CHECK (monto_a_cobrar >= 0),
   tipo_pago tipo_pago NOT NULL DEFAULT 'anticipado',
-  repartidor_id UUID REFERENCES repartidores(id) ON DELETE SET NULL,             -- Fix #13: explicit SET NULL
+  repartidor_id UUID REFERENCES repartidores(id) ON DELETE SET NULL,
   repartidor_asignado_en TIMESTAMPTZ,
   problema_descripcion TEXT,
   problema_fecha TIMESTAMPTZ,
   tags TEXT[] DEFAULT '{}',
-  tarifa_id UUID REFERENCES tarifas(id) ON DELETE RESTRICT,                      -- Fix #13: explicit RESTRICT
+  tarifa_id UUID REFERENCES tarifas(id) ON DELETE RESTRICT,
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  -- Soft delete
   eliminado BOOLEAN NOT NULL DEFAULT FALSE,
-  eliminado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,                 -- Fix #13: explicit SET NULL
+  eliminado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
   eliminado_en TIMESTAMPTZ,
   motivo_eliminacion TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Fix #10: Removed redundant idx_envios_tracking (UNIQUE constraint creates implicit index)
 CREATE INDEX IF NOT EXISTS idx_envios_cliente ON envios(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_envios_estado ON envios(estado);
 CREATE INDEX IF NOT EXISTS idx_envios_fecha ON envios(fecha DESC);
@@ -253,19 +222,14 @@ CREATE INDEX IF NOT EXISTS idx_envios_nombre_search ON envios USING gin(destinat
 CREATE INDEX IF NOT EXISTS idx_envios_tags ON envios USING gin(tags);
 CREATE INDEX IF NOT EXISTS idx_envios_telefono_hash ON envios(destinatario_telefono_hash);
 CREATE INDEX IF NOT EXISTS idx_envios_not_deleted ON envios(id) WHERE eliminado = FALSE;
-CREATE INDEX IF NOT EXISTS idx_envios_created_at ON envios(created_at DESC);     -- Fix #9: missing index
+CREATE INDEX IF NOT EXISTS idx_envios_created_at ON envios(created_at DESC);
 
--- Secuencia para tracking numbers
 CREATE SEQUENCE IF NOT EXISTS tracking_seq START 1000 INCREMENT 1;
-
--- ═══════════════════════════════════════════════════════════════
--- EVENTOS DE ENVÍO (Timeline de tracking)
--- ═══════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS eventos_envio (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   envio_id UUID NOT NULL REFERENCES envios(id) ON DELETE CASCADE,
-  estado envio_estado NOT NULL,                                                  -- Fix #5: VARCHAR(50) → envio_estado ENUM
+  estado envio_estado NOT NULL,
   descripcion TEXT NOT NULL,
   ubicacion VARCHAR(200),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -273,15 +237,11 @@ CREATE TABLE IF NOT EXISTS eventos_envio (
 
 CREATE INDEX IF NOT EXISTS idx_eventos_envio ON eventos_envio(envio_id, created_at);
 
--- ═══════════════════════════════════════════════════════════════
--- PAGOS
--- ═══════════════════════════════════════════════════════════════
-
 CREATE TABLE IF NOT EXISTS pagos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   envio_id UUID NOT NULL REFERENCES envios(id) ON DELETE CASCADE,
-  monto_total BIGINT NOT NULL CHECK (monto_total > 0),                           -- Fix #8: CHECK constraint
-  monto_recibido BIGINT NOT NULL DEFAULT 0 CHECK (monto_recibido >= 0),          -- Fix #8: CHECK constraint
+  monto_total BIGINT NOT NULL CHECK (monto_total > 0),
+  monto_recibido BIGINT NOT NULL DEFAULT 0 CHECK (monto_recibido >= 0),
   metodo_pago metodo_pago NOT NULL,
   estado_pago estado_pago NOT NULL DEFAULT 'pendiente',
   fecha_pago DATE,
@@ -294,11 +254,7 @@ CREATE TABLE IF NOT EXISTS pagos (
 
 CREATE INDEX IF NOT EXISTS idx_pagos_envio ON pagos(envio_id);
 CREATE INDEX IF NOT EXISTS idx_pagos_estado ON pagos(estado_pago);
-CREATE INDEX IF NOT EXISTS idx_pagos_created_at ON pagos(created_at DESC);       -- Fix #9: missing index
-
--- ═══════════════════════════════════════════════════════════════
--- NOTAS INTERNAS
--- ═══════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_pagos_created_at ON pagos(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS notas_internas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -311,10 +267,6 @@ CREATE TABLE IF NOT EXISTS notas_internas (
 
 CREATE INDEX IF NOT EXISTS idx_notas_envio ON notas_internas(envio_id, created_at);
 
--- ═══════════════════════════════════════════════════════════════
--- ALMACÉN / WAREHOUSE
--- ═══════════════════════════════════════════════════════════════
-
 CREATE TABLE IF NOT EXISTS inventario_almacen (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   envio_id UUID REFERENCES envios(id),
@@ -324,8 +276,8 @@ CREATE TABLE IF NOT EXISTS inventario_almacen (
   zona VARCHAR(10) NOT NULL,
   estante VARCHAR(10),
   estado_almacen estado_almacen NOT NULL DEFAULT 'recibido',
-  fecha_ingreso TIMESTAMPTZ DEFAULT NOW(),                                       -- Fix #14: DATE → TIMESTAMPTZ
-  fecha_salida TIMESTAMPTZ,                                                      -- Fix #14: DATE → TIMESTAMPTZ
+  fecha_ingreso TIMESTAMPTZ DEFAULT NOW(),
+  fecha_salida TIMESTAMPTZ,
   peso DECIMAL(8,2) NOT NULL,
   dimensiones_largo DECIMAL(6,1),
   dimensiones_ancho DECIMAL(6,1),
@@ -355,7 +307,7 @@ CREATE TABLE IF NOT EXISTS movimientos_almacen (
 
 CREATE INDEX IF NOT EXISTS idx_movimientos_paquete ON movimientos_almacen(paquete_id);
 
-CREATE TABLE IF NOT EXISTS picking_items (                                       -- Fix #2: picking_list → picking_items
+CREATE TABLE IF NOT EXISTS picking_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   envio_id UUID NOT NULL REFERENCES envios(id) ON DELETE CASCADE,
   tracking_number VARCHAR(20) NOT NULL,
@@ -370,11 +322,7 @@ CREATE TABLE IF NOT EXISTS picking_items (                                      
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_picking_empaquetado ON picking_items(empaquetado) WHERE empaquetado = FALSE;  -- Fix #9: missing index
-
--- ═══════════════════════════════════════════════════════════════
--- PRODUCTOS GUARDADOS (Catálogo del cliente)
--- ═══════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_picking_empaquetado ON picking_items(empaquetado) WHERE empaquetado = FALSE;
 
 CREATE TABLE IF NOT EXISTS productos_guardados (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -382,20 +330,16 @@ CREATE TABLE IF NOT EXISTS productos_guardados (
   nombre VARCHAR(300) NOT NULL,
   descripcion TEXT,
   peso DECIMAL(8,2) NOT NULL,
-  dimensiones_largo DECIMAL(6,1),                                                -- Fix #6: nullable (removed NOT NULL)
-  dimensiones_ancho DECIMAL(6,1),                                                -- Fix #6: nullable (removed NOT NULL)
-  dimensiones_alto DECIMAL(6,1),                                                 -- Fix #6: nullable (removed NOT NULL)
+  dimensiones_largo DECIMAL(6,1),
+  dimensiones_ancho DECIMAL(6,1),
+  dimensiones_alto DECIMAL(6,1),
   fragil BOOLEAN NOT NULL DEFAULT FALSE,
-  valor_declarado BIGINT DEFAULT 0,                                              -- Fix #6: added DEFAULT 0
+  valor_declarado BIGINT DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_productos_cliente ON productos_guardados(cliente_id);
-
--- ═══════════════════════════════════════════════════════════════
--- TAGS / ETIQUETAS (por cliente)
--- ═══════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS tags (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -408,11 +352,8 @@ CREATE TABLE IF NOT EXISTS tags (
 
 CREATE INDEX IF NOT EXISTS idx_tags_cliente ON tags(cliente_id);
 
--- ═══════════════════════════════════════════════════════════════
--- AUDITORÍA (Inmutable — solo INSERT, nunca UPDATE/DELETE)
--- ═══════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS auditoria_log (                                       -- Fix #1: auditoria_logs → auditoria_log
+-- Immutable: INSERT only, never UPDATE/DELETE
+CREATE TABLE IF NOT EXISTS auditoria_log (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   usuario VARCHAR(200) NOT NULL,
   usuario_id UUID NOT NULL REFERENCES usuarios(id),
@@ -420,21 +361,17 @@ CREATE TABLE IF NOT EXISTS auditoria_log (                                      
   entidad auditoria_entidad NOT NULL,
   entidad_id VARCHAR(100) NOT NULL,
   descripcion TEXT NOT NULL,
-  valor_anterior JSONB,                                                          -- Fix #7: TEXT → JSONB
-  valor_nuevo JSONB,                                                             -- Fix #7: TEXT → JSONB
+  valor_anterior JSONB,
+  valor_nuevo JSONB,
   ip_address INET,
   user_agent TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria_log(created_at DESC);    -- Fix #1: updated reference
-CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria_log(usuario_id);       -- Fix #1: updated reference
-CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria_log(entidad, entidad_id); -- Fix #1: updated reference
-CREATE INDEX IF NOT EXISTS idx_auditoria_accion ON auditoria_log(accion);            -- Fix #1: updated reference
-
--- ═══════════════════════════════════════════════════════════════
--- CONFIGURACIÓN DEL SISTEMA
--- ═══════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria_log(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria_log(entidad, entidad_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_accion ON auditoria_log(accion);
 
 CREATE TABLE IF NOT EXISTS configuracion (
   key VARCHAR(100) PRIMARY KEY,
@@ -443,11 +380,6 @@ CREATE TABLE IF NOT EXISTS configuracion (
   updated_by UUID REFERENCES usuarios(id)
 );
 
--- ═══════════════════════════════════════════════════════════════
--- FUNCIONES Y TRIGGERS
--- ═══════════════════════════════════════════════════════════════
-
--- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -456,7 +388,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply trigger to all tables with updated_at
 DROP TRIGGER IF EXISTS trg_usuarios_updated_at ON usuarios;
 CREATE TRIGGER trg_usuarios_updated_at BEFORE UPDATE ON usuarios FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
@@ -478,17 +409,15 @@ CREATE TRIGGER trg_pagos_updated_at BEFORE UPDATE ON pagos FOR EACH ROW EXECUTE 
 DROP TRIGGER IF EXISTS trg_inventario_updated_at ON inventario_almacen;
 CREATE TRIGGER trg_inventario_updated_at BEFORE UPDATE ON inventario_almacen FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-DROP TRIGGER IF EXISTS trg_picking_updated_at ON picking_items;                  -- Fix #2: picking_list → picking_items
+DROP TRIGGER IF EXISTS trg_picking_updated_at ON picking_items;
 CREATE TRIGGER trg_picking_updated_at BEFORE UPDATE ON picking_items FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 DROP TRIGGER IF EXISTS trg_productos_updated_at ON productos_guardados;
 CREATE TRIGGER trg_productos_updated_at BEFORE UPDATE ON productos_guardados FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Fix #11: Add updated_at trigger on configuracion table
 DROP TRIGGER IF EXISTS trg_configuracion_updated_at ON configuracion;
 CREATE TRIGGER trg_configuracion_updated_at BEFORE UPDATE ON configuracion FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Update client envio counters
 CREATE OR REPLACE FUNCTION update_cliente_envio_counts()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -496,7 +425,7 @@ BEGIN
     total_envios = (SELECT COUNT(*) FROM envios WHERE cliente_id = COALESCE(NEW.cliente_id, OLD.cliente_id)),
     envios_activos = (SELECT COUNT(*) FROM envios WHERE cliente_id = COALESCE(NEW.cliente_id, OLD.cliente_id) AND estado IN ('pendiente', 'recolectado', 'en_transito', 'en_reparto'))
   WHERE id = COALESCE(NEW.cliente_id, OLD.cliente_id);
-  -- Fix #3: Handle DELETE (NEW is null on DELETE)
+  -- NEW is null on DELETE
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
   ELSE
@@ -510,7 +439,6 @@ CREATE TRIGGER trg_envios_count
 AFTER INSERT OR UPDATE OF estado OR DELETE ON envios
 FOR EACH ROW EXECUTE FUNCTION update_cliente_envio_counts();
 
--- Generate tracking number
 CREATE OR REPLACE FUNCTION generate_tracking_number()
 RETURNS TEXT AS $$
 DECLARE
@@ -527,11 +455,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ═══════════════════════════════════════════════════════════════
--- ROW LEVEL SECURITY
--- Fix #4: Lock down to service_role only (deny anon + authenticated)
--- service_role bypasses RLS, so no explicit allow policy needed for it
--- ═══════════════════════════════════════════════════════════════
+-- RLS: deny anon + authenticated; service_role bypasses RLS entirely
 
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE envios ENABLE ROW LEVEL SECURITY;
@@ -540,17 +464,14 @@ ALTER TABLE pagos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notas_internas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos_guardados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auditoria_log ENABLE ROW LEVEL SECURITY;                             -- Fix #1: updated reference
+ALTER TABLE auditoria_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE repartidores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tarifas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventario_almacen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos_almacen ENABLE ROW LEVEL SECURITY;
-ALTER TABLE picking_items ENABLE ROW LEVEL SECURITY;                             -- Fix #2: updated reference
+ALTER TABLE picking_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
-
--- Fix #4: Restrictive policies — deny anon and authenticated for every table
--- service_role bypasses RLS entirely, so only it can access data
 
 DROP POLICY IF EXISTS "service_role_all" ON usuarios;
 CREATE POLICY "deny_anon" ON usuarios FOR ALL TO anon USING (false) WITH CHECK (false);
@@ -584,13 +505,13 @@ DROP POLICY IF EXISTS "service_role_all" ON tags;
 CREATE POLICY "deny_anon" ON tags FOR ALL TO anon USING (false) WITH CHECK (false);
 CREATE POLICY "deny_authenticated" ON tags FOR ALL TO authenticated USING (false) WITH CHECK (false);
 
-DROP POLICY IF EXISTS "service_role_all" ON auditoria_log;                       -- Fix #1: updated reference
+DROP POLICY IF EXISTS "service_role_all" ON auditoria_log;
 CREATE POLICY "deny_anon" ON auditoria_log FOR ALL TO anon USING (false) WITH CHECK (false);
 CREATE POLICY "deny_authenticated" ON auditoria_log FOR ALL TO authenticated USING (false) WITH CHECK (false);
--- Fix #12 + existing: REVOKE all modification rights on auditoria_log
+-- Auditoria is append-only: revoke modification rights
 REVOKE UPDATE, DELETE ON auditoria_log FROM PUBLIC;
 REVOKE UPDATE, DELETE ON auditoria_log FROM authenticated;
-REVOKE ALL ON auditoria_log FROM anon;                                           -- Fix #12: REVOKE INSERT from anon
+REVOKE ALL ON auditoria_log FROM anon;
 
 DROP POLICY IF EXISTS "service_role_all" ON repartidores;
 CREATE POLICY "deny_anon" ON repartidores FOR ALL TO anon USING (false) WITH CHECK (false);
@@ -608,7 +529,7 @@ DROP POLICY IF EXISTS "service_role_all" ON movimientos_almacen;
 CREATE POLICY "deny_anon" ON movimientos_almacen FOR ALL TO anon USING (false) WITH CHECK (false);
 CREATE POLICY "deny_authenticated" ON movimientos_almacen FOR ALL TO authenticated USING (false) WITH CHECK (false);
 
-DROP POLICY IF EXISTS "service_role_all" ON picking_items;                       -- Fix #2: updated reference
+DROP POLICY IF EXISTS "service_role_all" ON picking_items;
 CREATE POLICY "deny_anon" ON picking_items FOR ALL TO anon USING (false) WITH CHECK (false);
 CREATE POLICY "deny_authenticated" ON picking_items FOR ALL TO authenticated USING (false) WITH CHECK (false);
 
@@ -616,11 +537,6 @@ DROP POLICY IF EXISTS "service_role_all" ON configuracion;
 CREATE POLICY "deny_anon" ON configuracion FOR ALL TO anon USING (false) WITH CHECK (false);
 CREATE POLICY "deny_authenticated" ON configuracion FOR ALL TO authenticated USING (false) WITH CHECK (false);
 
--- ═══════════════════════════════════════════════════════════════
--- SEED DATA
--- ═══════════════════════════════════════════════════════════════
-
--- System configuration
 INSERT INTO configuracion (key, value) VALUES
   ('empresa', '{"telefono": "+595 21 555 0000", "email": "info@goexpress.com.py", "direccion": "Asunción, Paraguay", "nombre": "GO EXPRESS"}'),
   ('notificaciones', '{"email_nuevo_envio": true, "email_cambio_estado": true, "email_entrega": true, "whatsapp_enabled": false}'),
@@ -629,7 +545,6 @@ INSERT INTO configuracion (key, value) VALUES
   ('factor_dimensional', '5000')
 ON CONFLICT (key) DO NOTHING;
 
--- Initial admin user
 INSERT INTO usuarios (id, nombre, email, rol, estado) VALUES
   ('00000000-0000-4000-a000-000000000001', 'Admin GoExpress', 'admin@goexpress.com.py', 'admin', 'activo')
 ON CONFLICT (id) DO NOTHING;

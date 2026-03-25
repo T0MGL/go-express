@@ -12,10 +12,6 @@ import type {
 import type { IngresoInput, InventarioQuery } from '../lib/validators/warehouse.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-// ---------------------------------------------------------------------------
-// Row → API mapping
-// ---------------------------------------------------------------------------
-
 function toInventarioApi(row: InventarioAlmacenRow): InventarioAlmacen {
   return {
     id: row.id,
@@ -58,10 +54,6 @@ function toPickingApi(row: PickingItemRow): PickingItem {
     updatedAt: row.updated_at,
   };
 }
-
-// ---------------------------------------------------------------------------
-// WarehouseService
-// ---------------------------------------------------------------------------
 
 const INVENTARIO_COLUMNS = [
   'id', 'envio_id', 'tracking_number', 'cliente_nombre',
@@ -149,7 +141,6 @@ class WarehouseService {
 
     const item = toInventarioApi(data as unknown as InventarioAlmacenRow);
 
-    // Create movement record
     await supabase.from('movimientos_almacen').insert({
       paquete_id: item.id,
       tracking_number: input.trackingNumber,
@@ -207,7 +198,6 @@ class WarehouseService {
       throw new AppError('Error dispatching paquete', 500, 'DB_ERROR');
     }
 
-    // Create movement record
     await supabase.from('movimientos_almacen').insert({
       paquete_id: paqueteId,
       tracking_number: row.tracking_number,
@@ -263,7 +253,6 @@ class WarehouseService {
       throw new AppError('Error returning paquete', 500, 'DB_ERROR');
     }
 
-    // Create movement record
     await supabase.from('movimientos_almacen').insert({
       paquete_id: paqueteId,
       tracking_number: row.tracking_number,

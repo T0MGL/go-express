@@ -21,6 +21,8 @@ const routeLabels: Record<string, string> = {
   productos: 'Productos',
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface BreadcrumbsProps {
   className?: string;
 }
@@ -34,9 +36,10 @@ export function Breadcrumbs({ className }: BreadcrumbsProps) {
   const crumbs = segments.map((segment, i) => {
     const path = '/' + segments.slice(0, i + 1).join('/');
     const isLast = i === segments.length - 1;
-    const label = routeLabels[segment] || segment;
+    const isUuid = UUID_REGEX.test(segment);
+    const label = isUuid ? 'Detalle' : (routeLabels[segment] || segment);
 
-    return { path, label, isLast, isId: segment.startsWith('env') && !routeLabels[segment] };
+    return { path, label, isLast, isId: isUuid };
   });
 
   return (

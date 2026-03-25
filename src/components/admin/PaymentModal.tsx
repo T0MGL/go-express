@@ -5,17 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Pago } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
-import { CreditCard, Info } from '@phosphor-icons/react';
+import { CreditCard, Info, CircleNotch } from '@phosphor-icons/react';
+import { useCreatePago } from '@/hooks/api/use-pagos';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   envioId: string;
   montoTotal: number;
-  onPaymentRegistered: (pago: Pago) => void;
+  onPaymentRegistered: () => void;
 }
 
 export const PaymentModal = ({
@@ -23,15 +23,17 @@ export const PaymentModal = ({
   onClose,
   envioId,
   montoTotal,
-  onPaymentRegistered
+  onPaymentRegistered,
 }: PaymentModalProps) => {
   const [montoRecibido, setMontoRecibido] = useState<string>('');
   const [metodoPago, setMetodoPago] = useState<string>('');
   const [fechaPago, setFechaPago] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    new Date().toISOString().split('T')[0] ?? '',
   );
   const [referencia, setReferencia] = useState<string>('');
   const [notas, setNotas] = useState<string>('');
+
+  const createPago = useCreatePago();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,29 +50,30 @@ export const PaymentModal = ({
       return;
     }
 
-    const estadoPago = montoRecibidoNum >= montoTotal
-      ? 'pagado'
-      : montoRecibidoNum > 0
-        ? 'pago_parcial'
-        : 'pendiente';
-
-    const pago: Pago = {
-      id: `pago${Date.now()}`,
-      envioId,
-      montoTotal,
-      montoRecibido: montoRecibidoNum,
-      metodoPago: metodoPago as 'efectivo' | 'transferencia' | 'tarjeta' | 'contra_entrega',
-      estadoPago: estadoPago as 'pendiente' | 'pagado' | 'pago_parcial',
-      fechaPago,
-      referencia,
-      notas,
-      creadoPor: 'admin',
-      creadoEn: new Date().toISOString()
-    };
-
-    onPaymentRegistered(pago);
-    toast.success('Pago registrado correctamente');
-    onClose();
+    createPago.mutate(
+      {
+        envioId,
+        montoTotal,
+        montoRecibido: montoRecibidoNum,
+        metodoPago,
+        fechaPago,
+        referencia: referencia || undefined,
+        notas: notas || undefined,
+      },
+      {
+        onSuccess: () => {
+          onPaymentRegistered();
+          setMontoRecibido('');
+          setMetodoPago('');
+          setReferencia('');
+          setNotas('');
+          onClose();
+        },
+        onError: () => {
+          toast.error('Error al registrar el pago');
+        },
+      },
+    );
   };
 
   const cambio = parseFloat(montoRecibido) > montoTotal
@@ -170,11 +173,12 @@ export const PaymentModal = ({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={createPago.isPending}>
               Cancelar
             </Button>
-            <Button type="submit" size="sm">
-              Guardar Pago
+            <Button type="submit" size="sm" disabled={createPago.isPending} className="gap-1.5">
+              {createPago.isPending && <CircleNotch size={14} weight="bold" className="animate-spin" />}
+              {createPago.isPending ? 'Guardando...' : 'Guardar Pago'}
             </Button>
           </DialogFooter>
         </form>

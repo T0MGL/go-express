@@ -42,13 +42,11 @@ const ClienteCotizador = () => {
   const [alto, setAlto] = useState('');
   const [cotizando, setCotizando] = useState(false);
 
-  // API hooks
   const { data: apiCiudades } = useCiudadesDisponibles();
   const cotizarMutation = useCotizar();
 
   const ciudadesDisponibles = apiCiudades ?? [];
 
-  // Compute display results
   const displayResultados: DisplayResultado[] = useMemo(() => {
     const r = cotizarMutation.data as CotizarResponse | undefined;
     if (!r) return [];

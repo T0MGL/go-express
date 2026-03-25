@@ -10,9 +10,6 @@ import type { UpdateClienteCuentaInput } from '../../lib/validators/cliente.sche
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function mapClienteRow(row: ClienteRow): Cliente {
   return {
@@ -43,9 +40,7 @@ function mapClienteRow(row: ClienteRow): Cliente {
   };
 }
 
-// ---------------------------------------------------------------------------
-// GET / — My company details (decrypted)
-// ---------------------------------------------------------------------------
+// GET /: my company details (decrypted)
 
 router.get(
   '/',
@@ -72,9 +67,7 @@ router.get(
   })
 );
 
-// ---------------------------------------------------------------------------
-// PUT / — Update my company details
-// ---------------------------------------------------------------------------
+// PUT /: update my company details
 
 router.put(
   '/',
@@ -83,7 +76,6 @@ router.put(
     const clienteId = req.clienteId!;
     const input = req.body as UpdateClienteCuentaInput;
 
-    // Build update object with encrypted fields
     const updateData: Record<string, unknown> = {};
 
     if (input.razonSocial !== undefined) updateData['razon_social'] = input.razonSocial;
@@ -104,9 +96,7 @@ router.put(
     if (input.ciudad !== undefined) updateData['ciudad'] = input.ciudad;
     if (input.notas !== undefined) updateData['notas'] = input.notas;
 
-    // Clients cannot change their own plan, estado, or ruc
-    // Those are admin-only fields
-
+    // plan, estado, ruc are admin-only fields
     const { data, error } = await supabase
       .from('clientes')
       .update(updateData)

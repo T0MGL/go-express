@@ -4,9 +4,7 @@ import type { Envio } from '../types/index.js';
 // TODO: Replace with Resend when API key available
 // TODO: Add WhatsApp notification hook here
 
-// ---------------------------------------------------------------------------
-// EmailService — STUB implementation (logs to console)
-// ---------------------------------------------------------------------------
+// STUB: logs to console until Resend integration is ready
 
 class EmailService {
   /**

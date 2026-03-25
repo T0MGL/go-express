@@ -13,7 +13,7 @@ import { idParamSchema, softDeleteSchema } from '../../lib/validators/common.sch
 const router = Router();
 
 /**
- * GET / — List repartidores + filter by estado
+ * GET /:List repartidores + filter by estado
  */
 router.get(
   '/',
@@ -25,7 +25,7 @@ router.get(
 );
 
 /**
- * GET /:id — Detail
+ * GET /:id:Detail
  */
 router.get(
   '/:id',
@@ -37,7 +37,7 @@ router.get(
 );
 
 /**
- * POST / — Create repartidor
+ * POST /:Create repartidor
  */
 router.post(
   '/',
@@ -49,7 +49,7 @@ router.post(
 );
 
 /**
- * PUT /:id — Update repartidor
+ * PUT /:id:Update repartidor
  */
 router.put(
   '/:id',
@@ -61,7 +61,7 @@ router.put(
 );
 
 /**
- * PATCH /:id/estado — Toggle active/inactive
+ * PATCH /:id/estado:Toggle active/inactive
  */
 router.patch(
   '/:id/estado',
@@ -73,7 +73,7 @@ router.patch(
 );
 
 /**
- * GET /:id/envios — Assigned envios today
+ * GET /:id/envios:Assigned envios today
  */
 router.get(
   '/:id/envios',
@@ -85,7 +85,7 @@ router.get(
 );
 
 /**
- * DELETE /:id — Soft-delete (requires motivo in body)
+ * DELETE /:id:Soft-delete (requires motivo in body)
  */
 router.delete(
   '/:id',

@@ -21,8 +21,10 @@ const Configuracion = () => {
   const [emailTemplate, setEmailTemplate] = useState(
     'Hola {customer_name},\n\nTu envio con numero de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
   );
+  const [notifCreate, setNotifCreate] = useState(true);
+  const [notifReparto, setNotifReparto] = useState(true);
+  const [notifEntrega, setNotifEntrega] = useState(true);
 
-  // API hooks
   const { data: apiUsuarios, isLoading: isLoadingUsuarios } = useUsuarios();
   useConfiguracion();
   const createUsuarioMut = useCreateUsuario();
@@ -48,6 +50,18 @@ const Configuracion = () => {
         onError: () => toast.error('Error al invitar usuario'),
       },
     );
+  };
+
+  const handleSaveNotificaciones = (e: React.FormEvent) => {
+    e.preventDefault();
+    Promise.all([
+      updateConfigMut.mutateAsync({ key: 'notif_create', value: String(notifCreate) }),
+      updateConfigMut.mutateAsync({ key: 'notif_reparto', value: String(notifReparto) }),
+      updateConfigMut.mutateAsync({ key: 'notif_entrega', value: String(notifEntrega) }),
+      updateConfigMut.mutateAsync({ key: 'email_template', value: emailTemplate }),
+    ])
+      .then(() => toast.success('Configuracion guardada'))
+      .catch(() => toast.error('Error al guardar configuracion'));
   };
 
   const handleSaveConfig = (e: React.FormEvent) => {
@@ -138,24 +152,36 @@ const Configuracion = () => {
 
         <TabsContent value="notificaciones">
           <div className="surface-card p-6">
-            <div className="space-y-6">
+            <form className="space-y-6" onSubmit={handleSaveNotificaciones}>
               <div>
                 <h3 className="section-label mb-4">Notificaciones por Email</h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-create" defaultChecked />
+                    <Checkbox
+                      id="email-create"
+                      checked={notifCreate}
+                      onCheckedChange={(val) => setNotifCreate(Boolean(val))}
+                    />
                     <Label htmlFor="email-create" className="font-normal text-[13px]">
                       Enviar email cuando se crea envio
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-reparto" defaultChecked />
+                    <Checkbox
+                      id="email-reparto"
+                      checked={notifReparto}
+                      onCheckedChange={(val) => setNotifReparto(Boolean(val))}
+                    />
                     <Label htmlFor="email-reparto" className="font-normal text-[13px]">
                       Enviar email cuando cambia a "En Reparto"
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-entrega" defaultChecked />
+                    <Checkbox
+                      id="email-entrega"
+                      checked={notifEntrega}
+                      onCheckedChange={(val) => setNotifEntrega(Boolean(val))}
+                    />
                     <Label htmlFor="email-entrega" className="font-normal text-[13px]">
                       Enviar email cuando se entrega
                     </Label>
@@ -196,9 +222,9 @@ const Configuracion = () => {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button type="submit" size="sm">Guardar Configuracion</Button>
+                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar Configuracion</Button>
               </div>
-            </div>
+            </form>
           </div>
         </TabsContent>
 

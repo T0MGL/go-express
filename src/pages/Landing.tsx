@@ -11,23 +11,7 @@ import {
   FacebookLogo, InstagramLogo, LinkedinLogo, WhatsappLogo, CaretDown
 } from '@phosphor-icons/react';
 
-// ═══════════════════════════════════════════════════════════════
-// Brand Isotipo
-// ═══════════════════════════════════════════════════════════════
-const GoIsotipo = ({ size = 32, className = '' }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M20 2L36 11V29L20 38L4 29V11L20 2Z" fill="currentColor" />
-    <rect x="11" y="11" width="15" height="3" fill="#ffffff" />
-    <rect x="11" y="11" width="3" height="18" fill="#ffffff" />
-    <rect x="11" y="26" width="15" height="3" fill="#ffffff" />
-    <rect x="23" y="19" width="3" height="10" fill="#ffffff" />
-    <rect x="17" y="19" width="9" height="3" fill="#ffffff" />
-  </svg>
-);
 
-// ═══════════════════════════════════════════════════════════════
-// Animated Counter
-// ═══════════════════════════════════════════════════════════════
 const NumberCounter = ({ target, duration = 2, suffix = '' }: { target: number; duration?: number; suffix?: string }) => {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
@@ -54,9 +38,6 @@ const NumberCounter = ({ target, duration = 2, suffix = '' }: { target: number; 
   return <span ref={ref}>{count}{suffix}</span>;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Typewriter Hook
-// ═══════════════════════════════════════════════════════════════
 const trackingPlaceholders = ['GEX-890214', 'GEX-261033', 'GEX-450078'];
 
 const useTypewriter = (texts: string[], speed = 60, pause = 2500) => {
@@ -98,9 +79,6 @@ const useTypewriter = (texts: string[], speed = 60, pause = 2500) => {
   return display;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Animation Variants
-// ═══════════════════════════════════════════════════════════════
 const staggerContainer = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } }
@@ -111,9 +89,6 @@ const fadeUpVariant = {
   show: { opacity: 1, y: 0, transition: { type: "tween" as const, ease: "easeOut" as const, duration: 0.5 } }
 } as const;
 
-// ═══════════════════════════════════════════════════════════════
-// Data
-// ═══════════════════════════════════════════════════════════════
 const clientNames = [
   'Distribuidora Central SA', 'TechSoluciones PY', 'Comercial del Norte',
   'Global Imports SA', 'FarmaRoque', 'Comercial Guaraní SRL',
@@ -141,9 +116,6 @@ const departments = [
   { name: 'Alto Paraguay', city: 'Fuerte Olimpo', hub: false },
 ];
 
-// ═══════════════════════════════════════════════════════════════
-// FAQ Accordion Item
-// ═══════════════════════════════════════════════════════════════
 const FaqItem = ({ question, answer, index }: { question: string; answer: string; index: number }) => {
   const [open, setOpen] = useState(false);
   return (
@@ -179,9 +151,6 @@ const FaqItem = ({ question, answer, index }: { question: string; answer: string
   );
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Landing Component
-// ═══════════════════════════════════════════════════════════════
 const Landing = () => {
   const navigate = useNavigate();
   const [trackingInput, setTrackingInput] = useState('');
@@ -222,9 +191,8 @@ const Landing = () => {
       {/* NAV */}
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
         <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between" aria-label="Navegacion principal">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <GoIsotipo size={30} className="text-primary flex-shrink-0" />
-            <span className="font-display font-extrabold text-[18px] text-sidebar leading-none tracking-tight">GO EXPRESS</span>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <img src="/logotipo.png" alt="Go Express" className="h-7" />
           </motion.div>
 
           <nav className="hidden md:flex items-center gap-10 text-[14px] font-semibold text-sidebar/70">
@@ -324,7 +292,7 @@ const Landing = () => {
             </motion.div>
           </motion.div>
 
-          {/* Right — Delivery Dashboard Card */}
+          {/* Right: Delivery Dashboard Card */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -809,9 +777,8 @@ const Landing = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-5">
-                <GoIsotipo size={28} className="text-primary" />
-                <span className="font-display font-extrabold text-lg text-sidebar tracking-tight">GO EXPRESS</span>
+              <div className="flex items-center mb-5">
+                <img src="/logotipo.png" alt="Go Express" className="h-6" />
               </div>
               <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
                 Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.

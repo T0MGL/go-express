@@ -29,7 +29,7 @@ const Dashboard = () => {
 
   const enviosHoy = apiStats?.enviosHoy ?? 0;
   const enTransito = apiStats?.enTransito ?? 0;
-  const entregados = 0;
+  const entregados = apiStats?.entregados ?? 0;
   const tasaEntregaNum = apiStats?.tasaEntrega ?? 0;
   const pendienteCobro = apiStats?.porCobrar ?? 0;
   const enviosPendientesCobro = 0;

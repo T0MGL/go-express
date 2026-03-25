@@ -6,9 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
-import Landing from "./pages/Landing";
-
 // Lazy-loaded route groups
+const Landing = lazy(() => import("./pages/Landing"));
 const Track = lazy(() => import("./pages/Track"));
 const Login = lazy(() => import("./pages/Login"));
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
@@ -51,8 +50,13 @@ const queryClient = new QueryClient({
 });
 
 const RouteLoading = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  <div className="min-h-screen bg-background">
+    <div className="h-16 bg-muted/40 animate-pulse" />
+    <div className="max-w-5xl mx-auto px-4 pt-12 space-y-4">
+      <div className="h-8 w-1/3 bg-muted/40 rounded animate-pulse" />
+      <div className="h-4 w-2/3 bg-muted/30 rounded animate-pulse" />
+      <div className="h-4 w-1/2 bg-muted/30 rounded animate-pulse" />
+    </div>
   </div>
 );
 

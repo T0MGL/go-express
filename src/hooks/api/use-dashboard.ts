@@ -5,6 +5,7 @@ import { dashboardKeys } from './use-envios';
 interface DashboardStats {
   enviosHoy: number;
   enTransito: number;
+  entregados: number;
   tasaEntrega: number;
   porCobrar: number;
   problemasHoy: number;

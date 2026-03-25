@@ -10,15 +10,8 @@ import cuentaRoutes from './cuenta.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Apply requireCliente middleware to ALL cliente routes
-// ---------------------------------------------------------------------------
-
 router.use(requireCliente);
 
-// ---------------------------------------------------------------------------
-// Mount sub-routers
-// ---------------------------------------------------------------------------
 
 router.use('/dashboard', dashboardRoutes);
 router.use('/envios', enviosRoutes);

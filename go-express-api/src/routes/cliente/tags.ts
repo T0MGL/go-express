@@ -9,9 +9,6 @@ import type { TagRow, Tag } from '../../types/index.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
 
 const createTagSchema = z.object({
   nombre: z.string().min(1).max(50),
@@ -20,9 +17,6 @@ const createTagSchema = z.object({
 
 type CreateTagInput = z.infer<typeof createTagSchema>;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function mapRow(row: TagRow): Tag {
   return {
@@ -34,16 +28,13 @@ function mapRow(row: TagRow): Tag {
   };
 }
 
-// ---------------------------------------------------------------------------
-// GET / — My tags (with envio count per tag)
-// ---------------------------------------------------------------------------
+// GET /: my tags (with envio count per tag)
 
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
 
-    // Fetch all tags for this client
     const { data: tagsData, error: tagsError } = await supabase
       .from('tags')
       .select('id, cliente_id, nombre, color, created_at')
@@ -57,8 +48,6 @@ router.get(
 
     const tags = ((tagsData ?? []) as TagRow[]).map(mapRow);
 
-    // For each tag, count envios that have this tag
-    // Using the tags array column on envios
     const tagsWithCount = await Promise.all(
       tags.map(async (tag) => {
         const { count, error: countError } = await supabase
@@ -82,9 +71,7 @@ router.get(
   })
 );
 
-// ---------------------------------------------------------------------------
-// POST / — Create tag
-// ---------------------------------------------------------------------------
+// POST /: create tag
 
 router.post(
   '/',
@@ -115,10 +102,6 @@ router.post(
     res.status(201).json({ data: mapRow(data as TagRow) });
   })
 );
-
-// ---------------------------------------------------------------------------
-// DELETE /:id — Delete tag (only if mine)
-// ---------------------------------------------------------------------------
 
 router.delete(
   '/:id',

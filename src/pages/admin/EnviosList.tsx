@@ -21,7 +21,6 @@ const EnviosList = () => {
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [filterRepartidor, setFilterRepartidor] = useState<string>('todos');
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
   if (searchTerm) apiFilters.search = searchTerm;

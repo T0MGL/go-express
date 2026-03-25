@@ -18,7 +18,6 @@ import {
   CalendarBlank,
   Truck,
   CheckCircle,
-  Clock,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { estadoLabels, estadoColors } from '@/data/constants';
@@ -63,16 +62,6 @@ function apiResultToDisplay(result: PublicTrackingResult): TrackingDisplay {
   };
 }
 
-const GoIsotipo = ({ size = 32, className = '' }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M20 2L36 11V29L20 38L4 29V11L20 2Z" fill="currentColor" />
-    <rect x="11" y="11" width="15" height="3" fill="#ffffff" />
-    <rect x="11" y="11" width="3" height="18" fill="#ffffff" />
-    <rect x="11" y="26" width="15" height="3" fill="#ffffff" />
-    <rect x="23" y="19" width="3" height="10" fill="#ffffff" />
-    <rect x="17" y="19" width="9" height="3" fill="#ffffff" />
-  </svg>
-);
 
 const trackingPlaceholders = ['GE2026000001', 'GE2026000002', 'GE2026000003'];
 
@@ -239,11 +228,25 @@ const ShipmentJourney = ({ estado }: { estado: string }) => {
 };
 
 // Premium timeline with hover micro-interactions
+function formatEventDate(raw: string): { date: string; time: string } {
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return { date: raw, time: '' };
+    const date = d.toLocaleDateString('es-PY', { day: 'numeric', month: 'short', year: 'numeric' });
+    const time = d.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
+    return { date, time };
+  } catch {
+    return { date: raw, time: '' };
+  }
+}
+
 const PremiumTimeline = ({ eventos }: { eventos: TrackingDisplay['eventos'] }) => {
   return (
     <div className="space-y-0">
       {eventos.map((evento, index) => {
         const isLatest = index === eventos.length - 1;
+        const { date, time } = formatEventDate(evento.fecha);
+        const label = estadoLabels[evento.estado] ?? evento.estado;
 
         return (
           <motion.div
@@ -284,7 +287,7 @@ const PremiumTimeline = ({ eventos }: { eventos: TrackingDisplay['eventos'] }) =
                     'font-display font-semibold text-sm transition-colors',
                     isLatest ? 'text-primary' : 'text-foreground'
                   )}>
-                    {evento.estado}
+                    {label}
                   </p>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {evento.descripcion}
@@ -297,13 +300,12 @@ const PremiumTimeline = ({ eventos }: { eventos: TrackingDisplay['eventos'] }) =
                   )}
                 </div>
                 <div className="text-right whitespace-nowrap flex-shrink-0">
-                  <p className="font-data text-[12px] text-muted-foreground">
-                    {evento.fecha}
+                  <p className="text-[12px] font-medium text-sidebar/50">
+                    {date}
                   </p>
-                  {evento.hora && (
-                    <p className="font-data text-[12px] text-muted-foreground/60 flex items-center justify-end gap-1">
-                      <Clock weight="duotone" className="w-3 h-3" />
-                      {evento.hora}
+                  {time && (
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+                      {time}
                     </p>
                   )}
                 </div>
@@ -399,9 +401,8 @@ const Track = () => {
       {/* NAV */}
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
         <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
-            <GoIsotipo size={30} className="text-primary flex-shrink-0" />
-            <span className="font-display font-extrabold text-[18px] text-sidebar leading-none tracking-tight">GO EXPRESS</span>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/logotipo.png" alt="Go Express" className="h-7" />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
@@ -725,9 +726,8 @@ const Track = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-5 cursor-pointer" onClick={() => navigate('/')}>
-                <GoIsotipo size={28} className="text-primary" />
-                <span className="font-display font-extrabold text-lg text-sidebar tracking-tight">GO EXPRESS</span>
+              <div className="flex items-center mb-5 cursor-pointer" onClick={() => navigate('/')}>
+                <img src="/logotipo.png" alt="Go Express" className="h-6" />
               </div>
               <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
                 Soluciones de logistica corporativa para el mercado paraguayo. E.A.S. con facturacion legal.

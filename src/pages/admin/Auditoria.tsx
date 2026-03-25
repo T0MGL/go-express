@@ -56,7 +56,6 @@ const Auditoria = () => {
   const [filtroFecha, setFiltroFecha] = useState('');
 
 
-  // API hooks
   const apiFilters: Record<string, string | undefined> = {};
   if (filtroUsuario !== 'todos') apiFilters.usuarioId = filtroUsuario;
   if (filtroAccion !== 'todos') apiFilters.accion = filtroAccion;

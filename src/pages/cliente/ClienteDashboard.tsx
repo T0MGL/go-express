@@ -10,6 +10,7 @@ import { estadoLabels } from '@/data/constants';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@/lib/utils';
 import { useClienteDashboardStats } from '@/hooks/api/use-cliente-dashboard';
+import { useCuenta } from '@/hooks/api/use-cuenta';
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
@@ -42,6 +43,7 @@ const defaultStats = { activos: 0, entregados: 0, pendientes: 0, problemas: 0 };
 
 const ClienteDashboard = () => {
   const { data: apiStats, isLoading } = useClienteDashboardStats();
+  const { data: cuenta } = useCuenta();
 
   const dashStats = apiStats ?? defaultStats;
   const clienteEnvios = apiStats?.enviosRecientes ?? [];
@@ -60,7 +62,10 @@ const ClienteDashboard = () => {
         <div>
           <h1 className="page-header-title">Bienvenido</h1>
           <p className="page-header-subtitle">
-            <span className="font-medium text-foreground">Distribuidora Central SA</span> · Resumen de operaciones
+            {cuenta?.razonSocial && (
+              <span className="font-medium text-foreground">{cuenta.razonSocial} · </span>
+            )}
+            Resumen de operaciones
           </p>
         </div>
         <Link to="/cliente/envios/nuevo">

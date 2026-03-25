@@ -8,7 +8,6 @@ import { useTags, useCreateTag, useDeleteTag, type TagData } from '@/hooks/api/u
 
 
 
-// Map hex color to a badge variant for display
 function colorToBadgeVariant(hex: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const lower = hex.toLowerCase();
   if (lower.includes('ef4444') || lower.includes('dc2626')) return 'destructive';
@@ -19,7 +18,6 @@ function colorToBadgeVariant(hex: string): 'default' | 'secondary' | 'destructiv
 const ClienteEtiquetas = () => {
   const [newTag, setNewTag] = useState('');
 
-  // API hooks
   const { data: apiTags, isLoading } = useTags();
   const createTagMutation = useCreateTag();
   const deleteTagMutation = useDeleteTag();

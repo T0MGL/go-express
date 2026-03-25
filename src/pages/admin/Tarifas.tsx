@@ -73,7 +73,6 @@ const Tarifas = () => {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; tarifa: Tarifa | null }>({ open: false, tarifa: null });
   const [motivoEliminacion, setMotivoEliminacion] = useState('');
 
-  // API hooks
   const apiFilters: Record<string, string | boolean | undefined> = {};
   if (busqueda) apiFilters.search = busqueda;
   if (mostrarEliminadas) apiFilters.includeDeleted = true;
@@ -145,7 +144,6 @@ const Tarifas = () => {
         onError: () => sonnerToast.error('Error al crear tarifa'),
       });
     }
-    setModalOpen(false);
   };
 
   const confirmarEliminar = () => {
@@ -270,7 +268,7 @@ const Tarifas = () => {
                     <td className="text-right font-data text-[13px]">{formatCurrency(t.precioBase)}</td>
                     <td className="text-right text-[13px]">{t.pesoBase} kg</td>
                     <td className="text-right font-data text-[13px]">{formatCurrency(t.precioPorKgExtra)}</td>
-                    <td className="text-right text-[13px]">{t.factorDimensional.toLocaleString()}</td>
+                    <td className="text-right text-[13px]">{t.factorDimensional?.toLocaleString() ?? '0'}</td>
                     <td className="text-center">
                       {t.eliminado ? (
                         <Badge

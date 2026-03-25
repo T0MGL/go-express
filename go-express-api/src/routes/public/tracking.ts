@@ -8,9 +8,7 @@ import { AppError } from '../../middleware/errorHandler.js';
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// GET /api/public/tracking/:trackingNumber — Public tracking lookup
-// ---------------------------------------------------------------------------
+// GET /api/public/tracking/:trackingNumber
 
 router.get(
   '/tracking/:trackingNumber',

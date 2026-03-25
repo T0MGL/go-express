@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Package } from 'lucide-react';
+
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
@@ -27,12 +27,10 @@ const PortalLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if already authenticated as a client
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // Verify this is a client user
         try {
           const me = await api.get<{ tipo: string }>('/auth/me');
           if (me.tipo === 'cliente') {
@@ -52,19 +50,16 @@ const PortalLogin = () => {
     setError(null);
 
     try {
-      // Use the portal-specific login endpoint
       const response = await api.post<PortalLoginResponse>('/auth/portal/login', {
         email,
         password,
       });
 
-      // Set the session in Supabase client so the auth headers work
       await supabase.auth.setSession({
         access_token: response.token,
         refresh_token: response.refreshToken,
       });
 
-      // Store client info for the portal
       sessionStorage.setItem('go_express_cliente', JSON.stringify(response.cliente));
 
       navigate('/cliente', { replace: true });
@@ -85,9 +80,7 @@ const PortalLogin = () => {
         className="w-full max-w-sm"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-            <Package className="w-6 h-6 text-primary" />
-          </div>
+          <img src="/isotipo.png" alt="Go Express" className="w-12 h-12 mb-4" />
           <h1 className="text-xl font-semibold tracking-tight">GO EXPRESS</h1>
           <p className="text-sm text-muted-foreground mt-1">Portal de clientes</p>
         </div>

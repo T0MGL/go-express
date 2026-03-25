@@ -9,10 +9,6 @@ import type { ProductoGuardadoRow, ProductoGuardado } from '../../types/index.js
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
-
 const createProductoSchema = z.object({
   nombre: z.string().min(1).max(300),
   descripcion: z.string().max(1000).optional(),
@@ -30,10 +26,6 @@ const updateProductoSchema = createProductoSchema.partial();
 
 type CreateProductoInput = z.infer<typeof createProductoSchema>;
 type UpdateProductoInput = z.infer<typeof updateProductoSchema>;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function mapRow(row: ProductoGuardadoRow): ProductoGuardado {
   return {
@@ -54,10 +46,6 @@ function mapRow(row: ProductoGuardadoRow): ProductoGuardado {
   };
 }
 
-// ---------------------------------------------------------------------------
-// GET / — My saved products
-// ---------------------------------------------------------------------------
-
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -77,10 +65,6 @@ router.get(
     res.json({ data: ((data ?? []) as ProductoGuardadoRow[]).map(mapRow) });
   })
 );
-
-// ---------------------------------------------------------------------------
-// POST / — Create product
-// ---------------------------------------------------------------------------
 
 router.post(
   '/',
@@ -116,10 +100,6 @@ router.post(
   })
 );
 
-// ---------------------------------------------------------------------------
-// PUT /:id — Update product (only if mine)
-// ---------------------------------------------------------------------------
-
 router.put(
   '/:id',
   validate({ params: idParamSchema, body: updateProductoSchema }),
@@ -128,7 +108,7 @@ router.put(
     const id = req.params['id'] as string;
     const input = req.body as UpdateProductoInput;
 
-    // Build update object — only include provided fields
+    // Only include provided fields
     const updateData: Record<string, unknown> = {};
     if (input.nombre !== undefined) updateData['nombre'] = input.nombre;
     if (input.descripcion !== undefined) updateData['descripcion'] = input.descripcion;
@@ -160,10 +140,6 @@ router.put(
     res.json(mapRow(data as ProductoGuardadoRow));
   })
 );
-
-// ---------------------------------------------------------------------------
-// DELETE /:id — Delete product (hard delete, it's just a template)
-// ---------------------------------------------------------------------------
 
 router.delete(
   '/:id',

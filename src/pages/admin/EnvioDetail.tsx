@@ -7,7 +7,7 @@ import { Timeline } from '@/components/tracking/Timeline';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { ProblemaModal } from '@/components/admin/ProblemaModal';
 import { NotasInternas } from '@/components/admin/NotasInternas';
-import { estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels } from '@/data/constants';
+import { estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels, departamentosPY } from '@/data/constants';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import {
   CaretLeft,
@@ -26,8 +26,12 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   useEnvio,
+  useUpdateEnvio,
   useUpdateEnvioEstado,
   useAsignarRepartidor,
   useReportarProblema,
@@ -52,11 +56,13 @@ const EnvioDetail = () => {
   const [isProblemaModalOpen, setIsProblemaModalOpen] = useState(false);
   const [showRepartidorModal, setShowRepartidorModal] = useState(false);
   const [showEstadoModal, setShowEstadoModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState('');
   const [estadoDescripcion, setEstadoDescripcion] = useState('');
 
   const { data: apiEnvio, isLoading } = useEnvio(id);
   const { data: apiRepartidores } = useRepartidores();
+  const updateEnvioMut = useUpdateEnvio();
   const updateEstadoMut = useUpdateEnvioEstado();
   const asignarRepMut = useAsignarRepartidor();
   const reportarProbMut = useReportarProblema();
@@ -76,6 +82,69 @@ const EnvioDetail = () => {
       .join('')
       .toUpperCase()
       .substring(0, 2);
+  };
+
+  const [editForm, setEditForm] = useState({
+    origen: '',
+    destino: '',
+    destinatarioNombre: '',
+    destinatarioDireccion: '',
+    destinatarioTelefono: '',
+    destinatarioCiudad: '',
+    peso: '',
+    costo: '',
+    tipoPago: '',
+    notas: '',
+    instruccionesEntrega: '',
+  });
+
+  const openEditModal = () => {
+    if (!envio) return;
+    setEditForm({
+      origen: envio.origen,
+      destino: envio.destino,
+      destinatarioNombre: envio.destinatarioNombre,
+      destinatarioDireccion: envio.destinatarioDireccion,
+      destinatarioTelefono: envio.destinatarioTelefono,
+      destinatarioCiudad: envio.destinatarioCiudad ?? '',
+      peso: String(envio.peso),
+      costo: String(envio.costo),
+      tipoPago: envio.tipoPago,
+      notas: envio.notas ?? '',
+      instruccionesEntrega: envio.instruccionesEntrega ?? '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditChange = (field: string, value: string) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveEdit = () => {
+    if (!id) return;
+    const body: Record<string, unknown> = {
+      origen: editForm.origen,
+      destino: editForm.destino,
+      destinatarioNombre: editForm.destinatarioNombre,
+      destinatarioDireccion: editForm.destinatarioDireccion,
+      destinatarioTelefono: editForm.destinatarioTelefono,
+      destinatarioCiudad: editForm.destinatarioCiudad || undefined,
+      peso: parseFloat(editForm.peso),
+      costo: Math.round(parseFloat(editForm.costo)),
+      tipoPago: editForm.tipoPago,
+      notas: editForm.notas || undefined,
+      instruccionesEntrega: editForm.instruccionesEntrega || undefined,
+    };
+    updateEnvioMut.mutate(
+      { id, body },
+      {
+        onSuccess: () => {
+          toast.success('Envio actualizado');
+          setShowEditModal(false);
+        },
+        onError: () => toast.error('Error al actualizar envio'),
+      },
+    );
   };
 
   if (isLoading) {
@@ -202,7 +271,7 @@ const EnvioDetail = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" className="gap-1.5">
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={openEditModal}>
             <PencilSimple size={14} weight="duotone" />
             Editar
           </Button>
@@ -511,6 +580,161 @@ const EnvioDetail = () => {
             </Button>
             <Button size="sm" onClick={handleUpdateStatus} disabled={!nuevoEstado || updateEstadoMut.isPending}>
               {updateEstadoMut.isPending ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Envio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-2">
+            <div>
+              <h4 className="text-[13px] font-semibold mb-3">Ruta</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-[12px]">Origen</Label>
+                  <Select value={editForm.origen} onValueChange={(v) => handleEditChange('origen', v)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departamentosPY.map((d) => (
+                        <SelectItem key={`eo-${d}`} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[12px]">Destino</Label>
+                  <Select value={editForm.destino} onValueChange={(v) => handleEditChange('destino', v)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departamentosPY.map((d) => (
+                        <SelectItem key={`ed-${d}`} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-[13px] font-semibold mb-3">Destinatario</h4>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-[12px]">Nombre</Label>
+                  <Input
+                    value={editForm.destinatarioNombre}
+                    onChange={(e) => handleEditChange('destinatarioNombre', e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[12px]">Direccion</Label>
+                  <Textarea
+                    value={editForm.destinatarioDireccion}
+                    onChange={(e) => handleEditChange('destinatarioDireccion', e.target.value)}
+                    className="mt-1 text-[13px]"
+                    rows={2}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-[12px]">Telefono</Label>
+                    <Input
+                      value={editForm.destinatarioTelefono}
+                      onChange={(e) => handleEditChange('destinatarioTelefono', e.target.value)}
+                      className="mt-1 font-data"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[12px]">Ciudad</Label>
+                    <Input
+                      value={editForm.destinatarioCiudad}
+                      onChange={(e) => handleEditChange('destinatarioCiudad', e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-[13px] font-semibold mb-3">Paquete y Cobro</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-[12px]">Peso (kg)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={editForm.peso}
+                    onChange={(e) => handleEditChange('peso', e.target.value)}
+                    className="mt-1 font-data"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[12px]">Costo (Gs.)</Label>
+                  <Input
+                    type="number"
+                    value={editForm.costo}
+                    onChange={(e) => handleEditChange('costo', e.target.value)}
+                    className="mt-1 font-data"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[12px]">Tipo de Pago</Label>
+                  <Select value={editForm.tipoPago} onValueChange={(v) => handleEditChange('tipoPago', v)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="anticipado">Anticipado</SelectItem>
+                      <SelectItem value="contra_entrega">Contra Entrega</SelectItem>
+                      <SelectItem value="cuenta_corriente">Cuenta Corriente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-[13px] font-semibold mb-3">Notas</h4>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-[12px]">Notas generales</Label>
+                  <Textarea
+                    value={editForm.notas}
+                    onChange={(e) => handleEditChange('notas', e.target.value)}
+                    className="mt-1 text-[13px]"
+                    rows={2}
+                    placeholder="Notas sobre el envio..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-[12px]">Instrucciones de entrega</Label>
+                  <Textarea
+                    value={editForm.instruccionesEntrega}
+                    onChange={(e) => handleEditChange('instruccionesEntrega', e.target.value)}
+                    className="mt-1 text-[13px]"
+                    rows={2}
+                    placeholder="Instrucciones para el repartidor..."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowEditModal(false)} disabled={updateEnvioMut.isPending}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSaveEdit} disabled={updateEnvioMut.isPending}>
+              {updateEnvioMut.isPending ? 'Guardando...' : 'Guardar Cambios'}
             </Button>
           </div>
         </DialogContent>

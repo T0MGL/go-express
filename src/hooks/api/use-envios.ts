@@ -182,6 +182,19 @@ export function useReportarProblema() {
   });
 }
 
+export function useUpdateEnvio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      api.put<Envio>(`/admin/envios/${id}`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: envioKeys.all });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
+      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
+    },
+  });
+}
+
 export function useAgregarNota() {
   const qc = useQueryClient();
   return useMutation({

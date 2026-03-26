@@ -79,9 +79,15 @@ const ClienteDashboard = () => {
       {/* Stats */}
       <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
-          <div className="col-span-full flex items-center justify-center py-8">
-            <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
-          </div>
+          <>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="stat-card">
+                <div className="h-7 w-7 bg-muted/40 rounded-lg animate-pulse mb-3" />
+                <div className="h-3 w-16 bg-muted/30 rounded animate-pulse" />
+                <div className="h-6 w-10 bg-muted/40 rounded animate-pulse mt-2" />
+              </div>
+            ))}
+          </>
         ) : (
           stats.map((stat) => (
             <div key={stat.label} className="stat-card">
@@ -126,8 +132,16 @@ const ClienteDashboard = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-2">
+                <div className="h-4 w-28 bg-muted/40 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                <div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" />
+                <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

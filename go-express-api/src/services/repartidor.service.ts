@@ -12,6 +12,10 @@ import type {
 import type { CreateRepartidorInput, UpdateRepartidorInput, RepartidorQuery } from '../lib/validators/repartidor.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
+/**
+ * Full mapper with decryption. Used ONLY for single-record detail views
+ * (getById, create, update) where telefono PII is needed.
+ */
 function toApi(row: RepartidorRow): Repartidor {
   return {
     id: row.id,
@@ -21,6 +25,7 @@ function toApi(row: RepartidorRow): Repartidor {
     placa: row.placa,
     licencia: row.licencia,
     estado: row.estado,
+    enviosHoy: 0,
     eliminado: row.eliminado,
     eliminadoPor: row.eliminado_por,
     eliminadoEn: row.eliminado_en,
@@ -30,8 +35,39 @@ function toApi(row: RepartidorRow): Repartidor {
   };
 }
 
+/**
+ * Lightweight mapper for list views. Returns empty string for telefono
+ * to avoid decryption overhead. List views only need name, vehiculo, placa, estado.
+ */
+function toListApi(row: Record<string, unknown>): Repartidor {
+  return {
+    id: row['id'] as string,
+    nombre: row['nombre'] as string,
+    telefono: '',
+    vehiculo: row['vehiculo'] as Repartidor['vehiculo'],
+    placa: row['placa'] as string,
+    licencia: (row['licencia'] as string | null) ?? null,
+    estado: row['estado'] as Repartidor['estado'],
+    enviosHoy: 0,
+    eliminado: row['eliminado'] as boolean,
+    eliminadoPor: (row['eliminado_por'] as string | null) ?? null,
+    eliminadoEn: (row['eliminado_en'] as string | null) ?? null,
+    motivoEliminacion: (row['motivo_eliminacion'] as string | null) ?? null,
+    creadoEn: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
+}
+
+// Full columns: includes encrypted fields for detail/create/update views
 const REPARTIDOR_COLUMNS = [
   'id', 'nombre', 'telefono_enc', 'vehiculo', 'placa', 'licencia',
+  'estado', 'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+].join(', ');
+
+// Lightweight columns: skips telefono_enc to avoid decryption on list views
+const REPARTIDOR_LIST_COLUMNS = [
+  'id', 'nombre', 'vehiculo', 'placa', 'licencia',
   'estado', 'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
 ].join(', ');
@@ -43,7 +79,7 @@ class RepartidorService {
 
     let q = supabase
       .from('repartidores')
-      .select(REPARTIDOR_COLUMNS, { count: 'exact' })
+      .select(REPARTIDOR_LIST_COLUMNS, { count: 'exact' })
       .eq('eliminado', false);
 
     if (estado) q = q.eq('estado', estado);
@@ -60,10 +96,32 @@ class RepartidorService {
       throw new AppError('Error fetching repartidores', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as RepartidorRow[];
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const repartidores = rows.map(toListApi);
+
+    // Batch-fetch today's envio counts per repartidor for the list view
+    if (repartidores.length > 0) {
+      const today = new Date().toISOString().split('T')[0]!;
+      const repartidorIds = repartidores.map(r => r.id);
+      const { data: envioCountData } = await supabase
+        .from('envios')
+        .select('repartidor_id')
+        .in('repartidor_id', repartidorIds)
+        .eq('eliminado', false)
+        .gte('fecha', today);
+
+      const countMap = new Map<string, number>();
+      for (const row of (envioCountData ?? []) as { repartidor_id: string }[]) {
+        countMap.set(row.repartidor_id, (countMap.get(row.repartidor_id) ?? 0) + 1);
+      }
+
+      for (const rep of repartidores) {
+        rep.enviosHoy = countMap.get(rep.id) ?? 0;
+      }
+    }
 
     return {
-      data: rows.map(toApi),
+      data: repartidores,
       pagination: {
         total: count ?? 0,
         page,
@@ -231,9 +289,12 @@ class RepartidorService {
   async getEnviosAsignados(id: string): Promise<Envio[]> {
     await this.getById(id);
 
+    // Lightweight query: only fetch columns needed for the assigned envios list view
+    const ENVIO_LIST_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre_search, destinatario_ciudad, estado, costo, fecha, created_at';
+
     const { data, error } = await supabase
       .from('envios')
-      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_enc, destinatario_direccion_enc, destinatario_telefono_enc, destinatario_telefono2_enc, destinatario_cedula_enc, destinatario_ciudad, destinatario_departamento, destinatario_barrio, destinatario_referencia_enc, destinatario_ubicacion_url, destinatario_nombre_search, destinatario_telefono_hash, cantidad, producto, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil, valor_declarado, instrucciones_entrega, horario_entrega, notas, estado, costo, monto_a_cobrar, tipo_pago, repartidor_id, repartidor_asignado_en, problema_descripcion, problema_fecha, tags, tarifa_id, fecha, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
+      .select(ENVIO_LIST_COLS)
       .eq('repartidor_id', id)
       .eq('eliminado', false)
       .in('estado', ['recolectado', 'en_transito', 'en_reparto'])
@@ -244,9 +305,49 @@ class RepartidorService {
       throw new AppError('Error fetching repartidor envios', 500, 'DB_ERROR');
     }
 
-    // We import the envio mapper lazily to avoid circular deps
-    const { mapEnvioRowToApi } = await import('./envio.service.js');
-    return (data ?? []).map(mapEnvioRowToApi);
+    return ((data ?? []) as Record<string, unknown>[]).map(row => ({
+      id: row['id'] as string,
+      trackingNumber: row['tracking_number'] as string,
+      clienteId: row['cliente_id'] as string,
+      clienteNombre: row['cliente_nombre'] as string,
+      codigoReferencia: null,
+      origen: row['origen'] as string,
+      destino: row['destino'] as string,
+      destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+      destinatarioDireccion: '',
+      destinatarioTelefono: '',
+      destinatarioTelefono2: null,
+      destinatarioCedula: null,
+      destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
+      destinatarioDepartamento: '',
+      destinatarioBarrio: null,
+      destinatarioReferencia: null,
+      destinatarioUbicacionUrl: null,
+      cantidad: 0,
+      producto: '',
+      peso: 0,
+      dimensiones: { largo: null, ancho: null, alto: null },
+      fragil: false,
+      valorDeclarado: 0,
+      instruccionesEntrega: null,
+      horarioEntrega: null,
+      notas: null,
+      estado: row['estado'] as Envio['estado'],
+      costo: row['costo'] as number,
+      montoACobrar: 0,
+      tipoPago: 'anticipado' as const,
+      repartidorId: id,
+      repartidorAsignadoEn: null,
+      problemaDescripcion: null,
+      problemaFecha: null,
+      tags: [],
+      tarifaId: null,
+      fecha: row['fecha'] as string,
+      eventos: [],
+      pago: null,
+      notasInternas: [],
+      creadoEn: row['created_at'] as string,
+    }));
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,14 +16,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useEnvios } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    timerRef.current = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timerRef.current);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 const EnviosList = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 350);
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [filterRepartidor, setFilterRepartidor] = useState<string>('todos');
 
   const apiFilters: Record<string, string | undefined> = {};
   if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
-  if (searchTerm) apiFilters.search = searchTerm;
+  if (debouncedSearch) apiFilters.search = debouncedSearch;
   if (filterRepartidor !== 'todos') apiFilters.repartidorId = filterRepartidor === 'sin_asignar' ? 'sin_asignar' : filterRepartidor;
 
   const { data: apiEnvios, isLoading: loadingEnvios } = useEnvios(apiFilters);
@@ -133,8 +144,19 @@ const EnviosList = () => {
           </div>
 
           {loadingEnvios ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-2">
+                  <div className="h-4 w-28 bg-muted/40 rounded animate-pulse" />
+                  <div className="h-4 w-32 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" />
+                  <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-5 w-14 bg-muted/40 rounded-full animate-pulse" />
+                  <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                </div>
+              ))}
             </div>
           ) : (
             <>

@@ -73,7 +73,7 @@ export const agregarNotaSchema = z.object({
 export const envioQuerySchema = paginationSchema.merge(searchSchema).merge(dateRangeSchema).extend({
   estado: envioEstadoEnum.optional(),
   clienteId: uuidSchema.optional(),
-  repartidorId: uuidSchema.optional(),
+  repartidorId: z.union([uuidSchema, z.literal('sin_asignar')]).optional(),
 });
 
 // Bulk import: array of envios

@@ -9,13 +9,30 @@ import { Link } from 'react-router-dom';
 import { DownloadSimple, Eye, CurrencyDollar, Clock, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react';
 import { PaymentModal } from '@/components/admin/PaymentModal';
 import { toast } from 'sonner';
-import type { Envio } from '@/data/types';
 import { usePagos, usePagoStats } from '@/hooks/api/use-pagos';
+
+interface PagoListItem {
+  id: string;
+  envioId: string;
+  trackingNumber?: string;
+  clienteNombre?: string;
+  montoTotal: number;
+  montoRecibido: number;
+  metodoPago: string;
+  estadoPago: string;
+  fechaPago?: string | null;
+  referencia?: string | null;
+  notas?: string | null;
+  creadoPor: string;
+  creadoEn: string;
+  updatedAt: string;
+  costo?: number;
+}
 
 const Pagos = () => {
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroMetodo, setFiltroMetodo] = useState<string>('todos');
-  const [selectedEnvio, setSelectedEnvio] = useState<Envio | null>(null);
+  const [selectedPago, setSelectedPago] = useState<PagoListItem | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
 
@@ -26,35 +43,35 @@ const Pagos = () => {
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();
 
-  const enviosFiltrados = (apiPagos?.data ?? []) as unknown as Envio[];
+  const pagosFiltrados = (apiPagos?.data ?? []) as unknown as PagoListItem[];
   const totalCobrado = apiStats?.totalCobrado ?? 0;
   const totalPendiente = apiStats?.totalPendiente ?? 0;
   const cobradoHoy = apiStats?.cobradoHoy ?? 0;
-  const totalCount = apiPagos?.pagination?.total ?? enviosFiltrados.length;
+  const totalCount = apiPagos?.pagination?.total ?? pagosFiltrados.length;
 
-  const handleCobrar = (envio: Envio) => {
-    setSelectedEnvio(envio);
+  const handleCobrar = (pago: PagoListItem) => {
+    setSelectedPago(pago);
     setIsPaymentModalOpen(true);
   };
 
   const handlePaymentRegistered = () => {
     setIsPaymentModalOpen(false);
-    setSelectedEnvio(null);
+    setSelectedPago(null);
     toast.success('Pago registrado correctamente');
   };
 
   const handleExportPagosCSV = () => {
     const columns = [
-      { label: 'Tracking', accessor: (e: Envio) => e.trackingNumber },
-      { label: 'Cliente', accessor: (e: Envio) => e.clienteNombre },
-      { label: 'Monto Total', accessor: (e: Envio) => e.costo },
-      { label: 'Monto Recibido', accessor: (e: Envio) => e.pago?.montoRecibido || 0 },
-      { label: 'Estado Pago', accessor: (e: Envio) => e.pago?.estadoPago || 'pendiente' },
-      { label: 'Metodo', accessor: (e: Envio) => e.pago?.metodoPago || '-' },
-      { label: 'Fecha Pago', accessor: (e: Envio) => e.pago?.fechaPago || '-' },
+      { label: 'Tracking', accessor: (p: PagoListItem) => p.trackingNumber ?? '' },
+      { label: 'Cliente', accessor: (p: PagoListItem) => p.clienteNombre ?? '' },
+      { label: 'Monto Total', accessor: (p: PagoListItem) => p.montoTotal },
+      { label: 'Monto Recibido', accessor: (p: PagoListItem) => p.montoRecibido },
+      { label: 'Estado Pago', accessor: (p: PagoListItem) => p.estadoPago },
+      { label: 'Metodo', accessor: (p: PagoListItem) => p.metodoPago || '-' },
+      { label: 'Fecha Pago', accessor: (p: PagoListItem) => p.fechaPago || '-' },
     ];
 
-    exportToCSV(enviosFiltrados, 'pagos', columns);
+    exportToCSV(pagosFiltrados, 'pagos', columns);
     toast.success('Exportando pagos a CSV...');
   };
 
@@ -156,8 +173,17 @@ const Pagos = () => {
           </div>
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-2">
+                  <div className="h-4 w-28 bg-muted/40 rounded animate-pulse" />
+                  <div className="h-4 w-32 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" />
+                  <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                  <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                </div>
+              ))}
             </div>
           ) : (
             <>
@@ -175,49 +201,49 @@ const Pagos = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {enviosFiltrados.map((envio) => (
-                      <tr key={envio.id}>
+                    {pagosFiltrados.map((pago) => (
+                      <tr key={pago.id}>
                         <td>
                           <Link
-                            to={`/admin/envios/${envio.id}`}
+                            to={`/admin/envios/${pago.envioId}`}
                             className="text-primary hover:underline font-medium font-data text-[13px]"
                           >
-                            {envio.trackingNumber}
+                            {pago.trackingNumber ?? '-'}
                           </Link>
                         </td>
-                        <td className="text-[13px]">{envio.clienteNombre}</td>
+                        <td className="text-[13px]">{pago.clienteNombre ?? '-'}</td>
                         <td className="text-[13px] font-medium font-data">
-                          {formatCurrency(envio.costo)}
+                          {formatCurrency(pago.montoTotal)}
                         </td>
                         <td>
                           <Badge
-                            variant={estadoPagoColors[envio.pago?.estadoPago || 'pendiente'] as "muted" | "default" | "destructive" | "success" | "warning" | "outline" | "secondary"}
+                            variant={estadoPagoColors[pago.estadoPago || 'pendiente'] as "muted" | "default" | "destructive" | "success" | "warning" | "outline" | "secondary"}
                             className="text-[11px]"
                           >
-                            {envio.pago?.estadoPago === 'pagado' ? 'Pagado'
-                              : envio.pago?.estadoPago === 'pago_parcial' ? 'Parcial'
+                            {pago.estadoPago === 'pagado' ? 'Pagado'
+                              : pago.estadoPago === 'pago_parcial' ? 'Parcial'
                               : 'Pendiente'}
                           </Badge>
                         </td>
                         <td className="text-[13px]">
-                          {envio.pago?.metodoPago
-                            ? metodosPagoLabels[envio.pago.metodoPago]
+                          {pago.metodoPago
+                            ? metodosPagoLabels[pago.metodoPago]
                             : '-'}
                         </td>
                         <td className="text-[12px] text-muted-foreground">
-                          {envio.pago?.fechaPago ? formatDate(envio.pago.fechaPago) : '-'}
+                          {pago.fechaPago ? formatDate(pago.fechaPago) : '-'}
                         </td>
                         <td className="text-right">
-                          {envio.pago?.estadoPago === 'pendiente' || envio.pago?.estadoPago === 'pago_parcial' ? (
+                          {pago.estadoPago === 'pendiente' || pago.estadoPago === 'pago_parcial' ? (
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => handleCobrar(envio)}
+                              onClick={() => handleCobrar(pago)}
                             >
                               Cobrar
                             </Button>
                           ) : (
-                            <Link to={`/admin/envios/${envio.id}`}>
+                            <Link to={`/admin/envios/${pago.envioId}`}>
                               <Button variant="ghost" size="sm" className="gap-1.5">
                                 <Eye size={14} weight="duotone" />
                                 Ver
@@ -231,15 +257,15 @@ const Pagos = () => {
                 </table>
               </div>
 
-              {enviosFiltrados.length > 0 && (
+              {pagosFiltrados.length > 0 && (
                 <div className="px-5 py-3 border-t border-border/40">
                   <p className="text-[12px] text-muted-foreground">
-                    Mostrando {enviosFiltrados.length} de {totalCount} registros
+                    Mostrando {pagosFiltrados.length} de {totalCount} registros
                   </p>
                 </div>
               )}
 
-              {enviosFiltrados.length === 0 && (
+              {pagosFiltrados.length === 0 && (
                 <div className="text-center py-16 px-4">
                   <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                     <MagnifyingGlass size={18} weight="duotone" className="text-muted-foreground/50" />
@@ -255,12 +281,12 @@ const Pagos = () => {
         </div>
       </div>
 
-      {selectedEnvio && (
+      {selectedPago && (
         <PaymentModal
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
-          envioId={selectedEnvio.id}
-          montoTotal={selectedEnvio.costo}
+          envioId={selectedPago.envioId}
+          montoTotal={selectedPago.montoTotal}
           onPaymentRegistered={handlePaymentRegistered}
         />
       )}

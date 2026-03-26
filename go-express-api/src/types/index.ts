@@ -443,6 +443,7 @@ export interface Repartidor {
   placa: string;
   licencia: string | null;
   estado: RepartidorEstado;
+  enviosHoy: number;
   eliminado: boolean;
   eliminadoPor: string | null;
   eliminadoEn: string | null;

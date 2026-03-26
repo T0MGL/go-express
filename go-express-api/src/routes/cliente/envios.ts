@@ -16,8 +16,8 @@ import type { CreateEnvioInput, EnvioQuery } from '../../lib/validators/envio.sc
 
 const router = Router();
 
-// Explicit column list for envio queries (no SELECT *)
-const ENVIO_COLUMNS = [
+// Full columns: used for single-envio detail views where all fields are needed
+const ENVIO_DETAIL_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
   'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
@@ -36,8 +36,24 @@ const ENVIO_COLUMNS = [
   'created_at', 'updated_at',
 ].join(', ');
 
-// Row to API mapping (decrypt PII, camelCase output)
+// Lightweight columns: skips encrypted fields to avoid expensive decryption on list views
+const ENVIO_LIST_COLUMNS = [
+  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
+  'origen', 'destino',
+  'destinatario_nombre_search', 'destinatario_ciudad', 'destinatario_departamento',
+  'destinatario_barrio',
+  'cantidad', 'producto', 'peso',
+  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
+  'fragil', 'valor_declarado', 'notas',
+  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'repartidor_id', 'repartidor_asignado_en',
+  'problema_descripcion', 'problema_fecha',
+  'tags', 'tarifa_id', 'fecha',
+  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+].join(', ');
 
+// Full row mapper with decryption (for detail view)
 function mapEnvioRow(row: EnvioRow): Envio {
   return {
     id: row.id,
@@ -94,6 +110,57 @@ function mapEnvioRow(row: EnvioRow): Envio {
   };
 }
 
+// Lightweight mapper for list views: uses plaintext search fields instead of decrypting
+function mapEnvioRowToListApi(row: Record<string, unknown>): Envio {
+  return {
+    id: row['id'] as string,
+    trackingNumber: row['tracking_number'] as string,
+    clienteId: row['cliente_id'] as string,
+    clienteNombre: row['cliente_nombre'] as string,
+    codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
+    origen: row['origen'] as string,
+    destino: row['destino'] as string,
+    destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+    destinatarioDireccion: '',
+    destinatarioTelefono: '',
+    destinatarioTelefono2: null,
+    destinatarioCedula: null,
+    destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
+    destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
+    destinatarioBarrio: (row['destinatario_barrio'] as string | null) ?? null,
+    destinatarioReferencia: null,
+    destinatarioUbicacionUrl: null,
+    cantidad: row['cantidad'] as number,
+    producto: (row['producto'] as string) ?? '',
+    peso: row['peso'] as number,
+    dimensiones: {
+      largo: row['dimensiones_largo'] as number | null,
+      ancho: row['dimensiones_ancho'] as number | null,
+      alto: row['dimensiones_alto'] as number | null,
+    },
+    fragil: row['fragil'] as boolean,
+    valorDeclarado: row['valor_declarado'] as number,
+    instruccionesEntrega: null,
+    horarioEntrega: null,
+    notas: (row['notas'] as string | null) ?? null,
+    estado: row['estado'] as Envio['estado'],
+    costo: row['costo'] as number,
+    montoACobrar: row['monto_a_cobrar'] as number,
+    tipoPago: row['tipo_pago'] as Envio['tipoPago'],
+    repartidorId: (row['repartidor_id'] as string | null) ?? null,
+    repartidorAsignadoEn: (row['repartidor_asignado_en'] as string | null) ?? null,
+    problemaDescripcion: (row['problema_descripcion'] as string | null) ?? null,
+    problemaFecha: (row['problema_fecha'] as string | null) ?? null,
+    tags: (row['tags'] as string[]) ?? [],
+    tarifaId: (row['tarifa_id'] as string | null) ?? null,
+    fecha: row['fecha'] as string,
+    eventos: [],
+    pago: null,
+    notasInternas: [],
+    creadoEn: row['created_at'] as string,
+  };
+}
+
 // GET /: my envios (paginated + filters)
 
 router.get(
@@ -106,7 +173,7 @@ router.get(
 
     let q = supabase
       .from('envios')
-      .select(ENVIO_COLUMNS, { count: 'exact' })
+      .select(ENVIO_LIST_COLUMNS, { count: 'exact' })
       .eq('cliente_id', clienteId)
       .eq('eliminado', false);
 
@@ -127,10 +194,10 @@ router.get(
       throw new AppError(`Error fetching envios: ${error.message}`, 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as EnvioRow[];
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
     res.json({
-      data: rows.map(mapEnvioRow),
+      data: rows.map(mapEnvioRowToListApi),
       pagination: {
         total: count ?? 0,
         page,
@@ -155,7 +222,7 @@ router.get(
     // Must belong to this client
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
-      .select(ENVIO_COLUMNS)
+      .select(ENVIO_DETAIL_COLUMNS)
       .eq('id', id)
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
@@ -295,7 +362,7 @@ router.post(
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
       .insert(envioInsert)
-      .select(ENVIO_COLUMNS)
+      .select(ENVIO_DETAIL_COLUMNS)
       .single();
 
     if (insertError) {

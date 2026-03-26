@@ -50,8 +50,21 @@ const ClienteCuenta = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <CircleNotch size={24} weight="bold" className="animate-spin text-muted-foreground" />
+      <div className="max-w-2xl mx-auto space-y-5">
+        <div className="page-header">
+          <div>
+            <div className="h-6 w-32 bg-muted/40 rounded animate-pulse" />
+            <div className="h-4 w-48 bg-muted/30 rounded animate-pulse mt-2" />
+          </div>
+        </div>
+        <div className="surface-card p-6 space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i}>
+              <div className="h-3 w-20 bg-muted/30 rounded animate-pulse mb-2" />
+              <div className="h-9 bg-muted/20 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Timeline } from '@/components/tracking/Timeline';
 import { formatDate } from '@/lib/utils';
-import { useClienteEnvios } from '@/hooks/api/use-cliente-envios';
+import { useClienteEnvios, useClienteEnvio } from '@/hooks/api/use-cliente-envios';
 
 const estadoList = [
   { value: 'todos', label: 'Todos' },
@@ -39,7 +39,7 @@ const estadoBadge: Record<string, { label: string; variant: 'default' | 'seconda
 const ClienteEnvios = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
-  const [selectedEnvio, setSelectedEnvio] = useState<Envio | null>(null);
+  const [selectedEnvioId, setSelectedEnvioId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // API data
@@ -47,6 +47,7 @@ const ClienteEnvios = () => {
     estado: filterEstado,
     search: searchTerm,
   });
+  const { data: selectedEnvio } = useClienteEnvio(selectedEnvioId ?? '');
 
   const envios: Envio[] = apiData?.data ?? [];
 
@@ -96,8 +97,16 @@ const ClienteEnvios = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-2">
+                <div className="h-4 w-28 bg-muted/40 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-28 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-12 bg-muted/30 rounded animate-pulse" />
+                <div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" />
+              </div>
+            ))}
           </div>
         ) : (
           <>
@@ -128,7 +137,7 @@ const ClienteEnvios = () => {
                         </td>
                         <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
                         <td className="text-right pr-4">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvio(envio)}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)}>
                             <Eye size={14} weight="duotone" />
                           </Button>
                         </td>
@@ -160,7 +169,7 @@ const ClienteEnvios = () => {
         )}
       </div>
 
-      <Dialog open={!!selectedEnvio} onOpenChange={() => setSelectedEnvio(null)}>
+      <Dialog open={!!selectedEnvioId} onOpenChange={() => setSelectedEnvioId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-data text-sm">{selectedEnvio?.trackingNumber}</DialogTitle>

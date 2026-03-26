@@ -35,11 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const profileRetryRef = useRef<ReturnType<typeof setTimeout>>();
   const mountedRef = useRef(true);
+  const loginHandledRef = useRef(false);
 
   const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null> => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const profile = await api.get<AuthUser>('/auth/me', { signal: controller.signal });
       clearTimeout(timeoutId);
       return profile as AuthUser;
@@ -48,7 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const loadProfile = useCallback(async (session: Session, retryCount = 0) => {
+  const loadProfile = useCallback(async (session: Session, retryCount = 0, skipLoadingState = false) => {
+    // When loading from a cached session (INITIAL_SESSION), set loading false
+    // immediately so the UI doesn't block. Profile loads in background.
+    if (skipLoadingState) {
+      setState(prev => ({
+        user: prev.user,
+        session,
+        loading: false,
+        error: null,
+      }));
+    }
+
     const profile = await fetchProfile(session.access_token);
 
     if (!mountedRef.current) return;
@@ -59,8 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Profile fetch failed but session is valid: mark as authenticated anyway.
-    // The session from Supabase localStorage is the source of truth for auth status.
-    // Retry profile fetch in the background so we get user data eventually.
     setState(prev => ({
       user: prev.user,
       session,
@@ -92,10 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Handle all session-bearing events: INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED
       if (session) {
-        // For INITIAL_SESSION, this replaces the separate getSession() call.
-        // For SIGNED_IN and TOKEN_REFRESHED, this refreshes the profile.
         initialResolved = true;
-        await loadProfile(session);
+
+        // If login() already handled the profile, skip the duplicate load
+        if (event === 'SIGNED_IN' && loginHandledRef.current) {
+          loginHandledRef.current = false;
+          return;
+        }
+
+        // For INITIAL_SESSION (restoring from localStorage), unblock the UI immediately
+        // and load the profile in the background. For other events, load normally.
+        const skipLoading = event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED';
+        await loadProfile(session, 0, skipLoading);
       }
     });
 
@@ -111,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setState({ user: null, session: null, loading: false, error: null });
             return;
           }
-          await loadProfile(session);
+          await loadProfile(session, 0, true);
         }).catch(() => {
           if (mountedRef.current && !initialResolved) {
             initialResolved = true;
@@ -144,8 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // onAuthStateChange will fire SIGNED_IN and handle profile loading.
-      // Set session immediately so the UI can react without waiting for the listener.
+      // Mark that login handled the profile so onAuthStateChange skips duplicate load
+      loginHandledRef.current = true;
+
       const profile = await fetchProfile(data.session.access_token);
 
       setState({

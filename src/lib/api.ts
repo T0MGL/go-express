@@ -22,10 +22,31 @@ export function getClienteId(): string | null {
   return currentClienteId;
 }
 
+// Token cache: avoids calling supabase.auth.getSession() on every API request.
+// The listener below keeps the cache in sync whenever the session changes.
+let cachedAccessToken: string | null = null;
+let tokenListenerReady = false;
+
+function setupTokenListener() {
+  if (tokenListenerReady) return;
+  tokenListenerReady = true;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    cachedAccessToken = session?.access_token ?? null;
+  });
+  // Seed from current session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    cachedAccessToken = session?.access_token ?? null;
+  }).catch(() => {});
+}
+
+setupTokenListener();
+
 async function getAccessToken(): Promise<string | null> {
+  if (cachedAccessToken) return cachedAccessToken;
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    cachedAccessToken = session?.access_token ?? null;
+    return cachedAccessToken;
   } catch {
     return null;
   }

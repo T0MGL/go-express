@@ -149,8 +149,56 @@ const EnvioDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-16 bg-muted/40 rounded animate-pulse" />
+            <div>
+              <div className="h-6 w-40 bg-muted/40 rounded animate-pulse" />
+              <div className="h-4 w-64 bg-muted/30 rounded animate-pulse mt-1.5" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="h-8 w-28 bg-muted/40 rounded animate-pulse" />
+            ))}
+          </div>
+        </div>
+        <div className="surface-card p-6">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="h-4 w-32 bg-muted/40 rounded animate-pulse" />
+              <div className="h-7 w-48 bg-muted/40 rounded animate-pulse mt-2" />
+            </div>
+            <div className="h-6 w-20 bg-muted/40 rounded-full animate-pulse" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i}>
+                <div className="h-3 w-16 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-28 bg-muted/40 rounded animate-pulse mt-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="surface-card p-6">
+            <div className="h-4 w-36 bg-muted/40 rounded animate-pulse mb-5" />
+            <div className="space-y-4">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="h-12 bg-muted/20 rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+          <div className="surface-card p-6">
+            <div className="h-4 w-44 bg-muted/40 rounded animate-pulse mb-5" />
+            <div className="space-y-3">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="h-8 bg-muted/20 rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

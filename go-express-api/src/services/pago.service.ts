@@ -11,6 +11,10 @@ import type {
 import type { CreatePagoInput, UpdatePagoInput, PagoQuery } from '../lib/validators/pago.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
+/**
+ * Full mapper with decryption. Used for single-record detail views
+ * and create/update responses where referencia PII may be needed.
+ */
 function toApi(row: PagoRow): Pago {
   return {
     id: row.id,
@@ -25,6 +29,27 @@ function toApi(row: PagoRow): Pago {
     creadoPor: row.creado_por,
     creadoEn: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Lightweight mapper for list views. Skips referencia_enc decryption.
+ * List views only need amounts, status, method, and dates.
+ */
+function toListApi(row: Record<string, unknown>): Pago {
+  return {
+    id: row['id'] as string,
+    envioId: row['envio_id'] as string,
+    montoTotal: row['monto_total'] as number,
+    montoRecibido: row['monto_recibido'] as number,
+    metodoPago: row['metodo_pago'] as Pago['metodoPago'],
+    estadoPago: row['estado_pago'] as EstadoPago,
+    fechaPago: (row['fecha_pago'] as string | null) ?? null,
+    referencia: null,
+    notas: (row['notas'] as string | null) ?? null,
+    creadoPor: row['creado_por'] as string,
+    creadoEn: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
   };
 }
 
@@ -54,8 +79,8 @@ class PagoService {
         };
       }
 
-      const PAGO_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at, envios!inner(tracking_number, cliente_nombre, costo)';
-      let q = supabase.from('pagos').select(PAGO_WITH_ENVIO, { count: 'exact' });
+      const PAGO_LIST_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, notas, creado_por, created_at, updated_at, envios!inner(tracking_number, cliente_nombre, costo)';
+      let q = supabase.from('pagos').select(PAGO_LIST_WITH_ENVIO, { count: 'exact' });
 
       q = q.in('envio_id', matchingEnvios.map((e: { id: string }) => e.id));
       if (estadoPago) q = q.eq('estado_pago', estadoPago);
@@ -69,11 +94,11 @@ class PagoService {
         throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
       }
 
-      const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+      const rows = (data ?? []) as unknown as (Record<string, unknown> & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
       return {
         data: rows.map((row) => {
-          const base = toApi(row);
+          const base = toListApi(row);
           if (row.envios) {
             return {
               ...base,
@@ -95,9 +120,9 @@ class PagoService {
       };
     }
 
-    // No search: standard listing with joined envio data
-    const PAGO_COLUMNS_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at, envios(tracking_number, cliente_nombre, costo)';
-    let q = supabase.from('pagos').select(PAGO_COLUMNS_WITH_ENVIO, { count: 'exact' });
+    // No search: standard listing with joined envio data (no encrypted fields)
+    const PAGO_LIST_COLUMNS_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, notas, creado_por, created_at, updated_at, envios(tracking_number, cliente_nombre, costo)';
+    let q = supabase.from('pagos').select(PAGO_LIST_COLUMNS_WITH_ENVIO, { count: 'exact' });
 
     if (estadoPago) q = q.eq('estado_pago', estadoPago);
     if (metodoPago) q = q.eq('metodo_pago', metodoPago);
@@ -110,11 +135,11 @@ class PagoService {
       throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+    const rows = (data ?? []) as unknown as (Record<string, unknown> & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
     return {
       data: rows.map((row) => {
-        const base = toApi(row);
+        const base = toListApi(row);
         if (row.envios) {
           return {
             ...base,

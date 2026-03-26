@@ -14,6 +14,8 @@ import type {
   Pago,
   NotaInterna,
   EnvioEstado,
+  EstadoPago,
+  TipoPago,
   PaginatedResponse,
   NotificationEvent,
 } from '../types/index.js';
@@ -95,6 +97,89 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
   };
 }
 
+/**
+ * Extract a minimal Pago object from the embedded Supabase join on the list query.
+ * Supabase returns `pagos` as an array (since envio can have 0-1 pago rows).
+ */
+function extractListPago(row: Record<string, unknown>): Pago | null {
+  const pagos = row['pagos'] as Array<{ estado_pago: string }> | null;
+  if (!pagos || pagos.length === 0) return null;
+  const p = pagos[0]!;
+  return {
+    id: '',
+    envioId: row['id'] as string,
+    montoTotal: 0,
+    montoRecibido: 0,
+    metodoPago: 'efectivo',
+    estadoPago: p.estado_pago as EstadoPago,
+    fechaPago: null,
+    referencia: null,
+    notas: null,
+    creadoPor: '',
+    creadoEn: '',
+    updatedAt: '',
+  };
+}
+
+/**
+ * Lightweight mapper for list views. Uses the searchable plaintext name
+ * instead of decrypting enc fields. Much faster for paginated lists.
+ */
+function mapEnvioRowToListApi(row: Record<string, unknown>): Envio {
+  return {
+    id: row['id'] as string,
+    trackingNumber: row['tracking_number'] as string,
+    clienteId: row['cliente_id'] as string,
+    clienteNombre: row['cliente_nombre'] as string,
+    codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
+    origen: row['origen'] as string,
+    destino: row['destino'] as string,
+    destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+    destinatarioDireccion: '',
+    destinatarioTelefono: '',
+    destinatarioTelefono2: null,
+    destinatarioCedula: null,
+    destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
+    destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
+    destinatarioBarrio: (row['destinatario_barrio'] as string | null) ?? null,
+    destinatarioReferencia: null,
+    destinatarioUbicacionUrl: null,
+    cantidad: row['cantidad'] as number,
+    producto: (row['producto'] as string) ?? '',
+    peso: row['peso'] as number,
+    dimensiones: {
+      largo: row['dimensiones_largo'] as number | null,
+      ancho: row['dimensiones_ancho'] as number | null,
+      alto: row['dimensiones_alto'] as number | null,
+    },
+    fragil: row['fragil'] as boolean,
+    valorDeclarado: row['valor_declarado'] as number,
+    instruccionesEntrega: null,
+    horarioEntrega: null,
+    notas: (row['notas'] as string | null) ?? null,
+    estado: row['estado'] as EnvioEstado,
+    costo: row['costo'] as number,
+    montoACobrar: row['monto_a_cobrar'] as number,
+    tipoPago: row['tipo_pago'] as TipoPago,
+    repartidorId: (row['repartidor_id'] as string | null) ?? null,
+    repartidorAsignadoEn: (row['repartidor_asignado_en'] as string | null) ?? null,
+    problemaDescripcion: (row['problema_descripcion'] as string | null) ?? null,
+    problemaFecha: (row['problema_fecha'] as string | null) ?? null,
+    tags: (row['tags'] as string[]) ?? [],
+    tarifaId: (row['tarifa_id'] as string | null) ?? null,
+    fecha: row['fecha'] as string,
+    eventos: [],
+    pago: extractListPago(row),
+    notasInternas: [],
+    eliminado: row['eliminado'] as boolean,
+    eliminadoPor: (row['eliminado_por'] as string | undefined) ?? undefined,
+    eliminadoEn: (row['eliminado_en'] as string | undefined) ?? undefined,
+    motivoEliminacion: (row['motivo_eliminacion'] as string | undefined) ?? undefined,
+    creadoEn: row['created_at'] as string,
+    updatedAt: (row['updated_at'] as string | undefined) ?? undefined,
+  };
+}
+
 function mapEventoRow(row: EventoEnvioRow): EventoEnvio {
   return {
     id: row.id,
@@ -144,7 +229,9 @@ function triggerNotification(event: NotificationEvent, envio: Envio, previousEst
 }
 
 // Explicit column lists (no SELECT *)
-const ENVIO_LIST_COLUMNS = [
+
+// Full columns: used for single-envio detail views where all fields are needed
+const ENVIO_DETAIL_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
   'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
@@ -163,6 +250,25 @@ const ENVIO_LIST_COLUMNS = [
   'created_at', 'updated_at',
 ].join(', ');
 
+// Lightweight columns: used for list/table views. Skips encrypted fields to avoid
+// expensive decryption on every row. The list only needs display-ready data.
+// Includes a Supabase embedded select on pagos to get estado_pago for the list badge.
+const ENVIO_LIST_COLUMNS = [
+  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
+  'origen', 'destino',
+  'destinatario_nombre_search', 'destinatario_ciudad', 'destinatario_departamento',
+  'cantidad', 'producto', 'peso',
+  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
+  'fragil', 'valor_declarado', 'notas',
+  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'repartidor_id', 'repartidor_asignado_en',
+  'problema_descripcion', 'problema_fecha',
+  'tags', 'tarifa_id', 'fecha',
+  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+  'pagos(estado_pago)',
+].join(', ');
+
 const EVENTO_COLUMNS = 'id, envio_id, estado, descripcion, ubicacion, created_at';
 const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at';
 const NOTA_COLUMNS = 'id, envio_id, texto, usuario, usuario_id, created_at';
@@ -177,7 +283,11 @@ class EnvioService {
 
     if (estado) q = q.eq('estado', estado);
     if (clienteId) q = q.eq('cliente_id', clienteId);
-    if (repartidorId) q = q.eq('repartidor_id', repartidorId);
+    if (repartidorId === 'sin_asignar') {
+      q = q.is('repartidor_id', null);
+    } else if (repartidorId) {
+      q = q.eq('repartidor_id', repartidorId);
+    }
     if (fechaDesde) q = q.gte('fecha', fechaDesde);
     if (fechaHasta) q = q.lte('fecha', fechaHasta);
     if (search) {
@@ -195,10 +305,10 @@ class EnvioService {
       throw new AppError('Error fetching envios', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as EnvioRow[];
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
     return {
-      data: rows.map(mapEnvioRowToApi),
+      data: rows.map(mapEnvioRowToListApi),
       pagination: {
         total: count ?? 0,
         page,
@@ -213,7 +323,7 @@ class EnvioService {
   async getById(id: string): Promise<Envio> {
     const { data, error } = await supabase
       .from('envios')
-      .select(ENVIO_LIST_COLUMNS)
+      .select(ENVIO_DETAIL_COLUMNS)
       .eq('id', id)
       .eq('eliminado', false)
       .single();
@@ -598,7 +708,16 @@ class EnvioService {
   }
 
   async agregarNota(id: string, texto: string, userId: string, usuarioNombre: string): Promise<NotaInterna> {
-    await this.getById(id);
+    // Lightweight existence check (no decryption)
+    const { data: exists, error: checkErr } = await supabase
+      .from('envios')
+      .select('id')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+    if (checkErr || !exists) {
+      throw AppError.notFound('Envio', id);
+    }
 
     const { data, error } = await supabase
       .from('notas_internas')
@@ -682,7 +801,19 @@ class EnvioService {
   }
 
   async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
-    const envio = await this.getById(id);
+    // Lightweight existence check (no decryption)
+    const { data: existing, error: checkErr } = await supabase
+      .from('envios')
+      .select('id, tracking_number')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (checkErr || !existing) {
+      throw AppError.notFound('Envio', id);
+    }
+
+    const trackingNumber = (existing as { id: string; tracking_number: string }).tracking_number;
 
     const { error } = await supabase
       .from('envios')
@@ -705,7 +836,7 @@ class EnvioService {
       accion: 'eliminar',
       entidad: 'envio',
       entidadId: id,
-      descripcion: `Envío ${envio.trackingNumber} eliminado. Motivo: ${motivo}`,
+      descripcion: `Envio ${trackingNumber} eliminado. Motivo: ${motivo}`,
     });
   }
 }

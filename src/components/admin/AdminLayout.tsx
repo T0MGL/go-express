@@ -29,11 +29,27 @@ export const AdminLayout = () => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
 
-  // Show loading state while checking auth
+  // Show skeleton layout while checking auth (faster perceived load)
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex bg-background">
+        <div className="hidden lg:flex w-[240px] flex-col border-r border-border/40 bg-muted/20">
+          <div className="p-4">
+            <div className="h-8 w-28 bg-muted/40 rounded animate-pulse" />
+          </div>
+          <div className="px-3 space-y-1 mt-4">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-8 bg-muted/30 rounded animate-pulse" />
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="h-14 border-b border-border/40 bg-muted/10 animate-pulse" />
+          <div className="flex-1 p-6 lg:p-8 max-w-[1400px]">
+            <div className="h-6 w-48 bg-muted/40 rounded animate-pulse mb-4" />
+            <div className="h-4 w-96 bg-muted/30 rounded animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -56,7 +72,17 @@ export const AdminLayout = () => {
               className="p-6 lg:p-8 max-w-[1400px]"
             >
               <Breadcrumbs />
-              <Suspense fallback={<div className="h-[60vh] bg-background" />}>
+              <Suspense fallback={
+                <div className="space-y-4 pt-4">
+                  <div className="h-7 w-48 bg-muted/40 rounded animate-pulse" />
+                  <div className="h-4 w-80 bg-muted/30 rounded animate-pulse" />
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="h-28 bg-muted/20 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              }>
                 <Outlet />
               </Suspense>
             </motion.div>

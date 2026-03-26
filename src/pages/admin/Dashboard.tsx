@@ -46,8 +46,38 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="page-header">
+          <div>
+            <div className="h-7 w-32 bg-muted/40 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-muted/30 rounded animate-pulse mt-2" />
+          </div>
+          <div className="h-9 w-32 bg-muted/40 rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-5 stat-card">
+            <div className="h-6 w-24 bg-muted/40 rounded animate-pulse" />
+            <div className="h-10 w-16 bg-muted/40 rounded animate-pulse mt-3" />
+            <div className="h-4 w-full bg-muted/30 rounded animate-pulse mt-6" />
+          </div>
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="stat-card">
+                <div className="h-7 w-7 bg-muted/40 rounded-lg animate-pulse mb-3" />
+                <div className="h-4 w-20 bg-muted/40 rounded animate-pulse" />
+                <div className="h-8 w-12 bg-muted/40 rounded animate-pulse mt-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="surface-card p-5">
+          <div className="h-5 w-36 bg-muted/40 rounded animate-pulse mb-4" />
+          <div className="space-y-3">
+            {[0, 1, 2, 3, 4].map(i => (
+              <div key={i} className="h-10 bg-muted/20 rounded animate-pulse" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -95,10 +125,12 @@ const Dashboard = () => {
               <p className="stat-card-label">Envios Hoy</p>
               <p className="stat-card-value mt-2">{animEnviosHoy}</p>
             </div>
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-success bg-success/6 px-2 py-0.5 rounded-md">
-              <TrendingUp className="w-3 h-3" />
-              12%
-            </div>
+            {enviosHoy > 0 && (
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/6 px-2 py-0.5 rounded-md">
+                <TrendingUp className="w-3 h-3" />
+                hoy
+              </div>
+            )}
           </div>
           <div className="mt-4 pt-4 border-t border-border/40 flex items-center gap-5 text-[13px]">
             <span className="flex items-center gap-1.5 text-muted-foreground">

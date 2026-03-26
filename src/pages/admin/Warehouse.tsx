@@ -468,8 +468,17 @@ export default function Warehouse() {
           </div>
         </div>
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-2">
+                <div className="h-4 w-28 bg-muted/40 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                <div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" />
+                <div className="h-4 w-12 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -12,6 +12,10 @@ import type {
 import type { CreateClienteInput, UpdateClienteInput, ClienteQuery } from '../lib/validators/cliente.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
+/**
+ * Full mapper with decryption. Used ONLY for single-record detail views
+ * (getById, create, update) where PII is needed.
+ */
 function toApi(row: ClienteRow): Cliente {
   return {
     id: row.id,
@@ -41,10 +45,55 @@ function toApi(row: ClienteRow): Cliente {
   };
 }
 
+/**
+ * Lightweight mapper for list views. Returns empty strings for PII fields
+ * that are only needed in detail views. Zero decryption overhead.
+ */
+function toListApi(row: Record<string, unknown>): Cliente {
+  return {
+    id: row['id'] as string,
+    razonSocial: row['razon_social'] as string,
+    ruc: '',
+    contactoNombre: '',
+    contactoCargo: (row['contacto_cargo'] as string | null) ?? null,
+    telefono: '',
+    email: '',
+    direccion: null,
+    ciudad: (row['ciudad'] as string | null) ?? null,
+    estado: row['estado'] as ClienteEstado,
+    plan: row['plan'] as Cliente['plan'],
+    saldoCuentaCorriente: row['saldo_cuenta_corriente'] as number,
+    totalEnvios: row['total_envios'] as number,
+    enviosActivos: row['envios_activos'] as number,
+    notas: (row['notas'] as string | null) ?? null,
+    portalActivo: row['portal_activo'] as boolean,
+    portalStatus: row['portal_status'] as Cliente['portalStatus'],
+    portalInvitedAt: (row['portal_invited_at'] as string | null) ?? null,
+    eliminado: row['eliminado'] as boolean,
+    eliminadoPor: (row['eliminado_por'] as string | null) ?? null,
+    eliminadoEn: (row['eliminado_en'] as string | null) ?? null,
+    motivoEliminacion: (row['motivo_eliminacion'] as string | null) ?? null,
+    creadoEn: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
+}
+
+// Full columns: includes encrypted fields for detail/create/update views
 const CLIENTE_COLUMNS = [
   'id', 'auth_id', 'razon_social', 'ruc_enc', 'ruc_hash',
   'contacto_nombre_enc', 'contacto_cargo',
   'telefono_enc', 'email_enc', 'email_hash', 'direccion_enc',
+  'ciudad', 'estado', 'plan',
+  'saldo_cuenta_corriente', 'total_envios', 'envios_activos',
+  'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
+  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
+  'created_at', 'updated_at',
+].join(', ');
+
+// Lightweight columns: skips encrypted fields to avoid decryption on list views.
+// The list only needs display-ready, non-PII data.
+const CLIENTE_LIST_COLUMNS = [
+  'id', 'razon_social', 'contacto_cargo',
   'ciudad', 'estado', 'plan',
   'saldo_cuenta_corriente', 'total_envios', 'envios_activos',
   'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
@@ -59,7 +108,7 @@ class ClienteService {
 
     let q = supabase
       .from('clientes')
-      .select(CLIENTE_COLUMNS, { count: 'exact' })
+      .select(CLIENTE_LIST_COLUMNS, { count: 'exact' })
       .eq('eliminado', false);
 
     if (estado) q = q.eq('estado', estado);
@@ -76,10 +125,10 @@ class ClienteService {
       throw new AppError('Error fetching clientes', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as ClienteRow[];
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
     return {
-      data: rows.map(toApi),
+      data: rows.map(toListApi),
       pagination: {
         total: count ?? 0,
         page,
@@ -89,6 +138,36 @@ class ClienteService {
         nextCursor: null,
       },
     };
+  }
+
+  /**
+   * Export with full PII decryption. Used ONLY for admin CSV export.
+   * Intentionally uses full columns + toApi (with decryption) because
+   * exports legitimately need real client data.
+   */
+  async exportList(query: ClienteQuery): Promise<Cliente[]> {
+    const { search, estado, plan } = query;
+
+    let q = supabase
+      .from('clientes')
+      .select(CLIENTE_COLUMNS)
+      .eq('eliminado', false);
+
+    if (estado) q = q.eq('estado', estado);
+    if (plan) q = q.eq('plan', plan);
+    if (search) {
+      q = q.ilike('razon_social', `%${escapeLikePattern(search)}%`);
+    }
+
+    q = q.order('created_at', { ascending: false }).limit(10000);
+
+    const { data, error } = await q;
+
+    if (error) {
+      throw new AppError('Error exporting clientes', 500, 'DB_ERROR');
+    }
+
+    return ((data ?? []) as unknown as ClienteRow[]).map(toApi);
   }
 
   async getById(id: string): Promise<Cliente> {

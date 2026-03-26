@@ -157,8 +157,17 @@ const ClienteProductos = () => {
 
       {/* Product grid */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <CircleNotch size={20} weight="bold" className="animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="surface-card p-4 space-y-3">
+              <div className="h-4 w-32 bg-muted/40 rounded animate-pulse" />
+              <div className="h-3 w-48 bg-muted/20 rounded animate-pulse" />
+              <div className="flex gap-4">
+                <div className="h-3 w-16 bg-muted/30 rounded animate-pulse" />
+                <div className="h-3 w-20 bg-muted/30 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

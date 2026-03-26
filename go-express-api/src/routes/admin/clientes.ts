@@ -26,15 +26,15 @@ router.get(
 );
 
 /**
- * GET /export:CSV export
+ * GET /export: CSV export (with PII decryption, admin-only)
  */
 router.get(
   '/export',
   validate({ query: clienteQuerySchema }),
   asyncHandler(async (req, res) => {
     const q = req.query as unknown as ClienteQuery;
-    const result = await clienteService.list({ ...q, limit: 10000 });
-    res.json(result.data);
+    const data = await clienteService.exportList(q);
+    res.json(data);
   })
 );
 

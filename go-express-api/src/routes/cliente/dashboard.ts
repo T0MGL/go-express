@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
-import { encryptionService } from '../../services/encryption.service.js';
 import type { EnvioRow } from '../../types/index.js';
 
 const router = Router();
@@ -33,10 +32,11 @@ router.get(
     const problemas = envios.filter((e) => e.estado === 'problema' || e.estado === 'fallido').length;
     const totalEnvios = envios.length;
 
-    // Fetch recent envios (last 5) with basic info
+    // Fetch recent envios (last 5) with non-PII fields only.
+    // Uses destinatario_nombre_search (plaintext, normalized) instead of decrypting.
     const { data: recientesData, error: recientesError } = await supabase
       .from('envios')
-      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_enc, destinatario_ciudad, destinatario_departamento, estado, costo, monto_a_cobrar, tipo_pago, fecha, created_at')
+      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_search, destinatario_ciudad, destinatario_departamento, estado, costo, monto_a_cobrar, tipo_pago, fecha, created_at')
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
       .order('created_at', { ascending: false })
@@ -47,23 +47,23 @@ router.get(
       throw new AppError(`Error fetching recent envios: ${recientesError.message}`, 500, 'DB_ERROR');
     }
 
-    const enviosRecientes = ((recientesData ?? []) as EnvioRow[]).map((row) => ({
-      id: row.id,
-      trackingNumber: row.tracking_number,
-      clienteId: row.cliente_id,
-      clienteNombre: row.cliente_nombre,
-      codigoReferencia: row.codigo_referencia,
-      origen: row.origen,
-      destino: row.destino,
-      destinatarioNombre: encryptionService.decrypt(row.destinatario_nombre_enc),
-      destinatarioCiudad: row.destinatario_ciudad,
-      destinatarioDepartamento: row.destinatario_departamento,
-      estado: row.estado,
-      costo: row.costo,
-      montoACobrar: row.monto_a_cobrar,
-      tipoPago: row.tipo_pago,
-      fecha: row.fecha,
-      creadoEn: row.created_at,
+    const enviosRecientes = ((recientesData ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row['id'] as string,
+      trackingNumber: row['tracking_number'] as string,
+      clienteId: row['cliente_id'] as string,
+      clienteNombre: row['cliente_nombre'] as string,
+      codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
+      origen: row['origen'] as string,
+      destino: row['destino'] as string,
+      destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+      destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
+      destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
+      estado: row['estado'] as string,
+      costo: row['costo'] as number,
+      montoACobrar: row['monto_a_cobrar'] as number,
+      tipoPago: row['tipo_pago'] as string,
+      fecha: row['fecha'] as string,
+      creadoEn: row['created_at'] as string,
     }));
 
     res.json({

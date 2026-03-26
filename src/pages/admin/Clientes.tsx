@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
 import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
@@ -9,6 +9,7 @@ import {
   PaperPlaneTilt, ArrowClockwise, LockKey, Globe,
 } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/exportCSV';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -21,23 +22,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Link } from 'react-router-dom';
 import {
-  useClientes, useCreateCliente, useUpdateCliente,
+  useClientes, useCliente, useCreateCliente, useUpdateCliente,
   useInviteCliente, useReinviteCliente, useResetClientePassword,
 } from '@/hooks/api/use-clientes';
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    timerRef.current = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timerRef.current);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 350);
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
-  const [detailCliente, setDetailCliente] = useState<Cliente | null>(null);
+  const [detailClienteId, setDetailClienteId] = useState<string | null>(null);
 
 
   const apiFilters: Record<string, string | undefined> = {};
-  if (searchTerm) apiFilters.search = searchTerm;
+  if (debouncedSearch) apiFilters.search = debouncedSearch;
   if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
 
   const { data: apiClientes, isLoading } = useClientes(apiFilters);
+  const { data: detailCliente } = useCliente(detailClienteId ?? undefined);
   const createMut = useCreateCliente();
   const updateMut = useUpdateCliente();
   const inviteMut = useInviteCliente();
@@ -57,20 +70,29 @@ const Clientes = () => {
       .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente ?? 0), 0),
   };
 
-  const handleExport = () => {
-    const columns = [
-      { label: 'Razon Social', accessor: (c: Cliente) => c.razonSocial },
-      { label: 'RUC', accessor: (c: Cliente) => c.ruc },
-      { label: 'Contacto', accessor: (c: Cliente) => c.contactoNombre },
-      { label: 'Telefono', accessor: (c: Cliente) => c.telefono },
-      { label: 'Email', accessor: (c: Cliente) => c.email },
-      { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad },
-      { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
-      { label: 'Total Envios', accessor: (c: Cliente) => c.totalEnvios },
-      { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
-    ];
-    exportToCSV(filteredClientes, 'clientes', columns);
-    toast.success('Exportando clientes a CSV...');
+  const handleExport = async () => {
+    try {
+      const qs = new URLSearchParams();
+      if (debouncedSearch) qs.set('search', debouncedSearch);
+      if (filterEstado !== 'todos') qs.set('estado', filterEstado);
+      qs.set('limit', '10000');
+      const exportData = await api.get<Cliente[]>(`/admin/clientes/export?${qs.toString()}`);
+      const columns = [
+        { label: 'Razon Social', accessor: (c: Cliente) => c.razonSocial },
+        { label: 'RUC', accessor: (c: Cliente) => c.ruc },
+        { label: 'Contacto', accessor: (c: Cliente) => c.contactoNombre },
+        { label: 'Telefono', accessor: (c: Cliente) => c.telefono },
+        { label: 'Email', accessor: (c: Cliente) => c.email },
+        { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad },
+        { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
+        { label: 'Total Envios', accessor: (c: Cliente) => c.totalEnvios },
+        { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
+      ];
+      exportToCSV(exportData, 'clientes', columns);
+      toast.success('Exportando clientes a CSV...');
+    } catch {
+      toast.error('Error al exportar clientes');
+    }
   };
 
   const getInitials = (name: string) =>
@@ -118,7 +140,7 @@ const Clientes = () => {
     inviteMut.mutate(cliente.id, {
       onSuccess: () => {
         toast.success(`Invitacion enviada a ${cliente.email}`);
-        setDetailCliente(null);
+        setDetailClienteId(null);
       },
       onError: (err) => {
         const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al enviar invitacion';
@@ -131,7 +153,7 @@ const Clientes = () => {
     reinviteMut.mutate(cliente.id, {
       onSuccess: () => {
         toast.success(`Invitacion reenviada a ${cliente.email}`);
-        setDetailCliente(null);
+        setDetailClienteId(null);
       },
       onError: (err) => {
         const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al reenviar invitacion';
@@ -144,7 +166,7 @@ const Clientes = () => {
     resetPwMut.mutate(cliente.id, {
       onSuccess: (data) => {
         toast.success(data.message);
-        setDetailCliente(null);
+        setDetailClienteId(null);
       },
       onError: (err) => {
         const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al resetear password';
@@ -244,8 +266,27 @@ const Clientes = () => {
 
         {/* Loading */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="surface-card p-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-9 h-9 rounded-lg bg-muted/40 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-48 bg-muted/40 rounded animate-pulse" />
+                      <div className="h-5 w-14 bg-muted/30 rounded-full animate-pulse" />
+                    </div>
+                    <div className="h-3 w-32 bg-muted/20 rounded animate-pulse" />
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="h-3 w-24 bg-muted/20 rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-muted/20 rounded animate-pulse" />
+                      <div className="h-3 w-28 bg-muted/20 rounded animate-pulse" />
+                      <div className="h-3 w-16 bg-muted/20 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           /* Client list */
@@ -254,7 +295,7 @@ const Clientes = () => {
               <div
                 key={cliente.id}
                 className="surface-card-interactive p-4"
-                onClick={() => { setDetailCliente(cliente); }}
+                onClick={() => { setDetailClienteId(cliente.id); }}
               >
                 <div className="flex items-start gap-4">
                   <div className="w-9 h-9 rounded-lg bg-primary/6 flex items-center justify-center flex-shrink-0 font-bold text-primary text-[11px]">
@@ -274,28 +315,26 @@ const Clientes = () => {
                     </div>
 
                     <p className="text-[11px] text-muted-foreground mt-0.5 mb-2.5 font-data">
-                      RUC: {cliente.ruc} · {cliente.ciudad}
+                      {cliente.ciudad || 'Sin ciudad'}
                     </p>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-[13px]">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <UserCircle size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
-                        <span className="truncate">{cliente.contactoNombre}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Phone size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
-                        <span>{cliente.telefono}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <EnvelopeSimple size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
-                        <span className="truncate">{cliente.email}</span>
-                      </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 text-[13px]">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Package size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
                         <span>
                           <strong className="text-foreground">{cliente.enviosActivos}</strong> activos · {cliente.totalEnvios} total
                         </span>
                       </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Buildings size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
+                        <span className="capitalize">{cliente.plan || 'basico'}</span>
+                      </div>
+                      {(cliente.saldoCuentaCorriente ?? 0) < 0 && (
+                        <div className="flex items-center gap-1.5 text-amber-500">
+                          <CurrencyDollar size={14} weight="duotone" className="flex-shrink-0" />
+                          <span className="font-data">{formatCurrency(Math.abs(cliente.saldoCuentaCorriente ?? 0))}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -528,7 +567,7 @@ const Clientes = () => {
         </Dialog>
 
         {/* Detail / Portal management modal */}
-        <Dialog open={!!detailCliente} onOpenChange={(open) => { if (!open) setDetailCliente(null); }}>
+        <Dialog open={!!detailClienteId} onOpenChange={(open) => { if (!open) setDetailClienteId(null); }}>
           <DialogContent className="max-w-lg">
             {detailCliente && (
               <>
@@ -644,7 +683,7 @@ const Clientes = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setDetailCliente(null);
+                      setDetailClienteId(null);
                       setSelectedCliente(detailCliente);
                       setIsModalOpen(true);
                     }}
@@ -656,7 +695,7 @@ const Clientes = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setDetailCliente(null)}
+                    onClick={() => setDetailClienteId(null)}
                   >
                     Cerrar
                   </Button>

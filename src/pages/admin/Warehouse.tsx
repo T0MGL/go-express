@@ -31,6 +31,7 @@ import {
 import {
   estadoAlmacenLabels,
   estadoAlmacenColors,
+  type BadgeVariant,
 } from '@/data/constants';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -495,13 +496,10 @@ export default function Warehouse() {
                     </td>
                     <td>
                       <Badge
-                        style={{
-                          backgroundColor: `hsl(var(--${estadoAlmacenColors[item.estadoAlmacen]}))`,
-                          color: 'hsl(var(--background))'
-                        }}
+                        variant={(estadoAlmacenColors[item.estadoAlmacen] as BadgeVariant) ?? 'secondary'}
                         className="text-[11px]"
                       >
-                        {estadoAlmacenLabels[item.estadoAlmacen]}
+                        {estadoAlmacenLabels[item.estadoAlmacen] ?? item.estadoAlmacen}
                       </Badge>
                     </td>
                     <td className="text-[13px] font-data">{item.peso} kg</td>

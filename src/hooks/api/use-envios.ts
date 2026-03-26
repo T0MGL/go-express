@@ -140,9 +140,10 @@ export function useUpdateEnvioEstado() {
       descripcion: string;
       ubicacion?: string;
     }) => api.patch<Envio>(`/admin/envios/${id}/estado`, { estado, descripcion, ubicacion }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: envioKeys.all });
       qc.invalidateQueries({ queryKey: dashboardKeys.all });
+      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
     },
   });
 }
@@ -157,8 +158,9 @@ export function useAsignarRepartidor() {
       id: string;
       repartidorId: string;
     }) => api.patch<Envio>(`/admin/envios/${id}/repartidor`, { repartidorId }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: envioKeys.all });
+      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
     },
   });
 }

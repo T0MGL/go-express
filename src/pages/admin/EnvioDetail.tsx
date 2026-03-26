@@ -35,6 +35,16 @@ import {
 } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
 
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  pendiente: ['recolectado', 'problema'],
+  recolectado: ['en_transito', 'problema'],
+  en_transito: ['en_reparto', 'problema'],
+  en_reparto: ['entregado', 'fallido', 'problema'],
+  fallido: ['en_reparto', 'problema'],
+  entregado: [],
+  problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
+};
+
 const EnvioDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -196,7 +206,13 @@ const EnvioDetail = () => {
             <PencilSimple size={14} weight="duotone" />
             Editar
           </Button>
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => setShowEstadoModal(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowEstadoModal(true)}
+            disabled={(VALID_TRANSITIONS[envio.estado] ?? []).length === 0}
+          >
             <ArrowsClockwise size={14} weight="duotone" />
             Actualizar Estado
           </Button>
@@ -470,13 +486,11 @@ const EnvioDetail = () => {
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="recolectado">Recolectado</SelectItem>
-                  <SelectItem value="en_transito">En Transito</SelectItem>
-                  <SelectItem value="en_reparto">En Reparto</SelectItem>
-                  <SelectItem value="entregado">Entregado</SelectItem>
-                  <SelectItem value="fallido">Fallido</SelectItem>
-                  <SelectItem value="problema">Problema/Incidencia</SelectItem>
+                  {(VALID_TRANSITIONS[envio.estado] ?? []).map((estado) => (
+                    <SelectItem key={estado} value={estado}>
+                      {estadoLabels[estado] ?? estado}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

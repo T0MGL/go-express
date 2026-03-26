@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { CommandPalette } from '@/components/admin/CommandPalette';
 import { useScrollShadow } from '@/hooks/use-scroll-shadow';
+import { useSSE } from '@/hooks/use-sse';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,7 @@ export const AdminLayout = () => {
   const mainRef = useRef<HTMLElement>(null);
   const scrolled = useScrollShadow(mainRef);
   const { isAuthenticated, loading } = useAuth();
+  useSSE();
 
   // Scroll to top on route change
   useEffect(() => {

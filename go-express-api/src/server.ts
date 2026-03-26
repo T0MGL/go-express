@@ -10,12 +10,14 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
-import { generalLimiter, authLimiter } from './middleware/rateLimit.js';
+import { generalLimiter, authLimiter, sseLimiter } from './middleware/rateLimit.js';
 
 import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
 import trackingRoutes from './routes/public/tracking.js';
 import authRoutes from './routes/auth.js';
+import sseRoutes from './routes/sse.js';
+import { sseService } from './services/sse.service.js';
 
 const app = express();
 
@@ -81,6 +83,7 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/events', sseLimiter, sseRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/public', trackingRoutes);
@@ -117,6 +120,7 @@ server.headersTimeout = 66000;
 
 function gracefulShutdown(signal: string) {
   logger.info({ signal }, 'Received shutdown signal, closing server...');
+  sseService.shutdown();
 
   server.close((err) => {
     if (err) {

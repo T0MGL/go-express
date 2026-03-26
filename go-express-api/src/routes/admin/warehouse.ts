@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { warehouseService } from '../../services/warehouse.service.js';
+import { sseService } from '../../services/sse.service.js';
 import type { InventarioQuery } from '../../lib/validators/warehouse.schema.js';
 import {
   ingresoSchema,
@@ -46,6 +47,7 @@ router.post(
   validate({ body: ingresoSchema }),
   asyncHandler(async (req, res) => {
     const item = await warehouseService.ingreso(req.body, req.userId!, req.userName!);
+    sseService.broadcast({ entity: ['warehouse'], action: 'ingreso' });
     res.status(201).json(item);
   })
 );
@@ -58,6 +60,8 @@ router.post(
   validate({ body: despachoSchema }),
   asyncHandler(async (req, res) => {
     const item = await warehouseService.despacho(req.body.paqueteId, req.userId!, req.userName!, req.body.notas);
+    sseService.broadcast({ entity: ['warehouse'], action: 'despacho' });
+    sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     res.json(item);
   })
 );
@@ -76,6 +80,7 @@ router.post(
       req.userName!,
       req.body.notas
     );
+    sseService.broadcast({ entity: ['warehouse'], action: 'devolucion' });
     res.json(item);
   })
 );

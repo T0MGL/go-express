@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { pagoService } from '../../services/pago.service.js';
+import { sseService } from '../../services/sse.service.js';
 import type { PagoQuery } from '../../lib/validators/pago.schema.js';
 import {
   createPagoSchema,
@@ -56,6 +57,8 @@ router.post(
   validate({ body: createPagoSchema }),
   asyncHandler(async (req, res) => {
     const pago = await pagoService.create(req.body, req.userId!);
+    sseService.broadcast({ entity: ['pagos'], action: 'created' });
+    sseService.broadcast({ entity: ['envios', 'detail'], action: 'pago_updated', id: pago.envioId });
     res.status(201).json(pago);
   })
 );
@@ -68,6 +71,7 @@ router.patch(
   validate({ params: idParamSchema, body: updatePagoSchema }),
   asyncHandler(async (req, res) => {
     const pago = await pagoService.update(req.params['id'] as string, req.body, req.userId!);
+    sseService.broadcast({ entity: ['pagos'], action: 'updated' });
     res.json(pago);
   })
 );

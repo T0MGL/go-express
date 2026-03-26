@@ -66,3 +66,17 @@ export const bulkLimiter = rateLimit({
   message: 'Too many bulk requests, please try again later',
   keyGenerator: (req) => req.ip ?? 'unknown',
 });
+
+/**
+ * SSE connection rate limiter.
+ * Strict: 5 connections per minute per IP (long-lived, memory-intensive).
+ */
+export const sseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many SSE connections, please try again later',
+  keyGenerator: (req) => req.ip ?? 'unknown',
+});

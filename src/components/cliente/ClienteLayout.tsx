@@ -16,6 +16,7 @@ import {
 import { GearSix } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
+import { useSSE } from '@/hooks/use-sse';
 
 interface ClienteProfile {
   id: string;
@@ -52,6 +53,7 @@ export const ClienteLayout = () => {
   const mainRef = useRef<HTMLElement>(null);
   const [profile, setProfile] = useState<ClienteProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  useSSE();
 
   useEffect(() => {
     let mounted = true;

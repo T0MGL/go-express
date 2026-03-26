@@ -5,6 +5,7 @@ import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { encryptionService } from '../../services/encryption.service.js';
 import { emailService } from '../../services/email.service.js';
+import { sseService } from '../../services/sse.service.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import { createEnvioSchema, envioQuerySchema, bulkImportSchema } from '../../lib/validators/envio.schema.js';
@@ -313,6 +314,9 @@ router.post(
 
     emailService.sendEnvioCreado(envio);
 
+    sseService.broadcastToRole({ entity: ['envios', 'list'], action: 'created' }, 'admin');
+    sseService.broadcastToRole({ entity: ['dashboard'], action: 'updated' }, 'admin');
+
     res.status(201).json(envio);
   })
 );
@@ -417,6 +421,9 @@ router.post(
         errors.push({ index: i, error: errorMessage });
       }
     }
+
+    sseService.broadcastToRole({ entity: ['envios', 'list'], action: 'bulk_created' }, 'admin');
+    sseService.broadcastToRole({ entity: ['dashboard'], action: 'updated' }, 'admin');
 
     res.status(201).json({
       imported: results.length,

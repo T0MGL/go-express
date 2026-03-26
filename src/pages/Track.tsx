@@ -467,7 +467,7 @@ const Track = () => {
                 <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="flex flex-col sm:flex-row gap-3">
                   <div className="relative flex-1 group">
                     <label htmlFor="tracking-input" className="sr-only">Numero de seguimiento</label>
-                    <div className="flex items-center gap-2 bg-white rounded-xl border border-muted/80 group-focus-within:border-primary/40 group-focus-within:ring-1 group-focus-within:ring-primary/20 transition-all h-14 px-4">
+                    <div className="flex items-center gap-2 bg-white rounded-xl border border-muted/80 group-focus-within:border-primary/40 transition-all h-14 px-4">
                       <MagnifyingGlass weight="bold" className="w-5 h-5 text-sidebar/30 flex-shrink-0" />
                       <input
                         id="tracking-input"

@@ -38,11 +38,18 @@ const paso2Schema = z.object({
   destino: z.string().min(1, 'Selecciona el destino'),
 });
 
+const TALLAS = [
+  { id: 'pequeno',    label: 'Pequeno',     desc: 'Hasta 30x20x15 cm',  largo: 30,  ancho: 20, alto: 15  },
+  { id: 'mediano',    label: 'Mediano',     desc: 'Hasta 50x40x30 cm',  largo: 50,  ancho: 40, alto: 30  },
+  { id: 'grande',     label: 'Grande',      desc: 'Hasta 80x60x50 cm',  largo: 80,  ancho: 60, alto: 50  },
+  { id: 'extra',      label: 'Extra Grande', desc: 'Hasta 120x80x70 cm', largo: 120, ancho: 80, alto: 70  },
+] as const;
+
+type TallaId = typeof TALLAS[number]['id'];
+
 const paso3Schema = z.object({
-  peso: z.string().refine((val) => parseFloat(val) > 0, 'El peso debe ser mayor a 0'),
-  largo: z.string().refine((val) => parseFloat(val) > 0, 'El largo debe ser mayor a 0'),
-  ancho: z.string().refine((val) => parseFloat(val) > 0, 'El ancho debe ser mayor a 0'),
-  alto: z.string().refine((val) => parseFloat(val) > 0, 'El alto debe ser mayor a 0'),
+  peso:  z.string().refine((val) => parseFloat(val) > 0, 'El peso debe ser mayor a 0'),
+  talla: z.string().min(1, 'Selecciona un tamano'),
 });
 
 const paso4Schema = z.object({
@@ -63,9 +70,7 @@ interface FormData {
   origen: string;
   destino: string;
   peso: string;
-  largo: string;
-  ancho: string;
-  alto: string;
+  talla: TallaId | '';
   destinatarioNombre: string;
   destinatarioDireccion: string;
   destinatarioTelefono: string;
@@ -103,9 +108,7 @@ export function EnvioWizard() {
     origen: '',
     destino: '',
     peso: '',
-    largo: '',
-    ancho: '',
-    alto: '',
+    talla: '',
     destinatarioNombre: '',
     destinatarioDireccion: '',
     destinatarioTelefono: '',
@@ -142,9 +145,9 @@ export function EnvioWizard() {
   // Motor Volumetrico: (Largo x Ancho x Alto) / Factor Dimensional
   // Factor estandar: 5000 cm3/kg -- se cobra el mayor entre peso real y volumetrico
   const FACTOR_DIMENSIONAL = 5000;
-  const tieneDimensiones = formData.largo && formData.ancho && formData.alto;
-  const pesoVolumetrico = tieneDimensiones
-    ? (parseFloat(formData.largo) * parseFloat(formData.ancho) * parseFloat(formData.alto)) / FACTOR_DIMENSIONAL
+  const tallaData = TALLAS.find(t => t.id === formData.talla) ?? null;
+  const pesoVolumetrico = tallaData
+    ? (tallaData.largo * tallaData.ancho * tallaData.alto) / FACTOR_DIMENSIONAL
     : 0;
   const pesoReal = parseFloat(formData.peso) || 0;
   const pesoTarifado = Math.max(pesoReal, pesoVolumetrico);
@@ -184,12 +187,7 @@ export function EnvioWizard() {
         break;
       case 3:
         schema = paso3Schema;
-        datosAValidar = {
-          peso: formData.peso,
-          largo: formData.largo,
-          ancho: formData.ancho,
-          alto: formData.alto
-        };
+        datosAValidar = { peso: formData.peso, talla: formData.talla };
         break;
       case 4:
         schema = paso4Schema;
@@ -250,17 +248,14 @@ export function EnvioWizard() {
 
     setIsSubmitting(true);
 
+    const talla = TALLAS.find(t => t.id === formData.talla);
     createEnvioMut.mutate(
         {
           clienteId: formData.cliente,
           origen: formData.origen,
           destino: formData.destino,
           peso: parseFloat(formData.peso),
-          dimensiones: {
-            largo: parseFloat(formData.largo),
-            ancho: parseFloat(formData.ancho),
-            alto: parseFloat(formData.alto),
-          },
+          dimensiones: talla ? { largo: talla.largo, ancho: talla.ancho, alto: talla.alto } : undefined,
           destinatarioNombre: formData.destinatarioNombre,
           destinatarioDireccion: formData.destinatarioDireccion,
           destinatarioTelefono: formData.destinatarioTelefono,
@@ -457,48 +452,31 @@ export function EnvioWizard() {
               </div>
 
               <div>
-                <Label className="text-[12px]">Dimensiones (cm) *</Label>
-                <div className="grid grid-cols-3 gap-4 mt-2">
-                  <div>
-                    <Input
-                      type="number"
-                      placeholder="Largo"
-                      value={formData.largo}
-                      onChange={(e) => handleChange('largo', e.target.value)}
-                      className={cn("font-data", errors.largo && 'border-destructive')}
-                    />
-                    {errors.largo && (
-                      <p className="text-[11px] text-destructive mt-1">Requerido</p>
-                    )}
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      placeholder="Ancho"
-                      value={formData.ancho}
-                      onChange={(e) => handleChange('ancho', e.target.value)}
-                      className={cn("font-data", errors.ancho && 'border-destructive')}
-                    />
-                    {errors.ancho && (
-                      <p className="text-[11px] text-destructive mt-1">Requerido</p>
-                    )}
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      placeholder="Alto"
-                      value={formData.alto}
-                      onChange={(e) => handleChange('alto', e.target.value)}
-                      className={cn("font-data", errors.alto && 'border-destructive')}
-                    />
-                    {errors.alto && (
-                      <p className="text-[11px] text-destructive mt-1">Requerido</p>
-                    )}
-                  </div>
+                <Label className="text-[12px]">Tamano del paquete *</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  {TALLAS.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleChange('talla', t.id)}
+                      className={cn(
+                        "flex flex-col items-start p-3 rounded-lg border text-left transition-all",
+                        formData.talla === t.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary"
+                          : "border-border hover:border-primary/40"
+                      )}
+                    >
+                      <span className="font-semibold text-[13px]">{t.label}</span>
+                      <span className="text-[11px] text-muted-foreground font-data mt-0.5">{t.desc}</span>
+                    </button>
+                  ))}
                 </div>
+                {errors.talla && (
+                  <p className="text-[12px] text-destructive mt-1">{errors.talla}</p>
+                )}
               </div>
 
-              {tieneDimensiones && (
+              {tallaData && pesoReal > 0 && (
                 <Card className={`p-4 animate-scale-in border ${esVolumetrico ? 'border-amber-200 bg-amber-50/60' : 'border-green-200 bg-green-50/60'}`}>
                   <h4 className="font-medium mb-3 text-[13px] flex items-center gap-2">
                     <Scales size={16} weight="duotone" className="text-muted-foreground" />
@@ -508,20 +486,18 @@ export function EnvioWizard() {
                     </span>
                   </h4>
                   <div className="grid grid-cols-2 gap-3 text-[13px]">
-                    <div className={`rounded p-2.5 border ${pesoReal >= pesoVolumetrico ? 'border-green-300 bg-green-100/70' : 'border-border bg-background/60'}`}>
+                    <div className={`rounded p-2.5 border ${!esVolumetrico ? 'border-green-300 bg-green-100/70' : 'border-border bg-background/60'}`}>
                       <p className="text-[11px] text-muted-foreground mb-0.5">Peso real</p>
                       <p className="font-semibold font-data">{pesoReal.toFixed(2)} kg</p>
-                      {pesoReal >= pesoVolumetrico && pesoReal > 0 && (
+                      {!esVolumetrico && (
                         <p className="text-[10px] text-green-700 font-medium mt-0.5">Se tarificara este</p>
                       )}
                     </div>
                     <div className={`rounded p-2.5 border ${esVolumetrico ? 'border-amber-300 bg-amber-100/70' : 'border-border bg-background/60'}`}>
-                      <p className="text-[11px] text-muted-foreground mb-0.5">
-                        Peso volumetrico
-                      </p>
+                      <p className="text-[11px] text-muted-foreground mb-0.5">Peso volumetrico</p>
                       <p className="font-semibold font-data">{pesoVolumetrico.toFixed(2)} kg</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 font-data">
-                        {formData.largo}x{formData.ancho}x{formData.alto} / {FACTOR_DIMENSIONAL}
+                        {tallaData.largo}x{tallaData.ancho}x{tallaData.alto} / {FACTOR_DIMENSIONAL}
                       </p>
                       {esVolumetrico && (
                         <p className="text-[10px] text-amber-700 font-medium mt-0.5">Se tarificara este</p>

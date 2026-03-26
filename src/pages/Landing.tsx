@@ -451,7 +451,10 @@ const Landing = () => {
             </motion.div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <motion.div
+            initial="hidden" whileInView="show" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer}
+            className="grid md:grid-cols-3 gap-8"
+          >
             {[
               {
                 icon: Package,
@@ -468,9 +471,9 @@ const Landing = () => {
                 title: 'Portal Corporativo',
                 desc: 'Accede a un panel limpio para ingresar tus envíos, obtener números de tracking unificados y ver el estado de liquidación de forma ordenada.'
               }
-            ].map((feature, i) => (
+            ].map((feature) => (
               <motion.div
-                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                variants={fadeUpVariant}
                 key={feature.title}
                 className="bg-white rounded-3xl p-10 border border-muted shadow-lg shadow-sidebar/[0.03] hover:shadow-xl hover:border-primary/15 hover:-translate-y-1 transition-all duration-500 group"
               >
@@ -481,7 +484,7 @@ const Landing = () => {
                 <p className="text-slate-500 text-[15px] leading-relaxed font-medium">{feature.desc}</p>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
 
           {/* Portal Preview */}
           <motion.div
@@ -562,15 +565,11 @@ const Landing = () => {
               </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
               <div className="grid grid-cols-3 gap-2">
-                {departments.map((dept, i) => (
-                  <motion.div
+                {departments.map((dept) => (
+                  <div
                     key={dept.name}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.03 }}
                     className={`rounded-xl px-3 py-2.5 border transition-all duration-300 ${
                       dept.hub
                         ? 'bg-primary/4 border-primary/15 hover:border-primary/30 hover:bg-primary/8'
@@ -582,7 +581,7 @@ const Landing = () => {
                       <div className={`text-sm font-bold truncate ${dept.hub ? 'text-sidebar' : 'text-sidebar/60'}`}>{dept.name}</div>
                     </div>
                     <div className="text-[11px] text-sidebar/35 font-medium mt-0.5 truncate">{dept.city}</div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </motion.div>

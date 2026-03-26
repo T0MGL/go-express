@@ -17,7 +17,7 @@ export const createEnvioSchema = z.object({
   destinatarioTelefono: phoneSchema,
   destinatarioTelefono2: optionalPhoneSchema,
   destinatarioCedula: z.string().max(20).optional(),
-  destinatarioCiudad: z.string().min(1).max(100),
+  destinatarioCiudad: z.string().max(100).optional(),
   destinatarioDepartamento: z.string().max(100).optional(),
   destinatarioBarrio: z.string().max(100).optional(),
   destinatarioReferencia: z.string().max(500).optional(),

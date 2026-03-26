@@ -43,10 +43,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Single listener avoids lock race with getSession
   useEffect(() => {
     let mounted = true;
 
+    // getSession() reads from localStorage — no network required, resolves immediately
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      if (!session) {
+        setState({ user: null, session: null, loading: false, error: null });
+        return;
+      }
+      const profile = await fetchProfile(session.access_token);
+      if (mounted) {
+        setState({ user: profile, session, loading: false, error: null });
+      }
+    }).catch(() => {
+      if (mounted) setState(prev => ({ ...prev, loading: false }));
+    });
+
+    // onAuthStateChange handles subsequent events (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
@@ -55,15 +70,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         const profile = await fetchProfile(session.access_token);
         if (mounted) {
-          setState({
-            user: profile,
-            session,
-            loading: false,
-            error: null,
-          });
+          setState({ user: profile, session, loading: false, error: null });
         }
       }
     });

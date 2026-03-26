@@ -126,6 +126,7 @@ function drawLabel(pdf: jsPDF, envio: Envio): void {
 
   // LEFT: ORIGEN
   const leftX = MARGIN + 0.13;
+  const leftMaxW = colW - 0.26;
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8);
@@ -135,17 +136,20 @@ function drawLabel(pdf: jsPDF, envio: Envio): void {
   pdf.setTextColor(0, 0, 0);
   pdf.setFontSize(15);
   pdf.setFont('helvetica', 'bold');
-  pdf.text((envio.origen || '').toUpperCase(), leftX, addrZoneY + 0.39);
+  const origenText = (envio.origen || '').toUpperCase();
+  const origenLines = pdf.splitTextToSize(origenText, leftMaxW);
+  pdf.text(origenLines.slice(0, 2), leftX, addrZoneY + 0.39);
+  const origenOffset = origenLines.slice(0, 2).length > 1 ? 0.17 : 0;
 
   pdf.setFontSize(7.5);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  pdf.text('Remitente:', leftX, addrZoneY + 0.56);
+  pdf.text('Remitente:', leftX, addrZoneY + 0.56 + origenOffset);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(9);
   pdf.setTextColor(0, 0, 0);
-  const clientNameLines = pdf.splitTextToSize(envio.clienteNombre || '', colW - 0.26);
-  pdf.text(clientNameLines.slice(0, 2), leftX, addrZoneY + 0.70);
+  const clientNameLines = pdf.splitTextToSize(envio.clienteNombre || '', leftMaxW);
+  pdf.text(clientNameLines.slice(0, 2), leftX, addrZoneY + 0.70 + origenOffset);
 
   // RIGHT: DESTINO
   const rightX = MARGIN + colW + 0.13;
@@ -160,13 +164,15 @@ function drawLabel(pdf: jsPDF, envio: Envio): void {
   pdf.setFontSize(15);
   pdf.setFont('helvetica', 'bold');
   const destCity = ((envio.destinatarioCiudad || envio.destino) ?? '').toUpperCase();
-  pdf.text(destCity, rightX, addrZoneY + 0.39);
+  const destCityLines = pdf.splitTextToSize(destCity, rightMaxW);
+  pdf.text(destCityLines.slice(0, 2), rightX, addrZoneY + 0.39);
+  const destCityOffset = destCityLines.slice(0, 2).length > 1 ? 0.17 : 0;
 
   if (envio.destinatarioDepartamento) {
     pdf.setFontSize(7.5);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(110, 110, 110);
-    pdf.text(envio.destinatarioDepartamento, rightX, addrZoneY + 0.53);
+    pdf.text(envio.destinatarioDepartamento, rightX, addrZoneY + 0.53 + destCityOffset);
     pdf.setTextColor(0, 0, 0);
   }
 
@@ -174,7 +180,7 @@ function drawLabel(pdf: jsPDF, envio: Envio): void {
   pdf.setFont('helvetica', 'bold');
   const recipName = (envio.destinatarioNombre || '').toUpperCase();
   const recipNameLines = pdf.splitTextToSize(recipName, rightMaxW);
-  let recipY = addrZoneY + (envio.destinatarioDepartamento ? 0.68 : 0.56);
+  let recipY = addrZoneY + (envio.destinatarioDepartamento ? 0.68 : 0.56) + destCityOffset;
   pdf.text(recipNameLines.slice(0, 2), rightX, recipY);
   recipY += recipNameLines.slice(0, 2).length * 0.14;
 

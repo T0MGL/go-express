@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { api } from './api';
 import type { Session } from '@supabase/supabase-js';
@@ -33,59 +33,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading: true,
     error: null,
   });
+  const profileRetryRef = useRef<ReturnType<typeof setTimeout>>();
+  const mountedRef = useRef(true);
 
-  const fetchProfile = useCallback(async (_accessToken: string): Promise<AuthUser | null> => {
+  const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null> => {
     try {
-      const timeout = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error('profile_timeout')), 5000)
-      );
-      const profile = await Promise.race([api.get<AuthUser>('/auth/me'), timeout]);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const profile = await api.get<AuthUser>('/auth/me', { signal: controller.signal });
+      clearTimeout(timeoutId);
       return profile as AuthUser;
     } catch {
       return null;
     }
   }, []);
 
+  const loadProfile = useCallback(async (session: Session, retryCount = 0) => {
+    const profile = await fetchProfile(session.access_token);
+
+    if (!mountedRef.current) return;
+
+    if (profile) {
+      setState({ user: profile, session, loading: false, error: null });
+      return;
+    }
+
+    // Profile fetch failed but session is valid: mark as authenticated anyway.
+    // The session from Supabase localStorage is the source of truth for auth status.
+    // Retry profile fetch in the background so we get user data eventually.
+    setState(prev => ({
+      user: prev.user,
+      session,
+      loading: false,
+      error: null,
+    }));
+
+    if (retryCount < 3) {
+      const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
+      profileRetryRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          loadProfile(session, retryCount + 1);
+        }
+      }, delay);
+    }
+  }, [fetchProfile]);
+
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+    let initialResolved = false;
 
-    // getSession() reads from localStorage — no network required, resolves immediately
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
-      if (!session) {
-        setState({ user: null, session: null, loading: false, error: null });
-        return;
-      }
-      const profile = await fetchProfile(session.access_token);
-      if (mounted) {
-        setState({ user: profile, session, loading: false, error: null });
-      }
-    }).catch(() => {
-      if (mounted) setState(prev => ({ ...prev, loading: false }));
-    });
-
-    // onAuthStateChange handles subsequent events (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
+      if (!mountedRef.current) return;
 
       if (event === 'SIGNED_OUT' || !session) {
         setState({ user: null, session: null, loading: false, error: null });
         return;
       }
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const profile = await fetchProfile(session.access_token);
-        if (mounted) {
-          setState({ user: profile, session, loading: false, error: null });
-        }
+      // Handle all session-bearing events: INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED
+      if (session) {
+        // For INITIAL_SESSION, this replaces the separate getSession() call.
+        // For SIGNED_IN and TOKEN_REFRESHED, this refreshes the profile.
+        initialResolved = true;
+        await loadProfile(session);
       }
     });
 
+    // Fallback: if onAuthStateChange never fires INITIAL_SESSION within 100ms,
+    // resolve loading to false. This handles edge cases where the listener
+    // registers after the event has already fired.
+    const fallbackTimer = setTimeout(() => {
+      if (!initialResolved && mountedRef.current) {
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+          if (!mountedRef.current || initialResolved) return;
+          initialResolved = true;
+          if (!session) {
+            setState({ user: null, session: null, loading: false, error: null });
+            return;
+          }
+          await loadProfile(session);
+        }).catch(() => {
+          if (mountedRef.current && !initialResolved) {
+            initialResolved = true;
+            setState(prev => ({ ...prev, loading: false }));
+          }
+        });
+      }
+    }, 100);
+
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      clearTimeout(fallbackTimer);
+      clearTimeout(profileRetryRef.current);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [loadProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -102,13 +144,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // onAuthStateChange will fire SIGNED_IN and handle profile loading.
+      // Set session immediately so the UI can react without waiting for the listener.
       const profile = await fetchProfile(data.session.access_token);
 
       setState({
         user: profile,
         session: data.session,
         loading: false,
-        error: null,
+        error: profile ? null : 'No se pudo cargar el perfil',
       });
     } catch (err) {
       setState(prev => ({
@@ -120,8 +164,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const logout = useCallback(async () => {
+    const session = state.session;
+
+    // Clear state immediately for instant UI feedback
+    setState({ user: null, session: null, loading: false, error: null });
+    clearTimeout(profileRetryRef.current);
+
     try {
-      const session = state.session;
       if (session?.access_token) {
         try {
           await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/logout`, {
@@ -137,16 +186,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       await supabase.auth.signOut();
-    } finally {
-      setState({ user: null, session: null, loading: false, error: null });
+    } catch {
+      // signOut failure is non-critical, state is already cleared
     }
   }, [state.session]);
 
+  // isAuthenticated is true if we have a session, even if profile hasn't loaded yet.
+  // This prevents the login flash: the Supabase session in localStorage is the
+  // source of truth for whether the user is logged in.
   const value: AuthContextValue = {
     ...state,
     login,
     logout,
-    isAuthenticated: !!state.user && !!state.session,
+    isAuthenticated: !!state.session,
     isAdmin: state.user?.rol === 'admin',
   };
 

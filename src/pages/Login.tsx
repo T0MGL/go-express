@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
 
 const Login = () => {
-  const { login, loading, error } = useAuth();
-  const navigate = useNavigate();
+  const { login, loading, error, isAuthenticated } = useAuth();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -16,10 +16,18 @@ const Login = () => {
     await login(email, password);
   }
 
-  const { isAuthenticated } = useAuth();
+  // While checking auth state, show nothing to prevent flash
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (isAuthenticated) {
-    navigate('/admin', { replace: true });
-    return null;
+    const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin';
+    return <Navigate to={from} replace />;
   }
 
   return (

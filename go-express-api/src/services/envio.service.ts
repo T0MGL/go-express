@@ -288,7 +288,7 @@ class EnvioService {
         destinatario_cedula_enc: input.destinatarioCedula
           ? encryptionService.encrypt(input.destinatarioCedula)
           : null,
-        destinatario_ciudad: input.destinatarioCiudad,
+        destinatario_ciudad: input.destinatarioCiudad ?? '',
         destinatario_departamento: input.destinatarioDepartamento ?? '',
         destinatario_barrio: input.destinatarioBarrio ?? null,
         destinatario_referencia_enc: input.destinatarioReferencia
@@ -320,6 +320,7 @@ class EnvioService {
       .single();
 
     if (error || !data) {
+      logger.error({ error, trackingNumber }, 'Error creating envio');
       throw new AppError('Error creating envio', 500, 'DB_ERROR');
     }
 

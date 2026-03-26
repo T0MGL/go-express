@@ -274,12 +274,14 @@ export function EnvioWizard() {
             navigate('/admin/envios');
           },
           onError: (err: unknown) => {
-            const apiErr = err as { data?: { error?: string; details?: unknown } };
-            const msg = apiErr?.data?.error ?? 'Error al crear el envio';
+            type ValidationIssue = { field: string; message: string };
+            type ValidationDetail = { target: string; issues: ValidationIssue[] };
+            const apiErr = err as { data?: { error?: string; details?: ValidationDetail[] } };
+            const firstIssue = apiErr?.data?.details?.[0]?.issues?.[0];
+            const msg = firstIssue
+              ? `${firstIssue.field}: ${firstIssue.message}`
+              : (apiErr?.data?.error ?? 'Error al crear el envio');
             toast.error(msg);
-            if (apiErr?.data?.details) {
-              console.error('Validation details:', apiErr.data.details);
-            }
             setIsSubmitting(false);
           },
         },

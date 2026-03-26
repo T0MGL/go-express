@@ -36,8 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (_accessToken: string): Promise<AuthUser | null> => {
     try {
-      const profile = await api.get<AuthUser>('/auth/me');
-      return profile;
+      const timeout = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('profile_timeout')), 5000)
+      );
+      const profile = await Promise.race([api.get<AuthUser>('/auth/me'), timeout]);
+      return profile as AuthUser;
     } catch {
       return null;
     }

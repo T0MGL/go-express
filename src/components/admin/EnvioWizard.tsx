@@ -260,7 +260,7 @@ export function EnvioWizard() {
           destinatarioDireccion: formData.destinatarioDireccion,
           destinatarioTelefono: formData.destinatarioTelefono,
           notas: formData.notas,
-          costo: parseFloat(formData.costo),
+          costo: Math.round(parseFloat(formData.costo)),
           tipoPago: formData.tipoPago,
         },
         {
@@ -273,8 +273,13 @@ export function EnvioWizard() {
             setIsSubmitting(false);
             navigate('/admin/envios');
           },
-          onError: () => {
-            toast.error('Error al crear el envio');
+          onError: (err: unknown) => {
+            const apiErr = err as { data?: { error?: string; details?: unknown } };
+            const msg = apiErr?.data?.error ?? 'Error al crear el envio';
+            toast.error(msg);
+            if (apiErr?.data?.details) {
+              console.error('Validation details:', apiErr.data.details);
+            }
             setIsSubmitting(false);
           },
         },

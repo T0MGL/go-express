@@ -1,4 +1,5 @@
 import { supabase } from '../config/database.js';
+import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { logger } from '../config/logger.js';
@@ -168,7 +169,7 @@ class ClienteService {
           plan: input.plan,
           notas: input.notas ?? null,
         })
-        .select()
+        .select(CLIENTE_COLUMNS)
         .single();
 
       if (result.error) {
@@ -229,7 +230,7 @@ class ClienteService {
       .from('clientes')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(CLIENTE_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -262,7 +263,7 @@ class ClienteService {
       .from('clientes')
       .update({ estado })
       .eq('id', id)
-      .select()
+      .select(CLIENTE_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -343,26 +344,41 @@ class ClienteService {
       return this.reinviteToPortal(clienteId, userId);
     }
 
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
     let authUserId: string;
 
-    if (existingUser) {
-      authUserId = existingUser.id;
-    } else {
-      const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          role: 'cliente',
-          cliente_id: clienteId,
-          razon_social: clienteRow.razon_social,
-        },
-        redirectTo: `${process.env['CORS_ORIGINS']?.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`,
-      });
+    const redirectTo = `${env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`;
 
-      if (inviteErr) {
+    const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
+      data: {
+        role: 'cliente',
+        cliente_id: clienteId,
+        razon_social: clienteRow.razon_social,
+      },
+      redirectTo,
+    });
+
+    if (inviteErr) {
+      const errMsg = inviteErr.message?.toLowerCase() ?? '';
+      const isExistingUser = errMsg.includes('already') || errMsg.includes('duplicate') || errMsg.includes('exists');
+
+      if (isExistingUser) {
+        const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo },
+        });
+
+        if (linkErr || !linkData?.user) {
+          logger.error({ linkErr, clienteId, email }, 'User exists in auth but could not resolve ID');
+          throw new AppError(
+            'Error al vincular cuenta existente. Contacte soporte.',
+            500,
+            'INVITE_ERROR'
+          );
+        }
+
+        authUserId = linkData.user.id;
+      } else {
         logger.error({ inviteErr, clienteId, email }, 'Failed to invite client to portal');
         throw new AppError(
           `Error al enviar invitacion: ${inviteErr.message}`,
@@ -370,7 +386,7 @@ class ClienteService {
           'INVITE_ERROR'
         );
       }
-
+    } else {
       authUserId = inviteData.user.id;
     }
 
@@ -382,7 +398,7 @@ class ClienteService {
         portal_invited_at: new Date().toISOString(),
       })
       .eq('id', clienteId)
-      .select()
+      .select(CLIENTE_COLUMNS)
       .single();
 
     if (updateErr || !updated) {
@@ -429,7 +445,7 @@ class ClienteService {
         cliente_id: clienteId,
         razon_social: clienteRow.razon_social,
       },
-      redirectTo: `${process.env['CORS_ORIGINS']?.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`,
+      redirectTo: `${env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`,
     });
 
     if (inviteErr) {
@@ -448,7 +464,7 @@ class ClienteService {
         portal_invited_at: new Date().toISOString(),
       })
       .eq('id', clienteId)
-      .select()
+      .select(CLIENTE_COLUMNS)
       .single();
 
     if (updateErr || !updated) {
@@ -488,7 +504,7 @@ class ClienteService {
       throw AppError.badRequest('El cliente no tiene cuenta de portal. Invite primero.');
     }
 
-    const redirectUrl = `${process.env['CORS_ORIGINS']?.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`;
+    const redirectUrl = `${env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`;
 
     const { data: linkData, error: resetErr } = await supabase.auth.admin.generateLink({
       type: 'recovery',

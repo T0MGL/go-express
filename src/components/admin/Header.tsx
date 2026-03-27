@@ -1,4 +1,4 @@
-import { Bell, SignOut, GearSix, UserCircle, Command } from '@phosphor-icons/react';
+import { Bell, SignOut, GearSix, UserCircle, Command, List } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { GlobalSearch } from './GlobalSearch';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,10 @@ import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   scrolled?: boolean;
+  onMenuClick?: () => void;
 }
 
-export const Header = ({ scrolled }: HeaderProps) => {
+export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
@@ -36,8 +37,19 @@ export const Header = ({ scrolled }: HeaderProps) => {
       'h-12 border-b border-border/30 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 sticky top-0 z-40 transition-[box-shadow,border-color] duration-200',
       scrolled && 'header-scrolled'
     )}>
-      <div className="flex-1 max-w-md">
-        <GlobalSearch />
+      <div className="flex items-center gap-2 flex-1 max-w-md">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onMenuClick}
+          aria-label="Abrir menu"
+        >
+          <List size={18} weight="bold" />
+        </Button>
+        <div className="flex-1">
+          <GlobalSearch />
+        </div>
       </div>
 
       <div className="flex items-center gap-0.5">

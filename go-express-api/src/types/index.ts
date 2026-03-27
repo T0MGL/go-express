@@ -383,15 +383,15 @@ export interface Envio {
   tags: string[];
   tarifaId: string | null;
   fecha: string;
-  eliminado?: boolean;
-  eliminadoPor?: string;
-  eliminadoEn?: string;
-  motivoEliminacion?: string;
+  eliminado: boolean;
+  eliminadoPor: string | null;
+  eliminadoEn: string | null;
+  motivoEliminacion: string | null;
   eventos: EventoEnvio[];
   pago: Pago | null;
   notasInternas: NotaInterna[];
   creadoEn: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 export interface EventoEnvio {
@@ -549,7 +549,7 @@ export interface AuditoriaLog {
   usuarioId: string;
   accion: AuditoriaAccion;
   entidad: AuditoriaEntidad;
-  entidadId: string | null;
+  entidadId: string;
   descripcion: string;
   valorAnterior: Record<string, unknown> | null;
   valorNuevo: Record<string, unknown> | null;

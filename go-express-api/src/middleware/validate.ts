@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { type ZodSchema, ZodError } from 'zod';
+import type { ZodSchema, ZodError } from 'zod';
 import { AppError } from './errorHandler.js';
 
 /**
@@ -77,7 +77,8 @@ export function validate(schemas: ValidationSchemas) {
     }
 
     if (errors.length > 0) {
-      throw AppError.badRequest('Validation failed', errors);
+      next(AppError.badRequest('Validation failed', errors));
+      return;
     }
 
     next();

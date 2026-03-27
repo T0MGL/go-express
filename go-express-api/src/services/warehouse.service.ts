@@ -132,7 +132,7 @@ class WarehouseService {
         notas: input.notas ?? null,
         prioridad: input.prioridad,
       })
-      .select()
+      .select(INVENTARIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -191,7 +191,7 @@ class WarehouseService {
         fecha_salida: new Date().toISOString(),
       })
       .eq('id', paqueteId)
-      .select()
+      .select(INVENTARIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -246,7 +246,7 @@ class WarehouseService {
         ubicacion: ubicacionDestino,
       })
       .eq('id', paqueteId)
-      .select()
+      .select(INVENTARIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -305,7 +305,7 @@ class WarehouseService {
       .from('picking_items')
       .update(dbUpdate)
       .eq('id', id)
-      .select()
+      .select(PICKING_COLUMNS)
       .single();
 
     if (error) {

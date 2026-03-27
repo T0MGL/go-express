@@ -6,7 +6,9 @@ import {
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
 
 const mainNav = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin' },
@@ -30,7 +32,7 @@ export const Sidebar = () => {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'flex flex-col bg-sidebar transition-all duration-300 ease-[cubic-bezier(0.25_0.46_0.45_0.94)] scrollbar-thin',
+          'hidden lg:flex flex-col bg-sidebar transition-all duration-300 ease-[cubic-bezier(0.25_0.46_0.45_0.94)] scrollbar-thin',
           collapsed ? 'w-[56px]' : 'w-[216px]'
         )}
       >
@@ -152,5 +154,67 @@ export const Sidebar = () => {
         </div>
       </aside>
     </TooltipProvider>
+  );
+};
+
+interface MobileSidebarProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
+  const handleNavClick = () => {
+    onOpenChange(false);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="w-[240px] p-0 bg-sidebar border-r-0">
+        <SheetHeader className="px-4 h-12 flex flex-row items-center gap-2.5 border-b border-white/[0.06]">
+          <img src="/isotipo.png" alt="Go Express" className="h-6 w-6" />
+          <SheetTitle className="font-display font-extrabold text-[12px] text-white leading-none tracking-tight">
+            GO EXPRESS
+          </SheetTitle>
+        </SheetHeader>
+
+        <nav className="flex-1 py-2 overflow-y-auto scrollbar-thin">
+          <div className="space-y-0.5 px-2">
+            {mainNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/admin'}
+                onClick={handleNavClick}
+                className="group flex items-center gap-2.5 px-2.5 h-8 text-[13px] font-medium rounded-lg transition-all duration-150 text-white/40 hover:text-white/80 hover:bg-white/[0.05]"
+                activeClassName="!text-white bg-white/[0.08] hover:bg-white/[0.1]"
+              >
+                <item.icon size={18} weight="duotone" className="flex-shrink-0 opacity-80 group-[.active]:opacity-100" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+
+          <div className="my-2.5 mx-4 border-t border-white/[0.06]" />
+
+          <div className="space-y-0.5 px-2">
+            <p className="px-2.5 mb-1 text-[10px] font-semibold tracking-[0.08em] text-white/15 uppercase">
+              Sistema
+            </p>
+            {secondaryNav.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={handleNavClick}
+                className="group flex items-center gap-2.5 px-2.5 h-8 text-[13px] font-medium rounded-lg transition-all duration-150 text-white/30 hover:text-white/70 hover:bg-white/[0.04]"
+                activeClassName="!text-white bg-white/[0.08] hover:bg-white/[0.1]"
+              >
+                <item.icon size={18} weight="duotone" className="flex-shrink-0 opacity-70 group-[.active]:opacity-100" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      </SheetContent>
+    </Sheet>
   );
 };

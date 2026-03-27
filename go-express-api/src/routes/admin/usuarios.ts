@@ -71,7 +71,7 @@ router.post(
         email: req.body.email,
         rol: req.body.rol,
       })
-      .select()
+      .select('id, auth_id, nombre, email, rol, estado, created_at, updated_at')
       .single();
 
     if (error || !data) {
@@ -112,7 +112,7 @@ router.put(
       .from('usuarios')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select('id, auth_id, nombre, email, rol, estado, created_at, updated_at')
       .single();
 
     if (error || !data) {

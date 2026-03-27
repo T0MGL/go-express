@@ -23,7 +23,7 @@ import {
   UserCircle,
   Clock,
 } from '@phosphor-icons/react';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatTimestamp, formatTimestampTime } from '@/lib/utils';
 import { useAuditoria } from '@/hooks/api/use-auditoria';
 import { useUsuarios } from '@/hooks/api/use-usuarios';
 
@@ -63,8 +63,11 @@ const Auditoria = () => {
   if (filtroUsuario !== 'todos') apiFilters.usuarioId = filtroUsuario;
   if (filtroAccion !== 'todos') apiFilters.accion = filtroAccion;
   if (filtroEntidad !== 'todos') apiFilters.entidad = filtroEntidad;
-  if (filtroFecha) apiFilters.fecha = filtroFecha;
-  if (debouncedBusqueda) apiFilters.busqueda = debouncedBusqueda;
+  if (filtroFecha) {
+    apiFilters.fechaDesde = filtroFecha;
+    apiFilters.fechaHasta = filtroFecha;
+  }
+  if (debouncedBusqueda) apiFilters.search = debouncedBusqueda;
 
   const { data: apiAuditoria, isLoading } = useAuditoria(apiFilters);
   const { data: apiUsuarios } = useUsuarios();
@@ -76,7 +79,7 @@ const Auditoria = () => {
   const exportarCSV = () => {
     const headers = ['Fecha', 'Hora', 'Usuario', 'Accion', 'Entidad', 'ID Entidad', 'Descripcion', 'Valor Anterior', 'Valor Nuevo'];
     const rows = logsFiltrados.map((l) => [
-      l.fecha, l.hora, l.usuario,
+      formatTimestamp(l.creadoEn), formatTimestampTime(l.creadoEn), l.usuario,
       accionLabels[l.accion], entidadLabels[l.entidad], l.entidadId,
       `"${l.descripcion}"`, l.valorAnterior || '', l.valorNuevo || '',
     ]);
@@ -228,8 +231,8 @@ const Auditoria = () => {
               {logsFiltrados.map((log) => (
                 <tr key={log.id}>
                   <td className="whitespace-nowrap align-top">
-                    <p className="font-medium text-[12px] leading-snug">{formatDate(log.fecha)}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{log.hora}</p>
+                    <p className="font-medium text-[12px] leading-snug">{formatTimestamp(log.creadoEn)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{formatTimestampTime(log.creadoEn)}</p>
                   </td>
                   <td className="whitespace-nowrap align-top">
                     <div className="flex items-center gap-2">

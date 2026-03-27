@@ -90,7 +90,11 @@ class SSEService {
     const payload = this.formatEvent(event);
     this.connections.forEach((conns) => {
       for (const conn of conns) {
-        if (conn.role === role || conn.role === 'operador') {
+        if (role === 'admin') {
+          if (conn.role === 'admin' || conn.role === 'operador') {
+            this.safeSend(conn, payload);
+          }
+        } else if (conn.role === role) {
           this.safeSend(conn, payload);
         }
       }

@@ -153,7 +153,7 @@ router.delete(
     await envioService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!, req.userName!);
     sseService.broadcast({ entity: ['envios', 'list'], action: 'deleted' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
-    res.json({ message: 'Envio eliminado' });
+    res.status(204).send();
   })
 );
 

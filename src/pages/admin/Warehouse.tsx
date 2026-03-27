@@ -85,11 +85,8 @@ export default function Warehouse() {
 
   const filteredInventario = inventario;
 
-  // Picking list with checked status
-  const readyItems = inventario.filter(i => i.estadoAlmacen === 'listo_despacho');
-  const [pickingList, setPickingList] = useState(
-    readyItems.map(item => ({ ...item, picked: false }))
-  );
+  // Picking list with checked status (lazy: built on demand, not from stale initial state)
+  const [pickingList, setPickingList] = useState<Array<typeof inventario[number] & { picked: boolean }>>([]);
 
   // Stats
   const stats = {

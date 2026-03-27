@@ -27,22 +27,26 @@ export function CopyButton({ value, label, className, children }: CopyButtonProp
   };
 
   return (
-    <button
-      onClick={handleCopy}
+    <span
       className={cn(
-        'group/copy inline-flex items-center gap-1.5 transition-colors',
+        'group/copy inline-flex items-center gap-1.5',
         className,
       )}
-      title="Click para copiar"
     >
       {children}
-      <span className="opacity-0 group-hover/copy:opacity-100 transition-opacity">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="opacity-0 group-hover/copy:opacity-100 transition-opacity flex-shrink-0"
+        title="Copiar"
+        aria-label={`Copiar ${label || 'valor'}`}
+      >
         {copied ? (
           <CheckCircle size={12} weight="fill" className="text-success" />
         ) : (
-          <Copy size={12} weight="duotone" className="text-muted-foreground" />
+          <Copy size={12} weight="duotone" className="text-muted-foreground hover:text-foreground transition-colors" />
         )}
-      </span>
-    </button>
+      </button>
+    </span>
   );
 }

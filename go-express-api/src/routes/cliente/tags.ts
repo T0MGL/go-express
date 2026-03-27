@@ -120,7 +120,18 @@ router.delete(
     const clienteId = req.clienteId!;
     const id = req.params['id'] as string;
 
-    const { error, count } = await supabase
+    const { data: existing } = await supabase
+      .from('tags')
+      .select('id')
+      .eq('id', id)
+      .eq('cliente_id', clienteId)
+      .maybeSingle();
+
+    if (!existing) {
+      throw AppError.notFound('Tag', id);
+    }
+
+    const { error } = await supabase
       .from('tags')
       .delete()
       .eq('id', id)
@@ -129,10 +140,6 @@ router.delete(
     if (error) {
       logger.error({ error, clienteId, id }, 'Error deleting tag');
       throw new AppError(`Error deleting tag: ${error.message}`, 500, 'DB_ERROR');
-    }
-
-    if (count === 0) {
-      throw AppError.notFound('Tag', id);
     }
 
     res.status(204).send();

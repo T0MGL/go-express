@@ -92,7 +92,7 @@ router.delete(
   validate({ params: idParamSchema, body: softDeleteSchema }),
   asyncHandler(async (req, res) => {
     await repartidorService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!, req.userName!);
-    res.json({ message: 'Repartidor eliminado' });
+    res.status(204).send();
   })
 );
 

@@ -7,13 +7,13 @@ import { Buildings, UserCircle, FloppyDisk, CircleNotch } from '@phosphor-icons/
 import { useCuenta, useUpdateCuenta, type CuentaData } from '@/hooks/api/use-cuenta';
 
 const defaultCuenta: CuentaData = {
-  razonSocial: 'Distribuidora Central SA',
-  ruc: '80012345-6',
-  direccion: 'Av. Espana 1234, Asuncion',
-  telefono: '+595 21 555 1234',
-  email: 'cliente@distribuidora.py',
-  contactoNombre: 'Maria Gonzalez',
-  contactoCargo: 'Gerente de Logistica',
+  razonSocial: '',
+  ruc: '',
+  direccion: '',
+  telefono: '',
+  email: '',
+  contactoNombre: '',
+  contactoCargo: '',
 };
 
 const ClienteCuenta = () => {

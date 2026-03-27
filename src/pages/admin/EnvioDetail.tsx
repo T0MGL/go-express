@@ -489,15 +489,15 @@ const EnvioDetail = () => {
               </div>
             </div>
 
-            {(envio.pago?.estadoPago === 'pendiente' || envio.pago?.estadoPago === 'pago_parcial') ? (
-              <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="w-full">
-                {envio.pago?.estadoPago === 'pago_parcial' ? 'Completar Pago' : 'Registrar Pago'}
-              </Button>
-            ) : (
+            {envio.pago?.estadoPago === 'pagado' ? (
               <div className="flex items-center gap-2 text-success">
                 <CheckCircle size={18} weight="duotone" />
                 <span className="font-medium text-[13px]">Pago completado</span>
               </div>
+            ) : (
+              <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="w-full">
+                {envio.pago?.estadoPago === 'pago_parcial' ? 'Completar Pago' : 'Registrar Pago'}
+              </Button>
             )}
           </div>
         </div>
@@ -543,15 +543,13 @@ const EnvioDetail = () => {
         />
       </div>
 
-      {envio.pago && (
-        <PaymentModal
-          isOpen={isPaymentModalOpen}
-          onClose={() => setIsPaymentModalOpen(false)}
-          envioId={envio.id}
-          montoTotal={envio.costo}
-          onPaymentRegistered={handlePaymentRegistered}
-        />
-      )}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        envioId={envio.id}
+        montoTotal={envio.costo}
+        onPaymentRegistered={handlePaymentRegistered}
+      />
 
       <ProblemaModal
         isOpen={isProblemaModalOpen}

@@ -108,7 +108,7 @@ class TarifaService {
         factor_dimensional: input.factorDimensional,
         creado_por: userId,
       })
-      .select()
+      .select(TARIFA_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -149,7 +149,7 @@ class TarifaService {
       .from('tarifas')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(TARIFA_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -229,7 +229,7 @@ class TarifaService {
         activo: true,
       })
       .eq('id', id)
-      .select()
+      .select(TARIFA_COLUMNS)
       .single();
 
     if (error || !data) {

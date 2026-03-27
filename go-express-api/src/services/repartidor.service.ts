@@ -120,7 +120,7 @@ class RepartidorService {
         placa: input.placa,
         licencia: input.licencia ?? null,
       })
-      .select()
+      .select(REPARTIDOR_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -158,7 +158,7 @@ class RepartidorService {
       .from('repartidores')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(REPARTIDOR_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -193,7 +193,7 @@ class RepartidorService {
       .from('repartidores')
       .update({ estado: newEstado })
       .eq('id', id)
-      .select()
+      .select(REPARTIDOR_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -304,10 +304,15 @@ class RepartidorService {
       tags: [],
       tarifaId: null,
       fecha: row['fecha'] as string,
+      eliminado: false,
+      eliminadoPor: null,
+      eliminadoEn: null,
+      motivoEliminacion: null,
       eventos: [],
       pago: null,
       notasInternas: [],
       creadoEn: row['created_at'] as string,
+      updatedAt: row['created_at'] as string,
     }));
   }
 }

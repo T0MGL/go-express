@@ -148,7 +148,18 @@ router.delete(
     const clienteId = req.clienteId!;
     const id = req.params['id'] as string;
 
-    const { error, count } = await supabase
+    const { data: existing } = await supabase
+      .from('productos_guardados')
+      .select('id')
+      .eq('id', id)
+      .eq('cliente_id', clienteId)
+      .maybeSingle();
+
+    if (!existing) {
+      throw AppError.notFound('Producto', id);
+    }
+
+    const { error } = await supabase
       .from('productos_guardados')
       .delete()
       .eq('id', id)
@@ -157,10 +168,6 @@ router.delete(
     if (error) {
       logger.error({ error, clienteId, id }, 'Error deleting product');
       throw new AppError(`Error deleting product: ${error.message}`, 500, 'DB_ERROR');
-    }
-
-    if (count === 0) {
-      throw AppError.notFound('Producto', id);
     }
 
     res.status(204).send();

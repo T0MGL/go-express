@@ -88,11 +88,10 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
 
   logger.warn({ clienteId }, 'X-Cliente-Id fallback used in development mode');
 
-  // Validate the clienteId exists in DB
   try {
     const { data, error } = await supabase
       .from('clientes')
-      .select('id')
+      .select('id, estado')
       .eq('id', clienteId)
       .eq('eliminado', false)
       .single();
@@ -100,6 +99,12 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
     if (error || !data) {
       logger.warn({ clienteId }, 'Client portal access with invalid clienteId');
       next(AppError.unauthorized('Invalid client identifier'));
+      return;
+    }
+
+    const clienteData = data as { id: string; estado: string };
+    if (clienteData.estado !== 'activo') {
+      next(AppError.forbidden('Client account is inactive or suspended'));
       return;
     }
   } catch (err: unknown) {

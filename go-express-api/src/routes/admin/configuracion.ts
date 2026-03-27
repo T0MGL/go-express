@@ -66,7 +66,7 @@ router.put(
         { key, value, updated_by: req.userId! },
         { onConflict: 'key' }
       )
-      .select()
+      .select('key, value, updated_at, updated_by')
       .single();
 
     if (error || !data) {

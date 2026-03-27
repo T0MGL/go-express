@@ -30,23 +30,24 @@ export interface Pago {
   montoRecibido: number;
   metodoPago: 'efectivo' | 'transferencia' | 'tarjeta' | 'contra_entrega';
   estadoPago: 'pendiente' | 'pagado' | 'pago_parcial';
-  fechaPago?: string | null;
-  referencia?: string | null;
-  notas?: string | null;
+  fechaPago: string | null;
+  referencia: string | null;
+  notas: string | null;
   creadoPor: string;
   creadoEn: string;
-  updatedAt?: string;
+  updatedAt: string;
+  trackingNumber?: string;
+  clienteNombre?: string;
+  costoEnvio?: number;
 }
 
 export interface NotaInterna {
   id: string;
-  envioId?: string;
+  envioId: string;
   usuario: string;
-  usuarioId?: string;
+  usuarioId: string;
   texto: string;
-  fecha: string;
-  hora: string;
-  creadoEn?: string;
+  creadoEn: string;
 }
 
 // Envio
@@ -56,81 +57,83 @@ export interface Envio {
   trackingNumber: string;
   clienteId: string;
   clienteNombre: string;
-  codigoReferencia?: string;
+  codigoReferencia: string | null;
   origen: string;
   destino: string;
   destinatarioNombre: string;
   destinatarioDireccion: string;
   destinatarioTelefono: string;
-  destinatarioTelefono2?: string;
+  destinatarioTelefono2: string | null;
+  destinatarioCedula: string | null;
   destinatarioCiudad: string;
-  destinatarioDepartamento?: string;
-  destinatarioBarrio?: string;
-  destinatarioReferencia?: string;
-  destinatarioUbicacionUrl?: string;
+  destinatarioDepartamento: string;
+  destinatarioBarrio: string | null;
+  destinatarioReferencia: string | null;
+  destinatarioUbicacionUrl: string | null;
   cantidad: number;
-  producto?: string;
+  producto: string;
   estado: 'pendiente' | 'recolectado' | 'en_transito' | 'en_reparto' | 'entregado' | 'fallido' | 'problema';
   peso: number;
   dimensiones: {
-    largo: number;
-    ancho: number;
-    alto: number;
+    largo: number | null;
+    ancho: number | null;
+    alto: number | null;
   };
-  fragil?: boolean;
-  valorDeclarado?: number;
-  instruccionesEntrega?: string;
-  horarioEntrega?: string;
-  notas?: string;
+  fragil: boolean;
+  valorDeclarado: number;
+  instruccionesEntrega: string | null;
+  horarioEntrega: string | null;
+  notas: string | null;
   eventos: EventoEnvio[];
   costo: number;
   montoACobrar: number;
   tipoPago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
-  pago?: Pago;
-  repartidorId?: string;
-  repartidorAsignadoEn?: string;
-  problemaDescripcion?: string;
-  problemaFecha?: string;
-  notasInternas?: NotaInterna[];
-  tags?: string[];
-  tarifaId?: string;
+  pago: Pago | null;
+  repartidorId: string | null;
+  repartidorAsignadoEn: string | null;
+  problemaDescripcion: string | null;
+  problemaFecha: string | null;
+  notasInternas: NotaInterna[];
+  tags: string[];
+  tarifaId: string | null;
   fecha: string;
-  creadoEn?: string;
+  creadoEn: string;
+  updatedAt?: string;
   eliminado?: boolean;
   eliminadoPor?: string;
   eliminadoEn?: string;
   motivoEliminacion?: string;
-  destinatarioCedula?: string;
 }
 
 export interface EventoEnvio {
   id: string;
-  envioId?: string;
+  envioId: string;
   estado: string;
   descripcion: string;
-  ubicacion?: string;
-  fecha: string;
-  hora: string;
-  creadoEn?: string;
+  ubicacion?: string | null;
+  creadoEn: string;
 }
 
 // Warehouse
 
 export interface PaqueteInventario {
   id: string;
+  envioId: string | null;
   trackingNumber: string;
   clienteNombre: string;
   ubicacion: string;
   zona: string;
-  estante: string;
+  estante: string | null;
   estadoAlmacen: 'recibido' | 'en_almacen' | 'listo_despacho' | 'despachado' | 'devuelto';
   fechaIngreso: string;
-  fechaSalida?: string;
+  fechaSalida: string | null;
   peso: number;
-  dimensiones: { largo: number; ancho: number; alto: number };
-  volumen: number;
-  notas?: string;
+  dimensiones: { largo: number | null; ancho: number | null; alto: number | null };
+  volumen: number | null;
+  notas: string | null;
   prioridad: 'normal' | 'alta' | 'urgente';
+  creadoEn: string;
+  updatedAt: string;
 }
 
 export interface MovimientoAlmacen {
@@ -138,12 +141,12 @@ export interface MovimientoAlmacen {
   paqueteId: string;
   trackingNumber: string;
   tipo: 'entrada' | 'salida' | 'movimiento_interno' | 'devolucion';
-  ubicacionOrigen?: string;
-  ubicacionDestino?: string;
-  fecha: string;
-  hora: string;
+  ubicacionOrigen: string | null;
+  ubicacionDestino: string | null;
   usuario: string;
-  notas?: string;
+  usuarioId: string;
+  notas: string | null;
+  creadoEn: string;
 }
 
 export interface PickingItem {
@@ -157,7 +160,8 @@ export interface PickingItem {
   prioridad: 'normal' | 'alta' | 'urgente';
   pickeado: boolean;
   empaquetado: boolean;
-  fechaCreacion: string;
+  creadoEn: string;
+  updatedAt: string;
 }
 
 // Cliente
@@ -169,26 +173,26 @@ export interface Cliente {
   razonSocial: string;
   ruc: string;
   contactoNombre: string;
-  contactoCargo?: string;
+  contactoCargo: string | null;
   telefono: string;
   email: string;
-  direccion?: string;
-  ciudad: string;
+  direccion: string | null;
+  ciudad: string | null;
   estado: 'activo' | 'inactivo' | 'suspendido';
-  plan?: 'basico' | 'profesional' | 'enterprise';
+  plan: 'basico' | 'profesional' | 'enterprise';
   saldoCuentaCorriente: number;
   totalEnvios: number;
   enviosActivos: number;
-  portalActivo?: boolean;
-  portalStatus?: PortalStatus;
-  portalInvitedAt?: string | null;
+  notas: string | null;
+  portalActivo: boolean;
+  portalStatus: PortalStatus;
+  portalInvitedAt: string | null;
+  eliminado: boolean;
+  eliminadoPor: string | null;
+  eliminadoEn: string | null;
+  motivoEliminacion: string | null;
   creadoEn: string;
-  updatedAt?: string;
-  notas?: string;
-  eliminado?: boolean;
-  eliminadoPor?: string;
-  eliminadoEn?: string;
-  motivoEliminacion?: string;
+  updatedAt: string;
 }
 
 export const portalStatusLabels: Record<string, string> = {
@@ -211,27 +215,30 @@ export interface Repartidor {
   id: string;
   nombre: string;
   telefono: string;
-  vehiculo: string;
+  vehiculo: 'Moto' | 'Auto' | 'Camioneta';
   placa: string;
-  licencia?: string;
+  licencia: string | null;
   estado: 'activo' | 'inactivo';
   enviosHoy: number;
-  eliminado?: boolean;
-  eliminadoPor?: string;
-  eliminadoEn?: string;
-  motivoEliminacion?: string;
-  creadoEn?: string;
-  updatedAt?: string;
+  eliminado: boolean;
+  eliminadoPor: string | null;
+  eliminadoEn: string | null;
+  motivoEliminacion: string | null;
+  creadoEn: string;
+  updatedAt: string;
 }
 
 // Usuario
 
 export interface Usuario {
   id: string;
+  authId: string | null;
   nombre: string;
   email: string;
-  rol: 'Admin' | 'Operador' | 'Repartidor' | 'admin' | 'operador';
+  rol: 'admin' | 'operador';
   estado: 'activo' | 'inactivo';
+  creadoEn: string;
+  updatedAt: string;
 }
 
 // Tarifa
@@ -247,31 +254,29 @@ export interface Tarifa {
   factorDimensional: number;
   activo: boolean;
   creadoPor: string;
+  eliminado: boolean;
+  eliminadoPor: string | null;
+  eliminadoEn: string | null;
+  motivoEliminacion: string | null;
   creadoEn: string;
-  updatedAt?: string;
-  eliminado?: boolean;
-  eliminadoPor?: string;
-  eliminadoEn?: string;
-  motivoEliminacion?: string;
+  updatedAt: string;
 }
 
 // Auditoria
 
 export interface AuditoriaLog {
   id: string;
-  fecha: string;
-  hora: string;
   usuario: string;
   usuarioId: string;
   accion: 'crear' | 'editar' | 'eliminar' | 'exportar' | 'cambio_estado' | 'pago' | 'nota' | 'asignar' | 'importar' | 'login' | 'logout';
   entidad: 'envio' | 'cliente' | 'repartidor' | 'pago' | 'nota_interna' | 'tarifa' | 'usuario' | 'almacen' | 'sistema';
-  entidadId?: string;
+  entidadId: string;
   descripcion: string;
-  valorAnterior?: string | Record<string, unknown> | null;
-  valorNuevo?: string | Record<string, unknown> | null;
-  creadoEn?: string;
-  ipAddress?: string;
-  userAgent?: string;
+  valorAnterior: Record<string, unknown> | null;
+  valorNuevo: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  creadoEn: string;
 }
 
 // Producto Guardado
@@ -280,15 +285,23 @@ export interface ProductoGuardado {
   id: string;
   clienteId: string;
   nombre: string;
-  descripcion?: string;
+  descripcion: string | null;
   peso: number;
   dimensiones: {
-    largo: number;
-    ancho: number;
-    alto: number;
+    largo: number | null;
+    ancho: number | null;
+    alto: number | null;
   };
   fragil: boolean;
-  valorDeclarado?: number;
+  valorDeclarado: number | null;
   creadoEn: string;
-  updatedAt?: string;
+  updatedAt: string;
+}
+
+export interface Tag {
+  id: string;
+  clienteId: string;
+  nombre: string;
+  color: string;
+  creadoEn: string;
 }

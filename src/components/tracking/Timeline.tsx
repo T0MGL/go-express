@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn, formatTimestamp, formatTimestampTime } from '@/lib/utils';
 import { MapPin, Clock } from '@phosphor-icons/react';
 
 // Accepts both full EventoEnvio and limited PublicTrackingEvent
@@ -6,9 +6,8 @@ interface TimelineEvent {
   id?: string;
   estado: string;
   descripcion: string;
-  ubicacion?: string;
-  fecha: string;
-  hora?: string;
+  ubicacion?: string | null;
+  creadoEn: string;
 }
 
 interface TimelineProps {
@@ -75,17 +74,15 @@ export const Timeline = ({ eventos, compact = false }: TimelineProps) => {
                     'font-data text-muted-foreground',
                     compact ? 'text-[11px]' : 'text-[12px]'
                   )}>
-                    {evento.fecha}
+                    {formatTimestamp(evento.creadoEn)}
                   </p>
-                  {evento.hora && (
-                    <p className={cn(
-                      'font-data text-muted-foreground/60 flex items-center justify-end gap-1',
-                      compact ? 'text-[11px]' : 'text-[12px]'
-                    )}>
-                      <Clock weight="duotone" className="w-3 h-3" />
-                      {evento.hora}
-                    </p>
-                  )}
+                  <p className={cn(
+                    'font-data text-muted-foreground/60 flex items-center justify-end gap-1',
+                    compact ? 'text-[11px]' : 'text-[12px]'
+                  )}>
+                    <Clock weight="duotone" className="w-3 h-3" />
+                    {formatTimestampTime(evento.creadoEn)}
+                  </p>
                 </div>
               </div>
             </div>

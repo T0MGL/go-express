@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { NotaInterna } from '@/data/types';
+import { formatTimestamp, formatTimestampTime } from '@/lib/utils';
 import { ChatCircle, Clock, UserCircle } from '@phosphor-icons/react';
 import { Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -51,7 +52,7 @@ export const NotasInternas = ({ envioId: _envioId, notas, onNotaAdded }: NotasIn
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Clock size={11} weight="duotone" />
                   <p className="text-[11px] font-data">
-                    {nota.fecha} {nota.hora}
+                    {formatTimestamp(nota.creadoEn)} {formatTimestampTime(nota.creadoEn)}
                   </p>
                 </div>
               </div>

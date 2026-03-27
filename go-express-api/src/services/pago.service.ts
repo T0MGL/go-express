@@ -171,7 +171,7 @@ class PagoService {
         notas: input.notas ?? null,
         creado_por: userId,
       })
-      .select()
+      .select(PAGO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -224,7 +224,7 @@ class PagoService {
       .from('pagos')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(PAGO_COLUMNS)
       .single();
 
     if (error || !data) {

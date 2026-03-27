@@ -1,8 +1,8 @@
-import { useRef, useEffect, Suspense } from 'react';
+import { useRef, useEffect, useState, Suspense } from 'react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Header } from './Header';
-import { Sidebar } from './Sidebar';
+import { Sidebar, MobileSidebar } from './Sidebar';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { CommandPalette } from '@/components/admin/CommandPalette';
 import { useScrollShadow } from '@/hooks/use-scroll-shadow';
@@ -22,7 +22,13 @@ export const AdminLayout = () => {
   const mainRef = useRef<HTMLElement>(null);
   const scrolled = useScrollShadow(mainRef);
   const { isAuthenticated, loading } = useAuth();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useSSE();
+
+  // Close mobile nav on route change
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   // Scroll to top on route change
   useEffect(() => {
@@ -62,8 +68,9 @@ export const AdminLayout = () => {
   return (
     <div className="min-h-screen flex bg-background">
       <Sidebar />
+      <MobileSidebar open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Header scrolled={scrolled} />
+        <Header scrolled={scrolled} onMenuClick={() => setMobileNavOpen(true)} />
         <main ref={mainRef} className={cn('flex-1 overflow-y-auto scrollbar-thin relative')}>
           <AnimatePresence initial={false}>
             <motion.div

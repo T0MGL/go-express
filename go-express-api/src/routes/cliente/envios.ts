@@ -76,10 +76,15 @@ function mapEnvioRow(row: EnvioRow): Envio {
     tags: row.tags,
     tarifaId: row.tarifa_id,
     fecha: row.fecha,
+    eliminado: row.eliminado,
+    eliminadoPor: row.eliminado_por,
+    eliminadoEn: row.eliminado_en,
+    motivoEliminacion: row.motivo_eliminacion,
     eventos: [],
     pago: null,
     notasInternas: [],
     creadoEn: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -320,11 +325,9 @@ router.post(
 
     const clienteNombre = (clienteData as { razon_social: string }).razon_social;
 
-    // Pre-generate all tracking numbers to minimize sequential DB calls
-    const trackingNumbers: string[] = [];
-    for (let i = 0; i < envios.length; i++) {
-      trackingNumbers.push(await generateTrackingNumber(supabase));
-    }
+    const trackingNumbers = await Promise.all(
+      envios.map(() => generateTrackingNumber(supabase))
+    );
 
     const today = new Date().toISOString().split('T')[0]!;
     const insertRows = envios.map((input, i) => ({

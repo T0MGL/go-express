@@ -82,9 +82,9 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     pago: null,
     notasInternas: [],
     eliminado: row.eliminado,
-    eliminadoPor: row.eliminado_por ?? undefined,
-    eliminadoEn: row.eliminado_en ?? undefined,
-    motivoEliminacion: row.motivo_eliminacion ?? undefined,
+    eliminadoPor: row.eliminado_por,
+    eliminadoEn: row.eliminado_en,
+    motivoEliminacion: row.motivo_eliminacion,
     creadoEn: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -330,7 +330,7 @@ class EnvioService {
         tarifa_id: input.tarifaId ?? null,
         fecha: today,
       })
-      .select()
+      .select(ENVIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -431,7 +431,7 @@ class EnvioService {
       .from('envios')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(ENVIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -494,7 +494,7 @@ class EnvioService {
       .update(updateData)
       .eq('id', id)
       .eq('estado', previousEstado)
-      .select()
+      .select(ENVIO_COLUMNS)
       .maybeSingle();
 
     if (error) {
@@ -581,7 +581,7 @@ class EnvioService {
         repartidor_asignado_en: new Date().toISOString(),
       })
       .eq('id', id)
-      .select()
+      .select(ENVIO_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -631,7 +631,7 @@ class EnvioService {
         usuario: usuarioNombre,
         usuario_id: userId,
       })
-      .select()
+      .select(NOTA_COLUMNS)
       .single();
 
     if (error || !data) {
@@ -708,10 +708,9 @@ class EnvioService {
       return { exitosos: 0, fallidos, trackingNumbers: [] };
     }
 
-    const trackingNumbers: string[] = [];
-    for (let i = 0; i < validEnvios.length; i++) {
-      trackingNumbers.push(await generateTrackingNumber(supabase));
-    }
+    const trackingNumbers = await Promise.all(
+      validEnvios.map(() => generateTrackingNumber(supabase))
+    );
 
     const today = new Date().toISOString().split('T')[0]!;
     const insertRows = validEnvios.map(({ input, clienteNombre }, i) => ({

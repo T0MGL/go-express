@@ -1,7 +1,6 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { encryptionService } from './encryption.service.js';
 import { auditoriaService } from './auditoria.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import type {
@@ -34,7 +33,7 @@ const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
   problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
 };
 
-// Row to API mappers (exported for cross-service use)
+// Row to API mapper
 
 export function mapEnvioRowToApi(row: EnvioRow): Envio {
   return {
@@ -45,21 +44,15 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     codigoReferencia: row.codigo_referencia,
     origen: row.origen,
     destino: row.destino,
-    destinatarioNombre: encryptionService.decrypt(row.destinatario_nombre_enc),
-    destinatarioDireccion: encryptionService.decrypt(row.destinatario_direccion_enc),
-    destinatarioTelefono: encryptionService.decrypt(row.destinatario_telefono_enc),
-    destinatarioTelefono2: row.destinatario_telefono2_enc
-      ? encryptionService.decrypt(row.destinatario_telefono2_enc)
-      : null,
-    destinatarioCedula: row.destinatario_cedula_enc
-      ? encryptionService.decrypt(row.destinatario_cedula_enc)
-      : null,
+    destinatarioNombre: row.destinatario_nombre,
+    destinatarioDireccion: row.destinatario_direccion,
+    destinatarioTelefono: row.destinatario_telefono,
+    destinatarioTelefono2: row.destinatario_telefono2,
+    destinatarioCedula: row.destinatario_cedula,
     destinatarioCiudad: row.destinatario_ciudad,
     destinatarioDepartamento: row.destinatario_departamento,
     destinatarioBarrio: row.destinatario_barrio,
-    destinatarioReferencia: row.destinatario_referencia_enc
-      ? encryptionService.decrypt(row.destinatario_referencia_enc)
-      : null,
+    destinatarioReferencia: row.destinatario_referencia,
     destinatarioUbicacionUrl: row.destinatario_ubicacion_url,
     cantidad: row.cantidad,
     producto: row.producto,
@@ -97,10 +90,6 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
   };
 }
 
-/**
- * Extract a minimal Pago object from the embedded Supabase join on the list query.
- * Supabase returns `pagos` as an array (since envio can have 0-1 pago rows).
- */
 function extractListPago(row: Record<string, unknown>): Pago | null {
   const pagos = row['pagos'] as Array<{ estado_pago: string }> | null;
   if (!pagos || pagos.length === 0) return null;
@@ -118,65 +107,6 @@ function extractListPago(row: Record<string, unknown>): Pago | null {
     creadoPor: '',
     creadoEn: '',
     updatedAt: '',
-  };
-}
-
-/**
- * Lightweight mapper for list views. Uses the searchable plaintext name
- * instead of decrypting enc fields. Much faster for paginated lists.
- */
-function mapEnvioRowToListApi(row: Record<string, unknown>): Envio {
-  return {
-    id: row['id'] as string,
-    trackingNumber: row['tracking_number'] as string,
-    clienteId: row['cliente_id'] as string,
-    clienteNombre: row['cliente_nombre'] as string,
-    codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
-    origen: row['origen'] as string,
-    destino: row['destino'] as string,
-    destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
-    destinatarioDireccion: '',
-    destinatarioTelefono: '',
-    destinatarioTelefono2: null,
-    destinatarioCedula: null,
-    destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
-    destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
-    destinatarioBarrio: (row['destinatario_barrio'] as string | null) ?? null,
-    destinatarioReferencia: null,
-    destinatarioUbicacionUrl: null,
-    cantidad: row['cantidad'] as number,
-    producto: (row['producto'] as string) ?? '',
-    peso: row['peso'] as number,
-    dimensiones: {
-      largo: row['dimensiones_largo'] as number | null,
-      ancho: row['dimensiones_ancho'] as number | null,
-      alto: row['dimensiones_alto'] as number | null,
-    },
-    fragil: row['fragil'] as boolean,
-    valorDeclarado: row['valor_declarado'] as number,
-    instruccionesEntrega: null,
-    horarioEntrega: null,
-    notas: (row['notas'] as string | null) ?? null,
-    estado: row['estado'] as EnvioEstado,
-    costo: row['costo'] as number,
-    montoACobrar: row['monto_a_cobrar'] as number,
-    tipoPago: row['tipo_pago'] as TipoPago,
-    repartidorId: (row['repartidor_id'] as string | null) ?? null,
-    repartidorAsignadoEn: (row['repartidor_asignado_en'] as string | null) ?? null,
-    problemaDescripcion: (row['problema_descripcion'] as string | null) ?? null,
-    problemaFecha: (row['problema_fecha'] as string | null) ?? null,
-    tags: (row['tags'] as string[]) ?? [],
-    tarifaId: (row['tarifa_id'] as string | null) ?? null,
-    fecha: row['fecha'] as string,
-    eventos: [],
-    pago: extractListPago(row),
-    notasInternas: [],
-    eliminado: row['eliminado'] as boolean,
-    eliminadoPor: (row['eliminado_por'] as string | undefined) ?? undefined,
-    eliminadoEn: (row['eliminado_en'] as string | undefined) ?? undefined,
-    motivoEliminacion: (row['motivo_eliminacion'] as string | undefined) ?? undefined,
-    creadoEn: row['created_at'] as string,
-    updatedAt: (row['updated_at'] as string | undefined) ?? undefined,
   };
 }
 
@@ -200,7 +130,7 @@ function mapPagoRow(row: PagoRow): Pago {
     metodoPago: row.metodo_pago,
     estadoPago: row.estado_pago,
     fechaPago: row.fecha_pago,
-    referencia: row.referencia_enc ? encryptionService.decrypt(row.referencia_enc) : null,
+    referencia: row.referencia,
     notas: row.notas,
     creadoPor: row.creado_por,
     creadoEn: row.created_at,
@@ -219,8 +149,6 @@ function mapNotaRow(row: NotaInternaRow): NotaInterna {
   };
 }
 
-// TODO: WhatsApp / email integration
-
 function triggerNotification(event: NotificationEvent, envio: Envio, previousEstado?: EnvioEstado): void {
   logger.info(
     { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
@@ -228,17 +156,15 @@ function triggerNotification(event: NotificationEvent, envio: Envio, previousEst
   );
 }
 
-// Explicit column lists (no SELECT *)
+// Explicit column lists
 
-// Full columns: used for single-envio detail views where all fields are needed
-const ENVIO_DETAIL_COLUMNS = [
+const ENVIO_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
-  'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
-  'destinatario_telefono2_enc', 'destinatario_cedula_enc',
+  'destinatario_nombre', 'destinatario_direccion', 'destinatario_telefono',
+  'destinatario_telefono2', 'destinatario_cedula',
   'destinatario_ciudad', 'destinatario_departamento', 'destinatario_barrio',
-  'destinatario_referencia_enc', 'destinatario_ubicacion_url', 'destinatario_nombre_search',
-  'destinatario_telefono_hash',
+  'destinatario_referencia', 'destinatario_ubicacion_url',
   'cantidad', 'producto', 'peso',
   'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
   'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
@@ -250,27 +176,10 @@ const ENVIO_DETAIL_COLUMNS = [
   'created_at', 'updated_at',
 ].join(', ');
 
-// Lightweight columns: used for list/table views. Skips encrypted fields to avoid
-// expensive decryption on every row. The list only needs display-ready data.
-// Includes a Supabase embedded select on pagos to get estado_pago for the list badge.
-const ENVIO_LIST_COLUMNS = [
-  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
-  'origen', 'destino',
-  'destinatario_nombre_search', 'destinatario_ciudad', 'destinatario_departamento',
-  'cantidad', 'producto', 'peso',
-  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
-  'fragil', 'valor_declarado', 'notas',
-  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
-  'repartidor_id', 'repartidor_asignado_en',
-  'problema_descripcion', 'problema_fecha',
-  'tags', 'tarifa_id', 'fecha',
-  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
-  'created_at', 'updated_at',
-  'pagos(estado_pago)',
-].join(', ');
+const ENVIO_LIST_COLUMNS = ENVIO_COLUMNS + ', pagos(estado_pago)';
 
 const EVENTO_COLUMNS = 'id, envio_id, estado, descripcion, ubicacion, created_at';
-const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at';
+const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
 const NOTA_COLUMNS = 'id, envio_id, texto, usuario, usuario_id, created_at';
 
 class EnvioService {
@@ -293,7 +202,7 @@ class EnvioService {
     if (search) {
       const s = escapeLikePattern(search);
       q = q.or(
-        `tracking_number.ilike.%${s}%,cliente_nombre.ilike.%${s}%,destinatario_nombre_search.ilike.%${s}%`
+        `tracking_number.ilike.%${s}%,cliente_nombre.ilike.%${s}%,destinatario_nombre.ilike.%${s}%`
       );
     }
 
@@ -305,10 +214,14 @@ class EnvioService {
       throw new AppError('Error fetching envios', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const rows = (data ?? []) as unknown as (EnvioRow & { pagos?: Array<{ estado_pago: string }> })[];
 
     return {
-      data: rows.map(mapEnvioRowToListApi),
+      data: rows.map((row) => {
+        const envio = mapEnvioRowToApi(row as unknown as EnvioRow);
+        envio.pago = extractListPago(row as unknown as Record<string, unknown>);
+        return envio;
+      }),
       pagination: {
         total: count ?? 0,
         page,
@@ -323,7 +236,7 @@ class EnvioService {
   async getById(id: string): Promise<Envio> {
     const { data, error } = await supabase
       .from('envios')
-      .select(ENVIO_DETAIL_COLUMNS)
+      .select(ENVIO_COLUMNS)
       .eq('id', id)
       .eq('eliminado', false)
       .single();
@@ -360,7 +273,6 @@ class EnvioService {
   }
 
   async create(input: CreateEnvioInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
-    // Cliente must be active and not deleted
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social, estado')
@@ -373,7 +285,7 @@ class EnvioService {
     }
 
     if ((clienteData as { razon_social: string; estado: string }).estado !== 'activo') {
-      throw AppError.badRequest('No se pueden crear envíos para clientes inactivos o suspendidos');
+      throw AppError.badRequest('No se pueden crear envios para clientes inactivos o suspendidos');
     }
 
     const trackingNumber = await generateTrackingNumber(supabase);
@@ -389,24 +301,16 @@ class EnvioService {
         codigo_referencia: input.codigoReferencia ?? null,
         origen: input.origen,
         destino: input.destino,
-        destinatario_nombre_enc: encryptionService.encrypt(input.destinatarioNombre),
-        destinatario_direccion_enc: encryptionService.encrypt(input.destinatarioDireccion),
-        destinatario_telefono_enc: encryptionService.encrypt(input.destinatarioTelefono),
-        destinatario_telefono2_enc: input.destinatarioTelefono2
-          ? encryptionService.encrypt(input.destinatarioTelefono2)
-          : null,
-        destinatario_cedula_enc: input.destinatarioCedula
-          ? encryptionService.encrypt(input.destinatarioCedula)
-          : null,
+        destinatario_nombre: input.destinatarioNombre,
+        destinatario_direccion: input.destinatarioDireccion,
+        destinatario_telefono: input.destinatarioTelefono,
+        destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+        destinatario_cedula: input.destinatarioCedula ?? null,
         destinatario_ciudad: input.destinatarioCiudad ?? '',
         destinatario_departamento: input.destinatarioDepartamento ?? '',
         destinatario_barrio: input.destinatarioBarrio ?? null,
-        destinatario_referencia_enc: input.destinatarioReferencia
-          ? encryptionService.encrypt(input.destinatarioReferencia)
-          : null,
+        destinatario_referencia: input.destinatarioReferencia ?? null,
         destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-        destinatario_nombre_search: encryptionService.normalizeForSearch(input.destinatarioNombre),
-        destinatario_telefono_hash: encryptionService.hashForSearch(input.destinatarioTelefono),
         cantidad: input.cantidad,
         producto: input.producto ?? '',
         peso: input.peso,
@@ -439,7 +343,7 @@ class EnvioService {
     await supabase.from('eventos_envio').insert({
       envio_id: envio.id,
       estado: 'pendiente',
-      descripcion: 'Envío creado',
+      descripcion: 'Envio creado',
     });
 
     await auditoriaService.log({
@@ -467,7 +371,7 @@ class EnvioService {
       .single();
 
     if (checkError || !existing) {
-      throw AppError.notFound('Envío no encontrado');
+      throw AppError.notFound('Envio no encontrado');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -476,33 +380,25 @@ class EnvioService {
     if (input.origen !== undefined) updateData['origen'] = input.origen;
     if (input.destino !== undefined) updateData['destino'] = input.destino;
     if (input.destinatarioNombre !== undefined) {
-      updateData['destinatario_nombre_enc'] = encryptionService.encrypt(input.destinatarioNombre);
-      updateData['destinatario_nombre_search'] = encryptionService.normalizeForSearch(input.destinatarioNombre);
+      updateData['destinatario_nombre'] = input.destinatarioNombre;
     }
     if (input.destinatarioDireccion !== undefined) {
-      updateData['destinatario_direccion_enc'] = encryptionService.encrypt(input.destinatarioDireccion);
+      updateData['destinatario_direccion'] = input.destinatarioDireccion;
     }
     if (input.destinatarioTelefono !== undefined) {
-      updateData['destinatario_telefono_enc'] = encryptionService.encrypt(input.destinatarioTelefono);
-      updateData['destinatario_telefono_hash'] = encryptionService.hashForSearch(input.destinatarioTelefono);
+      updateData['destinatario_telefono'] = input.destinatarioTelefono;
     }
     if (input.destinatarioTelefono2 !== undefined) {
-      updateData['destinatario_telefono2_enc'] = input.destinatarioTelefono2
-        ? encryptionService.encrypt(input.destinatarioTelefono2)
-        : null;
+      updateData['destinatario_telefono2'] = input.destinatarioTelefono2 ?? null;
     }
     if (input.destinatarioCedula !== undefined) {
-      updateData['destinatario_cedula_enc'] = input.destinatarioCedula
-        ? encryptionService.encrypt(input.destinatarioCedula)
-        : null;
+      updateData['destinatario_cedula'] = input.destinatarioCedula ?? null;
     }
     if (input.destinatarioCiudad !== undefined) updateData['destinatario_ciudad'] = input.destinatarioCiudad;
     if (input.destinatarioDepartamento !== undefined) updateData['destinatario_departamento'] = input.destinatarioDepartamento;
     if (input.destinatarioBarrio !== undefined) updateData['destinatario_barrio'] = input.destinatarioBarrio;
     if (input.destinatarioReferencia !== undefined) {
-      updateData['destinatario_referencia_enc'] = input.destinatarioReferencia
-        ? encryptionService.encrypt(input.destinatarioReferencia)
-        : null;
+      updateData['destinatario_referencia'] = input.destinatarioReferencia ?? null;
     }
     if (input.destinatarioUbicacionUrl !== undefined) {
       updateData['destinatario_ubicacion_url'] = input.destinatarioUbicacionUrl || null;
@@ -546,7 +442,7 @@ class EnvioService {
         accion: 'editar',
         entidad: 'envio',
         entidadId: id,
-        descripcion: `Envío actualizado: ${envio.trackingNumber}`,
+        descripcion: `Envio actualizado: ${envio.trackingNumber}`,
       });
     }
 
@@ -562,7 +458,7 @@ class EnvioService {
       .single();
 
     if (fetchError || !currentData) {
-      throw AppError.notFound('Envío no encontrado');
+      throw AppError.notFound('Envio no encontrado');
     }
 
     const previousEstado = (currentData as { estado: EnvioEstado; tracking_number: string }).estado;
@@ -571,7 +467,7 @@ class EnvioService {
     const allowed = VALID_TRANSITIONS[previousEstado];
     if (!allowed || !allowed.includes(newEstado)) {
       throw AppError.unprocessable(
-        `Invalid state transition: "${previousEstado}" → "${newEstado}"`,
+        `Invalid state transition: "${previousEstado}" to "${newEstado}"`,
         { currentEstado: previousEstado, requestedEstado: newEstado, allowedTransitions: allowed }
       );
     }
@@ -588,7 +484,6 @@ class EnvioService {
       updateData['problema_fecha'] = null;
     }
 
-    // Optimistic locking: only update if estado still matches
     const { data, error } = await supabase
       .from('envios')
       .update(updateData)
@@ -602,7 +497,7 @@ class EnvioService {
     }
 
     if (!data) {
-      throw AppError.conflict('El estado del envío fue modificado por otro usuario. Recargue e intente de nuevo.');
+      throw AppError.conflict('El estado del envio fue modificado por otro usuario. Recargue e intente de nuevo.');
     }
 
     await supabase.from('eventos_envio').insert({
@@ -644,13 +539,13 @@ class EnvioService {
       .single();
 
     if (envioCheckError || !envioCheck) {
-      throw AppError.notFound('Envío no encontrado');
+      throw AppError.notFound('Envio no encontrado');
     }
 
     const allowedStates: EnvioEstado[] = ['pendiente', 'recolectado', 'en_transito', 'en_reparto'];
     const envioState = (envioCheck as { id: string; estado: EnvioEstado; tracking_number: string }).estado;
     if (!allowedStates.includes(envioState)) {
-      throw AppError.badRequest(`No se puede asignar repartidor a un envío en estado "${envioState}"`);
+      throw AppError.badRequest(`No se puede asignar repartidor a un envio en estado "${envioState}"`);
     }
 
     const { data: repartidor } = await supabase
@@ -708,7 +603,6 @@ class EnvioService {
   }
 
   async agregarNota(id: string, texto: string, userId: string, usuarioNombre: string): Promise<NotaInterna> {
-    // Lightweight existence check (no decryption)
     const { data: exists, error: checkErr } = await supabase
       .from('envios')
       .select('id')
@@ -740,7 +634,7 @@ class EnvioService {
       accion: 'nota',
       entidad: 'nota_interna',
       entidadId: (data as unknown as NotaInternaRow).id,
-      descripcion: `Nota interna agregada al envío ${id}`,
+      descripcion: `Nota interna agregada al envio ${id}`,
     });
 
     return mapNotaRow(data as unknown as NotaInternaRow);
@@ -801,7 +695,6 @@ class EnvioService {
   }
 
   async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
-    // Lightweight existence check (no decryption)
     const { data: existing, error: checkErr } = await supabase
       .from('envios')
       .select('id, tracking_number')

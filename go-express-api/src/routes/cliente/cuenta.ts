@@ -3,24 +3,24 @@ import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
-import { encryptionService } from '../../services/encryption.service.js';
 import { updateClienteCuentaSchema } from '../../lib/validators/cliente.schema.js';
 import type { ClienteRow, Cliente } from '../../types/index.js';
 import type { UpdateClienteCuentaInput } from '../../lib/validators/cliente.schema.js';
 
 const router = Router();
 
+const CLIENTE_COLUMNS = 'id, auth_id, razon_social, ruc, contacto_nombre, contacto_cargo, telefono, email, direccion, ciudad, estado, plan, saldo_cuenta_corriente, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at';
 
 function mapClienteRow(row: ClienteRow): Cliente {
   return {
     id: row.id,
     razonSocial: row.razon_social,
-    ruc: encryptionService.decrypt(row.ruc_enc),
-    contactoNombre: encryptionService.decrypt(row.contacto_nombre_enc),
+    ruc: row.ruc,
+    contactoNombre: row.contacto_nombre,
     contactoCargo: row.contacto_cargo,
-    telefono: encryptionService.decrypt(row.telefono_enc),
-    email: encryptionService.decrypt(row.email_enc),
-    direccion: row.direccion_enc ? encryptionService.decrypt(row.direccion_enc) : null,
+    telefono: row.telefono,
+    email: row.email,
+    direccion: row.direccion,
     ciudad: row.ciudad,
     estado: row.estado,
     plan: row.plan,
@@ -40,14 +40,12 @@ function mapClienteRow(row: ClienteRow): Cliente {
   };
 }
 
-// GET /: my company details (decrypted)
+// GET /: my company details
 
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
-
-    const CLIENTE_COLUMNS = 'id, auth_id, razon_social, ruc_enc, ruc_hash, contacto_nombre_enc, contacto_cargo, telefono_enc, email_enc, email_hash, direccion_enc, ciudad, estado, plan, saldo_cuenta_corriente, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at';
 
     const { data, error } = await supabase
       .from('clientes')
@@ -79,29 +77,19 @@ router.put(
     const updateData: Record<string, unknown> = {};
 
     if (input.razonSocial !== undefined) updateData['razon_social'] = input.razonSocial;
-    if (input.contactoNombre !== undefined) {
-      updateData['contacto_nombre_enc'] = encryptionService.encrypt(input.contactoNombre);
-    }
+    if (input.contactoNombre !== undefined) updateData['contacto_nombre'] = input.contactoNombre;
     if (input.contactoCargo !== undefined) updateData['contacto_cargo'] = input.contactoCargo;
-    if (input.telefono !== undefined) {
-      updateData['telefono_enc'] = encryptionService.encrypt(input.telefono);
-    }
-    if (input.email !== undefined) {
-      updateData['email_enc'] = encryptionService.encrypt(input.email);
-      updateData['email_hash'] = encryptionService.hashForSearch(input.email);
-    }
-    if (input.direccion !== undefined) {
-      updateData['direccion_enc'] = encryptionService.encrypt(input.direccion);
-    }
+    if (input.telefono !== undefined) updateData['telefono'] = input.telefono;
+    if (input.email !== undefined) updateData['email'] = input.email;
+    if (input.direccion !== undefined) updateData['direccion'] = input.direccion;
     if (input.ciudad !== undefined) updateData['ciudad'] = input.ciudad;
     if (input.notas !== undefined) updateData['notas'] = input.notas;
 
-    // plan, estado, ruc are admin-only fields
     const { data, error } = await supabase
       .from('clientes')
       .update(updateData)
       .eq('id', clienteId)
-      .select('id, auth_id, razon_social, ruc_enc, ruc_hash, contacto_nombre_enc, contacto_cargo, telefono_enc, email_enc, email_hash, direccion_enc, ciudad, estado, plan, saldo_cuenta_corriente, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
+      .select(CLIENTE_COLUMNS)
       .single();
 
     if (error) {

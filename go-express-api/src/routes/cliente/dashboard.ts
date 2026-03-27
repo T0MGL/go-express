@@ -32,11 +32,10 @@ router.get(
     const problemas = envios.filter((e) => e.estado === 'problema' || e.estado === 'fallido').length;
     const totalEnvios = envios.length;
 
-    // Fetch recent envios (last 5) with non-PII fields only.
-    // Uses destinatario_nombre_search (plaintext, normalized) instead of decrypting.
+    // Fetch recent envios (last 5)
     const { data: recientesData, error: recientesError } = await supabase
       .from('envios')
-      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre_search, destinatario_ciudad, destinatario_departamento, estado, costo, monto_a_cobrar, tipo_pago, fecha, created_at')
+      .select('id, tracking_number, cliente_id, cliente_nombre, codigo_referencia, origen, destino, destinatario_nombre, destinatario_ciudad, destinatario_departamento, estado, costo, monto_a_cobrar, tipo_pago, fecha, created_at')
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
       .order('created_at', { ascending: false })
@@ -55,7 +54,7 @@ router.get(
       codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
       origen: row['origen'] as string,
       destino: row['destino'] as string,
-      destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+      destinatarioNombre: (row['destinatario_nombre'] as string) ?? '',
       destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
       destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
       estado: row['estado'] as string,

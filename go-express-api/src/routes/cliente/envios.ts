@@ -3,7 +3,6 @@ import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
-import { encryptionService } from '../../services/encryption.service.js';
 import { emailService } from '../../services/email.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
@@ -16,15 +15,13 @@ import type { CreateEnvioInput, EnvioQuery } from '../../lib/validators/envio.sc
 
 const router = Router();
 
-// Full columns: used for single-envio detail views where all fields are needed
-const ENVIO_DETAIL_COLUMNS = [
+const ENVIO_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
-  'destinatario_nombre_enc', 'destinatario_direccion_enc', 'destinatario_telefono_enc',
-  'destinatario_telefono2_enc', 'destinatario_cedula_enc',
+  'destinatario_nombre', 'destinatario_direccion', 'destinatario_telefono',
+  'destinatario_telefono2', 'destinatario_cedula',
   'destinatario_ciudad', 'destinatario_departamento', 'destinatario_barrio',
-  'destinatario_referencia_enc', 'destinatario_ubicacion_url', 'destinatario_nombre_search',
-  'destinatario_telefono_hash',
+  'destinatario_referencia', 'destinatario_ubicacion_url',
   'cantidad', 'producto', 'peso',
   'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
   'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
@@ -36,24 +33,6 @@ const ENVIO_DETAIL_COLUMNS = [
   'created_at', 'updated_at',
 ].join(', ');
 
-// Lightweight columns: skips encrypted fields to avoid expensive decryption on list views
-const ENVIO_LIST_COLUMNS = [
-  'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
-  'origen', 'destino',
-  'destinatario_nombre_search', 'destinatario_ciudad', 'destinatario_departamento',
-  'destinatario_barrio',
-  'cantidad', 'producto', 'peso',
-  'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
-  'fragil', 'valor_declarado', 'notas',
-  'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
-  'repartidor_id', 'repartidor_asignado_en',
-  'problema_descripcion', 'problema_fecha',
-  'tags', 'tarifa_id', 'fecha',
-  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
-  'created_at', 'updated_at',
-].join(', ');
-
-// Full row mapper with decryption (for detail view)
 function mapEnvioRow(row: EnvioRow): Envio {
   return {
     id: row.id,
@@ -63,21 +42,15 @@ function mapEnvioRow(row: EnvioRow): Envio {
     codigoReferencia: row.codigo_referencia,
     origen: row.origen,
     destino: row.destino,
-    destinatarioNombre: encryptionService.decrypt(row.destinatario_nombre_enc),
-    destinatarioDireccion: encryptionService.decrypt(row.destinatario_direccion_enc),
-    destinatarioTelefono: encryptionService.decrypt(row.destinatario_telefono_enc),
-    destinatarioTelefono2: row.destinatario_telefono2_enc
-      ? encryptionService.decrypt(row.destinatario_telefono2_enc)
-      : null,
-    destinatarioCedula: row.destinatario_cedula_enc
-      ? encryptionService.decrypt(row.destinatario_cedula_enc)
-      : null,
+    destinatarioNombre: row.destinatario_nombre,
+    destinatarioDireccion: row.destinatario_direccion,
+    destinatarioTelefono: row.destinatario_telefono,
+    destinatarioTelefono2: row.destinatario_telefono2,
+    destinatarioCedula: row.destinatario_cedula,
     destinatarioCiudad: row.destinatario_ciudad,
     destinatarioDepartamento: row.destinatario_departamento,
     destinatarioBarrio: row.destinatario_barrio,
-    destinatarioReferencia: row.destinatario_referencia_enc
-      ? encryptionService.decrypt(row.destinatario_referencia_enc)
-      : null,
+    destinatarioReferencia: row.destinatario_referencia,
     destinatarioUbicacionUrl: row.destinatario_ubicacion_url,
     cantidad: row.cantidad,
     producto: row.producto,
@@ -110,57 +83,6 @@ function mapEnvioRow(row: EnvioRow): Envio {
   };
 }
 
-// Lightweight mapper for list views: uses plaintext search fields instead of decrypting
-function mapEnvioRowToListApi(row: Record<string, unknown>): Envio {
-  return {
-    id: row['id'] as string,
-    trackingNumber: row['tracking_number'] as string,
-    clienteId: row['cliente_id'] as string,
-    clienteNombre: row['cliente_nombre'] as string,
-    codigoReferencia: (row['codigo_referencia'] as string | null) ?? null,
-    origen: row['origen'] as string,
-    destino: row['destino'] as string,
-    destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
-    destinatarioDireccion: '',
-    destinatarioTelefono: '',
-    destinatarioTelefono2: null,
-    destinatarioCedula: null,
-    destinatarioCiudad: (row['destinatario_ciudad'] as string) ?? '',
-    destinatarioDepartamento: (row['destinatario_departamento'] as string) ?? '',
-    destinatarioBarrio: (row['destinatario_barrio'] as string | null) ?? null,
-    destinatarioReferencia: null,
-    destinatarioUbicacionUrl: null,
-    cantidad: row['cantidad'] as number,
-    producto: (row['producto'] as string) ?? '',
-    peso: row['peso'] as number,
-    dimensiones: {
-      largo: row['dimensiones_largo'] as number | null,
-      ancho: row['dimensiones_ancho'] as number | null,
-      alto: row['dimensiones_alto'] as number | null,
-    },
-    fragil: row['fragil'] as boolean,
-    valorDeclarado: row['valor_declarado'] as number,
-    instruccionesEntrega: null,
-    horarioEntrega: null,
-    notas: (row['notas'] as string | null) ?? null,
-    estado: row['estado'] as Envio['estado'],
-    costo: row['costo'] as number,
-    montoACobrar: row['monto_a_cobrar'] as number,
-    tipoPago: row['tipo_pago'] as Envio['tipoPago'],
-    repartidorId: (row['repartidor_id'] as string | null) ?? null,
-    repartidorAsignadoEn: (row['repartidor_asignado_en'] as string | null) ?? null,
-    problemaDescripcion: (row['problema_descripcion'] as string | null) ?? null,
-    problemaFecha: (row['problema_fecha'] as string | null) ?? null,
-    tags: (row['tags'] as string[]) ?? [],
-    tarifaId: (row['tarifa_id'] as string | null) ?? null,
-    fecha: row['fecha'] as string,
-    eventos: [],
-    pago: null,
-    notasInternas: [],
-    creadoEn: row['created_at'] as string,
-  };
-}
-
 // GET /: my envios (paginated + filters)
 
 router.get(
@@ -173,7 +95,7 @@ router.get(
 
     let q = supabase
       .from('envios')
-      .select(ENVIO_LIST_COLUMNS, { count: 'exact' })
+      .select(ENVIO_COLUMNS, { count: 'exact' })
       .eq('cliente_id', clienteId)
       .eq('eliminado', false);
 
@@ -182,7 +104,7 @@ router.get(
     if (fechaHasta) q = q.lte('fecha', fechaHasta);
     if (search) {
       const s = escapeLikePattern(search);
-      q = q.or(`tracking_number.ilike.%${s}%,destinatario_nombre_search.ilike.%${s}%,codigo_referencia.ilike.%${s}%`);
+      q = q.or(`tracking_number.ilike.%${s}%,destinatario_nombre.ilike.%${s}%,codigo_referencia.ilike.%${s}%`);
     }
 
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -194,10 +116,10 @@ router.get(
       throw new AppError(`Error fetching envios: ${error.message}`, 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const rows = (data ?? []) as unknown as EnvioRow[];
 
     res.json({
-      data: rows.map(mapEnvioRowToListApi),
+      data: rows.map(mapEnvioRow),
       pagination: {
         total: count ?? 0,
         page,
@@ -219,10 +141,9 @@ router.get(
     const clienteId = req.clienteId!;
     const id = req.params['id'] as string;
 
-    // Must belong to this client
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
-      .select(ENVIO_DETAIL_COLUMNS)
+      .select(ENVIO_COLUMNS)
       .eq('id', id)
       .eq('cliente_id', clienteId)
       .eq('eliminado', false)
@@ -230,7 +151,7 @@ router.get(
 
     if (envioError) {
       if (envioError.code === 'PGRST116') {
-        throw AppError.notFound('Envío', id);
+        throw AppError.notFound('Envio', id);
       }
       throw new AppError(`Error fetching envio: ${envioError.message}`, 500, 'DB_ERROR');
     }
@@ -256,7 +177,7 @@ router.get(
 
     const { data: pagoData } = await supabase
       .from('pagos')
-      .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at')
+      .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at')
       .eq('envio_id', id)
       .single();
 
@@ -270,16 +191,13 @@ router.get(
         metodoPago: p.metodo_pago,
         estadoPago: p.estado_pago,
         fechaPago: p.fecha_pago,
-        referencia: p.referencia_enc ? encryptionService.decrypt(p.referencia_enc) : null,
+        referencia: p.referencia,
         notas: p.notas,
         creadoPor: p.creado_por,
         creadoEn: p.created_at,
         updatedAt: p.updated_at,
       };
     }
-
-    // Internal notes are NOT exposed to the client portal (admin-only).
-    // envio.notasInternas remains empty ([]).
 
     res.json(envio);
   })
@@ -304,10 +222,10 @@ router.post(
       throw AppError.notFound('Cliente no encontrado');
     }
     if ((clienteData as { eliminado: boolean }).eliminado) {
-      throw AppError.forbidden('La cuenta del cliente está eliminada');
+      throw AppError.forbidden('La cuenta del cliente esta eliminada');
     }
     if ((clienteData as { estado: string }).estado !== 'activo') {
-      throw AppError.forbidden('La cuenta del cliente no está activa');
+      throw AppError.forbidden('La cuenta del cliente no esta activa');
     }
 
     const clienteNombre = (clienteData as { razon_social: string }).razon_social;
@@ -321,24 +239,16 @@ router.post(
       codigo_referencia: input.codigoReferencia ?? null,
       origen: input.origen,
       destino: input.destino,
-      destinatario_nombre_enc: encryptionService.encrypt(input.destinatarioNombre),
-      destinatario_direccion_enc: encryptionService.encrypt(input.destinatarioDireccion),
-      destinatario_telefono_enc: encryptionService.encrypt(input.destinatarioTelefono),
-      destinatario_telefono2_enc: input.destinatarioTelefono2
-        ? encryptionService.encrypt(input.destinatarioTelefono2)
-        : null,
-      destinatario_cedula_enc: input.destinatarioCedula
-        ? encryptionService.encrypt(input.destinatarioCedula)
-        : null,
+      destinatario_nombre: input.destinatarioNombre,
+      destinatario_direccion: input.destinatarioDireccion,
+      destinatario_telefono: input.destinatarioTelefono,
+      destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+      destinatario_cedula: input.destinatarioCedula ?? null,
       destinatario_ciudad: input.destinatarioCiudad,
       destinatario_departamento: input.destinatarioDepartamento ?? '',
       destinatario_barrio: input.destinatarioBarrio ?? null,
-      destinatario_referencia_enc: input.destinatarioReferencia
-        ? encryptionService.encrypt(input.destinatarioReferencia)
-        : null,
+      destinatario_referencia: input.destinatarioReferencia ?? null,
       destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-      destinatario_nombre_search: encryptionService.normalizeForSearch(input.destinatarioNombre),
-      destinatario_telefono_hash: encryptionService.hashForSearch(input.destinatarioTelefono),
       cantidad: input.cantidad,
       producto: input.producto ?? '',
       peso: input.peso,
@@ -362,7 +272,7 @@ router.post(
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
       .insert(envioInsert)
-      .select(ENVIO_DETAIL_COLUMNS)
+      .select(ENVIO_COLUMNS)
       .single();
 
     if (insertError) {
@@ -375,9 +285,8 @@ router.post(
     await supabase.from('eventos_envio').insert({
       envio_id: envio.id,
       estado: 'pendiente',
-      descripcion: 'Envío creado desde portal cliente',
+      descripcion: 'Envio creado desde portal cliente',
     });
-
 
     emailService.sendEnvioCreado(envio);
 
@@ -425,24 +334,16 @@ router.post(
           codigo_referencia: input.codigoReferencia ?? null,
           origen: input.origen,
           destino: input.destino,
-          destinatario_nombre_enc: encryptionService.encrypt(input.destinatarioNombre),
-          destinatario_direccion_enc: encryptionService.encrypt(input.destinatarioDireccion),
-          destinatario_telefono_enc: encryptionService.encrypt(input.destinatarioTelefono),
-          destinatario_telefono2_enc: input.destinatarioTelefono2
-            ? encryptionService.encrypt(input.destinatarioTelefono2)
-            : null,
-          destinatario_cedula_enc: input.destinatarioCedula
-            ? encryptionService.encrypt(input.destinatarioCedula)
-            : null,
+          destinatario_nombre: input.destinatarioNombre,
+          destinatario_direccion: input.destinatarioDireccion,
+          destinatario_telefono: input.destinatarioTelefono,
+          destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+          destinatario_cedula: input.destinatarioCedula ?? null,
           destinatario_ciudad: input.destinatarioCiudad,
           destinatario_departamento: input.destinatarioDepartamento ?? '',
           destinatario_barrio: input.destinatarioBarrio ?? null,
-          destinatario_referencia_enc: input.destinatarioReferencia
-            ? encryptionService.encrypt(input.destinatarioReferencia)
-            : null,
+          destinatario_referencia: input.destinatarioReferencia ?? null,
           destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-          destinatario_nombre_search: encryptionService.normalizeForSearch(input.destinatarioNombre),
-          destinatario_telefono_hash: encryptionService.hashForSearch(input.destinatarioTelefono),
           cantidad: input.cantidad,
           producto: input.producto ?? '',
           peso: input.peso,
@@ -479,7 +380,7 @@ router.post(
         await supabase.from('eventos_envio').insert({
           envio_id: insertedId,
           estado: 'pendiente',
-          descripcion: 'Envío creado por importación masiva',
+          descripcion: 'Envio creado por importacion masiva',
         });
 
         results.push({ trackingNumber, id: insertedId });

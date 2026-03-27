@@ -14,18 +14,6 @@ const envSchema = z.object({
     .min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   DATABASE_URL: z.string().optional().default(''),
 
-  // Encryption
-  ENCRYPTION_KEY: z
-    .string()
-    .min(64, 'ENCRYPTION_KEY must be a 256-bit hex string (64 characters)')
-    .max(64, 'ENCRYPTION_KEY must be a 256-bit hex string (64 characters)')
-    .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be a valid hex string'),
-  ENCRYPTION_KEY_ROTATION: z
-    .string()
-    .regex(/^[0-9a-fA-F]*$/, 'ENCRYPTION_KEY_ROTATION must be a valid hex string if provided')
-    .optional()
-    .default(''),
-
   // Auth (Supabase Auth)
   JWT_SECRET: z.string().min(32, 'JWT_SECRET is required (min 32 chars)'),
   SUPABASE_JWT_SECRET: z.string().min(32, 'SUPABASE_JWT_SECRET is required (min 32 chars)'),

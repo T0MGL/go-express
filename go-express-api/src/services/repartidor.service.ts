@@ -1,7 +1,6 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { encryptionService } from './encryption.service.js';
 import { auditoriaService } from './auditoria.service.js';
 import type {
   RepartidorRow,
@@ -12,15 +11,11 @@ import type {
 import type { CreateRepartidorInput, UpdateRepartidorInput, RepartidorQuery } from '../lib/validators/repartidor.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-/**
- * Full mapper with decryption. Used ONLY for single-record detail views
- * (getById, create, update) where telefono PII is needed.
- */
 function toApi(row: RepartidorRow): Repartidor {
   return {
     id: row.id,
     nombre: row.nombre,
-    telefono: encryptionService.decrypt(row.telefono_enc),
+    telefono: row.telefono,
     vehiculo: row.vehiculo,
     placa: row.placa,
     licencia: row.licencia,
@@ -35,39 +30,8 @@ function toApi(row: RepartidorRow): Repartidor {
   };
 }
 
-/**
- * Lightweight mapper for list views. Returns empty string for telefono
- * to avoid decryption overhead. List views only need name, vehiculo, placa, estado.
- */
-function toListApi(row: Record<string, unknown>): Repartidor {
-  return {
-    id: row['id'] as string,
-    nombre: row['nombre'] as string,
-    telefono: '',
-    vehiculo: row['vehiculo'] as Repartidor['vehiculo'],
-    placa: row['placa'] as string,
-    licencia: (row['licencia'] as string | null) ?? null,
-    estado: row['estado'] as Repartidor['estado'],
-    enviosHoy: 0,
-    eliminado: row['eliminado'] as boolean,
-    eliminadoPor: (row['eliminado_por'] as string | null) ?? null,
-    eliminadoEn: (row['eliminado_en'] as string | null) ?? null,
-    motivoEliminacion: (row['motivo_eliminacion'] as string | null) ?? null,
-    creadoEn: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
-  };
-}
-
-// Full columns: includes encrypted fields for detail/create/update views
 const REPARTIDOR_COLUMNS = [
-  'id', 'nombre', 'telefono_enc', 'vehiculo', 'placa', 'licencia',
-  'estado', 'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
-  'created_at', 'updated_at',
-].join(', ');
-
-// Lightweight columns: skips telefono_enc to avoid decryption on list views
-const REPARTIDOR_LIST_COLUMNS = [
-  'id', 'nombre', 'vehiculo', 'placa', 'licencia',
+  'id', 'nombre', 'telefono', 'vehiculo', 'placa', 'licencia',
   'estado', 'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
 ].join(', ');
@@ -79,13 +43,13 @@ class RepartidorService {
 
     let q = supabase
       .from('repartidores')
-      .select(REPARTIDOR_LIST_COLUMNS, { count: 'exact' })
+      .select(REPARTIDOR_COLUMNS, { count: 'exact' })
       .eq('eliminado', false);
 
     if (estado) q = q.eq('estado', estado);
     if (search) {
       const s = escapeLikePattern(search);
-      q = q.or(`nombre.ilike.%${s}%,placa.ilike.%${s}%`);
+      q = q.or(`nombre.ilike.%${s}%,placa.ilike.%${s}%,telefono.ilike.%${s}%`);
     }
 
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -96,10 +60,8 @@ class RepartidorService {
       throw new AppError('Error fetching repartidores', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
-    const repartidores = rows.map(toListApi);
+    const repartidores = ((data ?? []) as unknown as RepartidorRow[]).map(toApi);
 
-    // Batch-fetch today's envio counts per repartidor for the list view
     if (repartidores.length > 0) {
       const today = new Date().toISOString().split('T')[0]!;
       const repartidorIds = repartidores.map(r => r.id);
@@ -153,7 +115,7 @@ class RepartidorService {
       .from('repartidores')
       .insert({
         nombre: input.nombre,
-        telefono_enc: encryptionService.encrypt(input.telefono),
+        telefono: input.telefono,
         vehiculo: input.vehiculo,
         placa: input.placa,
         licencia: input.licencia ?? null,
@@ -187,7 +149,7 @@ class RepartidorService {
 
     const updateData: Record<string, unknown> = {};
     if (input.nombre !== undefined) updateData['nombre'] = input.nombre;
-    if (input.telefono !== undefined) updateData['telefono_enc'] = encryptionService.encrypt(input.telefono);
+    if (input.telefono !== undefined) updateData['telefono'] = input.telefono;
     if (input.vehiculo !== undefined) updateData['vehiculo'] = input.vehiculo;
     if (input.placa !== undefined) updateData['placa'] = input.placa;
     if (input.licencia !== undefined) updateData['licencia'] = input.licencia;
@@ -289,12 +251,11 @@ class RepartidorService {
   async getEnviosAsignados(id: string): Promise<Envio[]> {
     await this.getById(id);
 
-    // Lightweight query: only fetch columns needed for the assigned envios list view
-    const ENVIO_LIST_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre_search, destinatario_ciudad, estado, costo, fecha, created_at';
+    const ENVIO_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre, destinatario_ciudad, estado, costo, fecha, created_at';
 
     const { data, error } = await supabase
       .from('envios')
-      .select(ENVIO_LIST_COLS)
+      .select(ENVIO_COLS)
       .eq('repartidor_id', id)
       .eq('eliminado', false)
       .in('estado', ['recolectado', 'en_transito', 'en_reparto'])
@@ -313,7 +274,7 @@ class RepartidorService {
       codigoReferencia: null,
       origen: row['origen'] as string,
       destino: row['destino'] as string,
-      destinatarioNombre: (row['destinatario_nombre_search'] as string) ?? '',
+      destinatarioNombre: (row['destinatario_nombre'] as string) ?? '',
       destinatarioDireccion: '',
       destinatarioTelefono: '',
       destinatarioTelefono2: null,

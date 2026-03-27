@@ -5,7 +5,6 @@ import { validate } from '../middleware/validate.js';
 import { supabase, supabaseAuth } from '../config/database.js';
 import { auditoriaService } from '../services/auditoria.service.js';
 import { clienteService } from '../services/cliente.service.js';
-import { encryptionService } from '../services/encryption.service.js';
 import { logger } from '../config/logger.js';
 
 
@@ -40,7 +39,6 @@ router.post(
       throw AppError.unauthorized('Credenciales invalidas');
     }
 
-    // Look up user in usuarios table (service_role client, bypasses RLS)
     const { data: dbUser, error: dbError } = await supabase
       .from('usuarios')
       .select('id, nombre, email, rol, estado')
@@ -58,7 +56,6 @@ router.post(
       throw AppError.forbidden('Cuenta inactiva. Contacte al administrador.');
     }
 
-    // Audit the login
     await auditoriaService.log({
       usuario: userData.nombre,
       usuarioId: userData.id,
@@ -103,10 +100,9 @@ router.post(
       throw AppError.unauthorized('Credenciales invalidas');
     }
 
-    // Look up the client by auth_id
     const { data: clienteRow, error: clienteErr } = await supabase
       .from('clientes')
-      .select('id, auth_id, razon_social, estado, portal_activo, portal_status, email_enc, contacto_nombre_enc')
+      .select('id, auth_id, razon_social, estado, portal_activo, portal_status, email, contacto_nombre')
       .eq('auth_id', data.user.id)
       .eq('eliminado', false)
       .single();
@@ -123,21 +119,17 @@ router.post(
       estado: string;
       portal_activo: boolean;
       portal_status: string;
-      email_enc: string;
-      contacto_nombre_enc: string;
+      email: string;
+      contacto_nombre: string;
     };
 
     if (cliente.estado !== 'activo') {
       throw AppError.forbidden('Su cuenta esta inactiva o suspendida. Contacte a GO EXPRESS.');
     }
 
-    // Activate portal on first successful login
     if (!cliente.portal_activo || cliente.portal_status !== 'activo') {
       await clienteService.activatePortal(cliente.id);
     }
-
-    const contactoNombre = encryptionService.decrypt(cliente.contacto_nombre_enc);
-    const clienteEmail = encryptionService.decrypt(cliente.email_enc);
 
     res.json({
       token: data.session.access_token,
@@ -146,8 +138,8 @@ router.post(
       cliente: {
         id: cliente.id,
         razonSocial: cliente.razon_social,
-        contactoNombre,
-        email: clienteEmail,
+        contactoNombre: cliente.contacto_nombre,
+        email: cliente.email,
         portalActivo: true,
         portalStatus: 'activo',
       },
@@ -173,7 +165,6 @@ router.post(
       throw AppError.unauthorized('Token de refresco invalido o expirado');
     }
 
-    // Check if this is an admin user or a client user
     const { data: dbUser } = await supabase
       .from('usuarios')
       .select('id, nombre, email, rol')
@@ -183,7 +174,6 @@ router.post(
     const userData = dbUser as { id: string; nombre: string; email: string; rol: string } | null;
 
     if (userData) {
-      // Admin/operator user
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -198,16 +188,15 @@ router.post(
       return;
     }
 
-    // Try client user
     const { data: clienteRow } = await supabase
       .from('clientes')
-      .select('id, razon_social, email_enc, contacto_nombre_enc')
+      .select('id, razon_social, email, contacto_nombre')
       .eq('auth_id', data.user?.id)
       .eq('eliminado', false)
       .single();
 
     if (clienteRow) {
-      const cr = clienteRow as { id: string; razon_social: string; email_enc: string; contacto_nombre_enc: string };
+      const cr = clienteRow as { id: string; razon_social: string; email: string; contacto_nombre: string };
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -215,14 +204,13 @@ router.post(
         cliente: {
           id: cr.id,
           razonSocial: cr.razon_social,
-          contactoNombre: encryptionService.decrypt(cr.contacto_nombre_enc),
-          email: encryptionService.decrypt(cr.email_enc),
+          contactoNombre: cr.contacto_nombre,
+          email: cr.email,
         },
       });
       return;
     }
 
-    // No user found in either table
     res.json({
       token: data.session.access_token,
       refreshToken: data.session.refresh_token,
@@ -243,7 +231,6 @@ router.post(
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
-      // Verify the user first to get their info for audit
       const { data: { user } } = await supabaseAuth.auth.getUser(token);
       if (user) {
         const { data: dbUser } = await supabase
@@ -265,7 +252,6 @@ router.post(
         }
       }
 
-      // Sign out from Supabase (invalidates the refresh token)
       await supabase.auth.admin.signOut(token);
     }
 
@@ -294,7 +280,6 @@ router.get(
       throw AppError.unauthorized('Invalid or expired token');
     }
 
-    // Try admin/operator user first
     const { data: dbUser, error: dbError } = await supabase
       .from('usuarios')
       .select('id, nombre, email, rol, estado')
@@ -314,10 +299,9 @@ router.get(
       return;
     }
 
-    // Try client portal user
     const { data: clienteRow } = await supabase
       .from('clientes')
-      .select('id, razon_social, email_enc, contacto_nombre_enc, estado, portal_activo, portal_status')
+      .select('id, razon_social, email, contacto_nombre, estado, portal_activo, portal_status')
       .eq('auth_id', user.id)
       .eq('eliminado', false)
       .single();
@@ -326,16 +310,16 @@ router.get(
       const cr = clienteRow as {
         id: string;
         razon_social: string;
-        email_enc: string;
-        contacto_nombre_enc: string;
+        email: string;
+        contacto_nombre: string;
         estado: string;
         portal_activo: boolean;
         portal_status: string;
       };
       res.json({
         id: cr.id,
-        nombre: encryptionService.decrypt(cr.contacto_nombre_enc),
-        email: encryptionService.decrypt(cr.email_enc),
+        nombre: cr.contacto_nombre,
+        email: cr.email,
         razonSocial: cr.razon_social,
         rol: 'cliente',
         estado: cr.estado,

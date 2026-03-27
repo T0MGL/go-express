@@ -48,7 +48,6 @@ export type AuditoriaEntidad =
   | 'sistema';
 
 // DB Row types (snake_case, match PostgreSQL column names exactly)
-// Fields suffixed with _enc are encrypted at-rest, _hash are HMAC hashes
 
 export interface UsuarioRow {
   id: string;
@@ -67,14 +66,12 @@ export interface ClienteRow {
   id: string;
   auth_id: string | null;
   razon_social: string;
-  ruc_enc: string;
-  ruc_hash: string;
-  contacto_nombre_enc: string;
+  ruc: string;
+  contacto_nombre: string;
   contacto_cargo: string | null;
-  telefono_enc: string;
-  email_enc: string;
-  email_hash: string;
-  direccion_enc: string | null;
+  telefono: string;
+  email: string;
+  direccion: string | null;
   ciudad: string | null;
   estado: ClienteEstado;
   plan: ClientePlan;
@@ -101,18 +98,16 @@ export interface EnvioRow {
   codigo_referencia: string | null;
   origen: string;
   destino: string;
-  destinatario_nombre_enc: string;
-  destinatario_direccion_enc: string;
-  destinatario_telefono_enc: string;
-  destinatario_telefono2_enc: string | null;
-  destinatario_cedula_enc: string | null;
+  destinatario_nombre: string;
+  destinatario_direccion: string;
+  destinatario_telefono: string;
+  destinatario_telefono2: string | null;
+  destinatario_cedula: string | null;
   destinatario_ciudad: string;
   destinatario_departamento: string;
   destinatario_barrio: string | null;
-  destinatario_referencia_enc: string | null;
+  destinatario_referencia: string | null;
   destinatario_ubicacion_url: string | null;
-  destinatario_nombre_search: string;
-  destinatario_telefono_hash: string;
   cantidad: number;
   producto: string;
   peso: number;
@@ -160,7 +155,7 @@ export interface PagoRow {
   metodo_pago: MetodoPago;
   estado_pago: EstadoPago;
   fecha_pago: string | null;
-  referencia_enc: string | null;
+  referencia: string | null;
   notas: string | null;
   creado_por: string;
   created_at: string;
@@ -179,7 +174,7 @@ export interface NotaInternaRow {
 export interface RepartidorRow {
   id: string;
   nombre: string;
-  telefono_enc: string;
+  telefono: string;
   vehiculo: VehiculoTipo;
   placa: string;
   licencia: string | null;
@@ -306,7 +301,7 @@ export interface ConfiguracionRow {
   updated_by: string | null;
 }
 
-// API Response types (camelCase, decrypted, frontend-friendly)
+// API Response types (camelCase, frontend-friendly)
 
 export interface Usuario {
   id: string;

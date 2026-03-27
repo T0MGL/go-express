@@ -1,6 +1,5 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { encryptionService } from './encryption.service.js';
 import { auditoriaService } from './auditoria.service.js';
 import { logger } from '../config/logger.js';
 import type {
@@ -12,20 +11,16 @@ import type {
 import type { CreateClienteInput, UpdateClienteInput, ClienteQuery } from '../lib/validators/cliente.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-/**
- * Full mapper with decryption. Used ONLY for single-record detail views
- * (getById, create, update) where PII is needed.
- */
 function toApi(row: ClienteRow): Cliente {
   return {
     id: row.id,
     razonSocial: row.razon_social,
-    ruc: encryptionService.decrypt(row.ruc_enc),
-    contactoNombre: encryptionService.decrypt(row.contacto_nombre_enc),
+    ruc: row.ruc,
+    contactoNombre: row.contacto_nombre,
     contactoCargo: row.contacto_cargo,
-    telefono: encryptionService.decrypt(row.telefono_enc),
-    email: encryptionService.decrypt(row.email_enc),
-    direccion: row.direccion_enc ? encryptionService.decrypt(row.direccion_enc) : null,
+    telefono: row.telefono,
+    email: row.email,
+    direccion: row.direccion,
     ciudad: row.ciudad,
     estado: row.estado,
     plan: row.plan,
@@ -45,55 +40,10 @@ function toApi(row: ClienteRow): Cliente {
   };
 }
 
-/**
- * Lightweight mapper for list views. Returns empty strings for PII fields
- * that are only needed in detail views. Zero decryption overhead.
- */
-function toListApi(row: Record<string, unknown>): Cliente {
-  return {
-    id: row['id'] as string,
-    razonSocial: row['razon_social'] as string,
-    ruc: '',
-    contactoNombre: '',
-    contactoCargo: (row['contacto_cargo'] as string | null) ?? null,
-    telefono: '',
-    email: '',
-    direccion: null,
-    ciudad: (row['ciudad'] as string | null) ?? null,
-    estado: row['estado'] as ClienteEstado,
-    plan: row['plan'] as Cliente['plan'],
-    saldoCuentaCorriente: row['saldo_cuenta_corriente'] as number,
-    totalEnvios: row['total_envios'] as number,
-    enviosActivos: row['envios_activos'] as number,
-    notas: (row['notas'] as string | null) ?? null,
-    portalActivo: row['portal_activo'] as boolean,
-    portalStatus: row['portal_status'] as Cliente['portalStatus'],
-    portalInvitedAt: (row['portal_invited_at'] as string | null) ?? null,
-    eliminado: row['eliminado'] as boolean,
-    eliminadoPor: (row['eliminado_por'] as string | null) ?? null,
-    eliminadoEn: (row['eliminado_en'] as string | null) ?? null,
-    motivoEliminacion: (row['motivo_eliminacion'] as string | null) ?? null,
-    creadoEn: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
-  };
-}
-
-// Full columns: includes encrypted fields for detail/create/update views
 const CLIENTE_COLUMNS = [
-  'id', 'auth_id', 'razon_social', 'ruc_enc', 'ruc_hash',
-  'contacto_nombre_enc', 'contacto_cargo',
-  'telefono_enc', 'email_enc', 'email_hash', 'direccion_enc',
-  'ciudad', 'estado', 'plan',
-  'saldo_cuenta_corriente', 'total_envios', 'envios_activos',
-  'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
-  'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
-  'created_at', 'updated_at',
-].join(', ');
-
-// Lightweight columns: skips encrypted fields to avoid decryption on list views.
-// The list only needs display-ready, non-PII data.
-const CLIENTE_LIST_COLUMNS = [
-  'id', 'razon_social', 'contacto_cargo',
+  'id', 'auth_id', 'razon_social', 'ruc',
+  'contacto_nombre', 'contacto_cargo',
+  'telefono', 'email', 'direccion',
   'ciudad', 'estado', 'plan',
   'saldo_cuenta_corriente', 'total_envios', 'envios_activos',
   'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
@@ -108,13 +58,14 @@ class ClienteService {
 
     let q = supabase
       .from('clientes')
-      .select(CLIENTE_LIST_COLUMNS, { count: 'exact' })
+      .select(CLIENTE_COLUMNS, { count: 'exact' })
       .eq('eliminado', false);
 
     if (estado) q = q.eq('estado', estado);
     if (plan) q = q.eq('plan', plan);
     if (search) {
-      q = q.ilike('razon_social', `%${escapeLikePattern(search)}%`);
+      const s = escapeLikePattern(search);
+      q = q.or(`razon_social.ilike.%${s}%,contacto_nombre.ilike.%${s}%,ruc.ilike.%${s}%,email.ilike.%${s}%`);
     }
 
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -125,10 +76,8 @@ class ClienteService {
       throw new AppError('Error fetching clientes', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
-
     return {
-      data: rows.map(toListApi),
+      data: ((data ?? []) as unknown as ClienteRow[]).map(toApi),
       pagination: {
         total: count ?? 0,
         page,
@@ -140,11 +89,6 @@ class ClienteService {
     };
   }
 
-  /**
-   * Export with full PII decryption. Used ONLY for admin CSV export.
-   * Intentionally uses full columns + toApi (with decryption) because
-   * exports legitimately need real client data.
-   */
   async exportList(query: ClienteQuery): Promise<Cliente[]> {
     const { search, estado, plan } = query;
 
@@ -186,11 +130,10 @@ class ClienteService {
   }
 
   async create(input: CreateClienteInput, userId: string): Promise<Cliente> {
-    const rucHash = encryptionService.hashForSearch(input.ruc);
     const { data: existing } = await supabase
       .from('clientes')
       .select('id')
-      .eq('ruc_hash', rucHash)
+      .eq('ruc', input.ruc)
       .eq('eliminado', false)
       .maybeSingle();
 
@@ -198,11 +141,10 @@ class ClienteService {
       throw AppError.conflict('A client with this RUC already exists');
     }
 
-    const emailHash = encryptionService.hashForSearch(input.email);
     const { data: existingEmail } = await supabase
       .from('clientes')
       .select('id')
-      .eq('email_hash', emailHash)
+      .eq('email', input.email)
       .eq('eliminado', false)
       .maybeSingle();
 
@@ -216,14 +158,12 @@ class ClienteService {
         .from('clientes')
         .insert({
           razon_social: input.razonSocial,
-          ruc_enc: encryptionService.encrypt(input.ruc),
-          ruc_hash: rucHash,
-          contacto_nombre_enc: encryptionService.encrypt(input.contactoNombre),
+          ruc: input.ruc,
+          contacto_nombre: input.contactoNombre,
           contacto_cargo: input.contactoCargo ?? null,
-          telefono_enc: encryptionService.encrypt(input.telefono),
-          email_enc: encryptionService.encrypt(input.email),
-          email_hash: emailHash,
-          direccion_enc: input.direccion ? encryptionService.encrypt(input.direccion) : null,
+          telefono: input.telefono,
+          email: input.email,
+          direccion: input.direccion ?? null,
           ciudad: input.ciudad,
           plan: input.plan,
           notas: input.notas ?? null,
@@ -275,24 +215,12 @@ class ClienteService {
     const updateData: Record<string, unknown> = {};
 
     if (input.razonSocial !== undefined) updateData['razon_social'] = input.razonSocial;
-    if (input.ruc !== undefined) {
-      updateData['ruc_enc'] = encryptionService.encrypt(input.ruc);
-      updateData['ruc_hash'] = encryptionService.hashForSearch(input.ruc);
-    }
-    if (input.contactoNombre !== undefined) {
-      updateData['contacto_nombre_enc'] = encryptionService.encrypt(input.contactoNombre);
-    }
+    if (input.ruc !== undefined) updateData['ruc'] = input.ruc;
+    if (input.contactoNombre !== undefined) updateData['contacto_nombre'] = input.contactoNombre;
     if (input.contactoCargo !== undefined) updateData['contacto_cargo'] = input.contactoCargo;
-    if (input.telefono !== undefined) {
-      updateData['telefono_enc'] = encryptionService.encrypt(input.telefono);
-    }
-    if (input.email !== undefined) {
-      updateData['email_enc'] = encryptionService.encrypt(input.email);
-      updateData['email_hash'] = encryptionService.hashForSearch(input.email);
-    }
-    if (input.direccion !== undefined) {
-      updateData['direccion_enc'] = input.direccion ? encryptionService.encrypt(input.direccion) : null;
-    }
+    if (input.telefono !== undefined) updateData['telefono'] = input.telefono;
+    if (input.email !== undefined) updateData['email'] = input.email;
+    if (input.direccion !== undefined) updateData['direccion'] = input.direccion ?? null;
     if (input.ciudad !== undefined) updateData['ciudad'] = input.ciudad;
     if (input.plan !== undefined) updateData['plan'] = input.plan;
     if (input.notas !== undefined) updateData['notas'] = input.notas;
@@ -401,23 +329,20 @@ class ClienteService {
     }
 
     const clienteRow = row as unknown as ClienteRow;
-    const email = encryptionService.decrypt(clienteRow.email_enc);
+    const email = clienteRow.email;
 
     if (!email) {
       throw AppError.badRequest('El cliente no tiene email registrado. No se puede invitar al portal.');
     }
 
-    // Already has active portal access, no need to reinvite
     if (clienteRow.auth_id && clienteRow.portal_status === 'activo') {
       throw AppError.conflict('El cliente ya tiene acceso activo al portal.');
     }
 
-    // Previously invited but not yet active, resend
     if (clienteRow.auth_id) {
       return this.reinviteToPortal(clienteId, userId);
     }
 
-    // Check if a Supabase Auth user already exists with this email
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase()
@@ -426,10 +351,8 @@ class ClienteService {
     let authUserId: string;
 
     if (existingUser) {
-      // User already exists in auth, link them
       authUserId = existingUser.id;
     } else {
-      // Invite user via Supabase Auth (sends invite email automatically)
       const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
         data: {
           role: 'cliente',
@@ -451,7 +374,6 @@ class ClienteService {
       authUserId = inviteData.user.id;
     }
 
-    // Link auth user to the clientes table
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')
       .update({
@@ -495,7 +417,7 @@ class ClienteService {
     }
 
     const clienteRow = row as unknown as ClienteRow;
-    const email = encryptionService.decrypt(clienteRow.email_enc);
+    const email = clienteRow.email;
 
     if (!clienteRow.auth_id) {
       throw AppError.badRequest('El cliente no ha sido invitado al portal. Use la accion "Invitar" primero.');
@@ -560,7 +482,7 @@ class ClienteService {
     }
 
     const clienteRow = row as unknown as ClienteRow;
-    const email = encryptionService.decrypt(clienteRow.email_enc);
+    const email = clienteRow.email;
 
     if (!clienteRow.auth_id) {
       throw AppError.badRequest('El cliente no tiene cuenta de portal. Invite primero.');

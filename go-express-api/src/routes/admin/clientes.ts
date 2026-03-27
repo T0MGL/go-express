@@ -26,7 +26,7 @@ router.get(
 );
 
 /**
- * GET /export: CSV export (with PII decryption, admin-only)
+ * GET /export: CSV export (admin-only)
  */
 router.get(
   '/export',
@@ -39,7 +39,7 @@ router.get(
 );
 
 /**
- * GET /:id:Detail (decrypted)
+ * GET /:id: Detail
  */
 router.get(
   '/:id',

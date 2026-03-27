@@ -1,6 +1,5 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { encryptionService } from './encryption.service.js';
 import { auditoriaService } from './auditoria.service.js';
 import type {
   PagoRow,
@@ -11,10 +10,6 @@ import type {
 import type { CreatePagoInput, UpdatePagoInput, PagoQuery } from '../lib/validators/pago.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
 
-/**
- * Full mapper with decryption. Used for single-record detail views
- * and create/update responses where referencia PII may be needed.
- */
 function toApi(row: PagoRow): Pago {
   return {
     id: row.id,
@@ -24,32 +19,11 @@ function toApi(row: PagoRow): Pago {
     metodoPago: row.metodo_pago,
     estadoPago: row.estado_pago,
     fechaPago: row.fecha_pago,
-    referencia: row.referencia_enc ? encryptionService.decrypt(row.referencia_enc) : null,
+    referencia: row.referencia,
     notas: row.notas,
     creadoPor: row.creado_por,
     creadoEn: row.created_at,
     updatedAt: row.updated_at,
-  };
-}
-
-/**
- * Lightweight mapper for list views. Skips referencia_enc decryption.
- * List views only need amounts, status, method, and dates.
- */
-function toListApi(row: Record<string, unknown>): Pago {
-  return {
-    id: row['id'] as string,
-    envioId: row['envio_id'] as string,
-    montoTotal: row['monto_total'] as number,
-    montoRecibido: row['monto_recibido'] as number,
-    metodoPago: row['metodo_pago'] as Pago['metodoPago'],
-    estadoPago: row['estado_pago'] as EstadoPago,
-    fechaPago: (row['fecha_pago'] as string | null) ?? null,
-    referencia: null,
-    notas: (row['notas'] as string | null) ?? null,
-    creadoPor: row['creado_por'] as string,
-    creadoEn: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
   };
 }
 
@@ -59,12 +33,13 @@ function calcularEstadoPago(montoRecibido: number, montoTotal: number): EstadoPa
   return 'pendiente';
 }
 
+const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
+
 class PagoService {
   async list(query: PagoQuery): Promise<PaginatedResponse<Pago & { trackingNumber?: string; clienteNombre?: string; costoEnvio?: number }>> {
     const { limit, page = 1, search, estadoPago, metodoPago } = query;
     const offset = (page - 1) * limit;
 
-    // When searching, find matching envios by tracking number first
     if (search) {
       const { data: matchingEnvios } = await supabase
         .from('envios')
@@ -79,8 +54,8 @@ class PagoService {
         };
       }
 
-      const PAGO_LIST_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, notas, creado_por, created_at, updated_at, envios!inner(tracking_number, cliente_nombre, costo)';
-      let q = supabase.from('pagos').select(PAGO_LIST_WITH_ENVIO, { count: 'exact' });
+      const PAGO_WITH_ENVIO = `${PAGO_COLUMNS}, envios!inner(tracking_number, cliente_nombre, costo)`;
+      let q = supabase.from('pagos').select(PAGO_WITH_ENVIO, { count: 'exact' });
 
       q = q.in('envio_id', matchingEnvios.map((e: { id: string }) => e.id));
       if (estadoPago) q = q.eq('estado_pago', estadoPago);
@@ -94,11 +69,11 @@ class PagoService {
         throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
       }
 
-      const rows = (data ?? []) as unknown as (Record<string, unknown> & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+      const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
       return {
         data: rows.map((row) => {
-          const base = toListApi(row);
+          const base = toApi(row);
           if (row.envios) {
             return {
               ...base,
@@ -120,9 +95,8 @@ class PagoService {
       };
     }
 
-    // No search: standard listing with joined envio data (no encrypted fields)
-    const PAGO_LIST_COLUMNS_WITH_ENVIO = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, notas, creado_por, created_at, updated_at, envios(tracking_number, cliente_nombre, costo)';
-    let q = supabase.from('pagos').select(PAGO_LIST_COLUMNS_WITH_ENVIO, { count: 'exact' });
+    const PAGO_WITH_ENVIO = `${PAGO_COLUMNS}, envios(tracking_number, cliente_nombre, costo)`;
+    let q = supabase.from('pagos').select(PAGO_WITH_ENVIO, { count: 'exact' });
 
     if (estadoPago) q = q.eq('estado_pago', estadoPago);
     if (metodoPago) q = q.eq('metodo_pago', metodoPago);
@@ -135,11 +109,11 @@ class PagoService {
       throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
     }
 
-    const rows = (data ?? []) as unknown as (Record<string, unknown> & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
+    const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
 
     return {
       data: rows.map((row) => {
-        const base = toListApi(row);
+        const base = toApi(row);
         if (row.envios) {
           return {
             ...base,
@@ -172,14 +146,13 @@ class PagoService {
       throw AppError.notFound('Envio', input.envioId);
     }
 
-    // Check if a pago already exists for this envio
     const { data: existing } = await supabase
       .from('pagos')
       .select('id')
       .eq('envio_id', input.envioId)
       .maybeSingle();
     if (existing) {
-      throw AppError.conflict('Ya existe un pago para este envío');
+      throw AppError.conflict('Ya existe un pago para este envio');
     }
 
     const estadoPago = calcularEstadoPago(input.montoRecibido, input.montoTotal);
@@ -194,7 +167,7 @@ class PagoService {
         metodo_pago: input.metodoPago,
         estado_pago: estadoPago,
         fecha_pago: input.fechaPago ?? today,
-        referencia_enc: input.referencia ? encryptionService.encrypt(input.referencia) : null,
+        referencia: input.referencia ?? null,
         notas: input.notas ?? null,
         creado_por: userId,
       })
@@ -213,7 +186,7 @@ class PagoService {
       accion: 'pago',
       entidad: 'pago',
       entidadId: pago.id,
-      descripcion: `Pago creado para envío ${(envioData as { tracking_number: string }).tracking_number}: ${input.montoRecibido}/${input.montoTotal} Gs. (${estadoPago})`,
+      descripcion: `Pago creado para envio ${(envioData as { tracking_number: string }).tracking_number}: ${input.montoRecibido}/${input.montoTotal} Gs. (${estadoPago})`,
     });
 
     return pago;
@@ -222,7 +195,7 @@ class PagoService {
   async update(id: string, input: UpdatePagoInput, userId?: string): Promise<Pago> {
     const { data: existing } = await supabase
       .from('pagos')
-      .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia_enc, notas, creado_por, created_at, updated_at')
+      .select(PAGO_COLUMNS)
       .eq('id', id)
       .single();
 
@@ -243,7 +216,7 @@ class PagoService {
     if (input.metodoPago !== undefined) updateData['metodo_pago'] = input.metodoPago;
     if (input.fechaPago !== undefined) updateData['fecha_pago'] = input.fechaPago;
     if (input.referencia !== undefined) {
-      updateData['referencia_enc'] = input.referencia ? encryptionService.encrypt(input.referencia) : null;
+      updateData['referencia'] = input.referencia ?? null;
     }
     if (input.notas !== undefined) updateData['notas'] = input.notas;
 

@@ -27,11 +27,12 @@ export const generalLimiter = rateLimit({
 
 /**
  * Auth endpoints rate limiter.
- * Strict: 10 requests per minute per IP to mitigate brute-force attacks.
+ * Strict: 5 requests per minute per IP to mitigate brute-force attacks.
+ * Tighter than general API limit because login attempts are high-value targets.
  */
 export const authLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 10,
+  limit: 5,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: rateLimitResponse,

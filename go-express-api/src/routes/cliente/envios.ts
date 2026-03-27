@@ -6,6 +6,7 @@ import { logger } from '../../config/logger.js';
 import { emailService } from '../../services/email.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
+import { todayPY } from '../../lib/datetime.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import { createEnvioSchema, envioQuerySchema, bulkImportSchema } from '../../lib/validators/envio.schema.js';
 import { escapeLikePattern } from '../../lib/validators/common.schema.js';
@@ -275,7 +276,7 @@ router.post(
       tipo_pago: input.tipoPago,
       tags: input.tags ?? [],
       tarifa_id: input.tarifaId ?? null,
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: todayPY(),
     };
 
     const { data: insertedData, error: insertError } = await supabase
@@ -337,7 +338,7 @@ router.post(
       envios.map(() => generateTrackingNumber(supabase))
     );
 
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = todayPY();
     const insertRows = envios.map((input, i) => ({
       tracking_number: trackingNumbers[i]!,
       cliente_id: clienteId,

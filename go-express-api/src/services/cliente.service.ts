@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { logger } from '../config/logger.js';
+import { nowISO } from '../lib/datetime.js';
 import type {
   ClienteRow,
   Cliente,
@@ -338,7 +339,7 @@ class ClienteService {
       .update({
         eliminado: true,
         eliminado_por: userId,
-        eliminado_en: new Date().toISOString(),
+        eliminado_en: nowISO(),
         motivo_eliminacion: motivo,
         estado: 'inactivo',
       })
@@ -436,7 +437,7 @@ class ClienteService {
       .update({
         auth_id: authUserId,
         portal_status: 'invitado',
-        portal_invited_at: new Date().toISOString(),
+        portal_invited_at: nowISO(),
       })
       .eq('id', clienteId)
       .select(CLIENTE_COLUMNS)
@@ -502,7 +503,7 @@ class ClienteService {
       .from('clientes')
       .update({
         portal_status: 'invitado',
-        portal_invited_at: new Date().toISOString(),
+        portal_invited_at: nowISO(),
       })
       .eq('id', clienteId)
       .select(CLIENTE_COLUMNS)

@@ -1,6 +1,8 @@
 import { supabase } from '../config/database.js';
+import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { todayPY } from '../lib/datetime.js';
 import type {
   PagoRow,
   Pago,
@@ -154,17 +156,8 @@ class PagoService {
       throw AppError.badRequest('No se puede crear un pago para un envio eliminado');
     }
 
-    const { data: existing } = await supabase
-      .from('pagos')
-      .select('id')
-      .eq('envio_id', input.envioId)
-      .maybeSingle();
-    if (existing) {
-      throw AppError.conflict('Ya existe un pago para este envio');
-    }
-
     const estadoPago = calcularEstadoPago(input.montoRecibido, input.montoTotal);
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = todayPY();
 
     const { data, error } = await supabase
       .from('pagos')
@@ -182,7 +175,16 @@ class PagoService {
       .select(PAGO_COLUMNS)
       .single();
 
-    if (error || !data) {
+    if (error) {
+      const msg = error.message?.toLowerCase() ?? '';
+      if (msg.includes('unique') || msg.includes('duplicate') || error.code === '23505') {
+        throw AppError.conflict('Ya existe un pago para este envio');
+      }
+      logger.error({ error, envioId: input.envioId }, 'Error creating pago');
+      throw new AppError('Error creating pago', 500, 'DB_ERROR');
+    }
+
+    if (!data) {
       throw new AppError('Error creating pago', 500, 'DB_ERROR');
     }
 
@@ -261,7 +263,7 @@ class PagoService {
   }
 
   async getStats(): Promise<{ totalCobrado: number; totalPendiente: number; cobradoHoy: number; enviosPendientesCobro: number }> {
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = todayPY();
 
     const [cobradoResult, pendienteResult, hoyResult, pendientesCobroResult] = await Promise.all([
       supabase

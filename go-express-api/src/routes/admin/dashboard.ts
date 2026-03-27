@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { supabase } from '../../config/database.js';
+import { todayPY } from '../../lib/datetime.js';
 
 const router = Router();
 
@@ -10,8 +11,10 @@ const router = Router();
 router.get(
   '/stats',
   asyncHandler(async (_req, res) => {
-    const today = new Date().toISOString().split('T')[0]!;
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
+    const today = todayPY();
+    const sevenDaysAgoDate = new Date();
+    sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7);
+    const sevenDaysAgo = sevenDaysAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
 
     const [
       enviosHoyResult,

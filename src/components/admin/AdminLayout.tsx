@@ -21,7 +21,7 @@ export const AdminLayout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const scrolled = useScrollShadow(mainRef);
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useSSE();
 
@@ -63,6 +63,11 @@ export const AdminLayout = () => {
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Redirect client users to their portal (prevents clients from seeing admin UI)
+  if (user && user.rol !== 'admin' && user.rol !== 'operador') {
+    return <Navigate to="/cliente" replace />;
   }
 
   return (

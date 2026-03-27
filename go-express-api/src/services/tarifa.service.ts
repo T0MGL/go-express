@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { nowISO } from '../lib/datetime.js';
 import type {
   TarifaRow,
   Tarifa,
@@ -183,7 +184,7 @@ class TarifaService {
       .update({
         eliminado: true,
         eliminado_por: userId,
-        eliminado_en: new Date().toISOString(),
+        eliminado_en: nowISO(),
         motivo_eliminacion: motivo,
         activo: false,
       })

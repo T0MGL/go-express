@@ -2,6 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { nowISO, startOfTodayPY } from '../lib/datetime.js';
 import type {
   InventarioAlmacenRow,
   PickingItemRow,
@@ -123,7 +124,7 @@ class WarehouseService {
         zona: input.zona,
         estante: input.estante ?? '',
         estado_almacen: 'recibido' as const,
-        fecha_ingreso: new Date().toISOString(),
+        fecha_ingreso: nowISO(),
         peso: input.peso,
         dimensiones_largo: input.dimensiones?.largo ?? null,
         dimensiones_ancho: input.dimensiones?.ancho ?? null,
@@ -188,7 +189,7 @@ class WarehouseService {
       .from('inventario_almacen')
       .update({
         estado_almacen: 'despachado',
-        fecha_salida: new Date().toISOString(),
+        fecha_salida: nowISO(),
       })
       .eq('id', paqueteId)
       .select(INVENTARIO_COLUMNS)
@@ -338,9 +339,7 @@ class WarehouseService {
     despachadosHoy: number;
     pendientesPicking: number;
   }> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
+    const todayISO = startOfTodayPY();
 
     const [totalResult, recibidosResult, despachadosResult, pickingResult] = await Promise.all([
       supabase

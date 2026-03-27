@@ -142,8 +142,32 @@ export const ClienteLayout = () => {
 
   if (loading && !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col bg-background">
+        <div className="border-b border-border/50 bg-card/80">
+          <div className="h-12 flex items-center justify-between px-6 max-w-[1400px] mx-auto w-full">
+            <div className="flex items-center gap-2.5">
+              <div className="h-5 w-5 bg-muted/40 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-muted/40 rounded animate-pulse" />
+            </div>
+            <div className="h-6 w-32 bg-muted/30 rounded animate-pulse" />
+          </div>
+          <div className="px-6 max-w-[1400px] mx-auto w-full">
+            <div className="flex items-center gap-2 py-2">
+              {[0, 1, 2, 3, 4].map(i => (
+                <div key={i} className="h-6 w-20 bg-muted/30 rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 p-6 lg:p-8 max-w-[1400px] mx-auto w-full">
+          <div className="h-7 w-48 bg-muted/40 rounded animate-pulse mb-4" />
+          <div className="h-4 w-80 bg-muted/30 rounded animate-pulse mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-muted/20 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

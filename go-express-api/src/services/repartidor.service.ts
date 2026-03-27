@@ -2,6 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { todayPY, nowISO } from '../lib/datetime.js';
 import type {
   RepartidorRow,
   Repartidor,
@@ -63,7 +64,7 @@ class RepartidorService {
     const repartidores = ((data ?? []) as unknown as RepartidorRow[]).map(toApi);
 
     if (repartidores.length > 0) {
-      const today = new Date().toISOString().split('T')[0]!;
+      const today = todayPY();
       const repartidorIds = repartidores.map(r => r.id);
       const { data: envioCountData } = await supabase
         .from('envios')
@@ -228,7 +229,7 @@ class RepartidorService {
       .update({
         eliminado: true,
         eliminado_por: userId,
-        eliminado_en: new Date().toISOString(),
+        eliminado_en: nowISO(),
         motivo_eliminacion: motivo,
       })
       .eq('id', id);

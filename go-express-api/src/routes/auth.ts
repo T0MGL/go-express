@@ -47,7 +47,7 @@ router.post(
 
     if (dbError || !dbUser) {
       logger.warn({ authId: data.user.id, dbError: dbError?.message }, 'Login: user not found in usuarios table');
-      throw AppError.forbidden('Cuenta no aprovisionada. Contacte al administrador.');
+      throw AppError.unauthorized('Credenciales invalidas');
     }
 
     const userData = dbUser as { id: string; nombre: string; email: string; rol: string; estado: string };
@@ -109,7 +109,7 @@ router.post(
 
     if (clienteErr || !clienteRow) {
       logger.warn({ authId: data.user.id }, 'Portal login: no client linked to this auth user');
-      throw AppError.forbidden('No hay cuenta de cliente vinculada a este usuario. Contacte a GO EXPRESS.');
+      throw AppError.unauthorized('Credenciales invalidas');
     }
 
     const cliente = clienteRow as {
@@ -124,7 +124,7 @@ router.post(
     };
 
     if (cliente.estado !== 'activo') {
-      throw AppError.forbidden('Su cuenta esta inactiva o suspendida. Contacte a GO EXPRESS.');
+      throw AppError.unauthorized('Credenciales invalidas');
     }
 
     if (!cliente.portal_activo || cliente.portal_status !== 'activo') {

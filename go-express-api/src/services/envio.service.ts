@@ -3,6 +3,7 @@ import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
+import { todayPY, nowISO } from '../lib/datetime.js';
 import type {
   EnvioRow,
   EventoEnvioRow,
@@ -289,7 +290,7 @@ class EnvioService {
 
     const trackingNumber = await generateTrackingNumber(supabase);
 
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = todayPY();
 
     const { data, error } = await supabase
       .from('envios')
@@ -485,7 +486,7 @@ class EnvioService {
 
     if (newEstado === 'problema') {
       updateData['problema_descripcion'] = input.descripcion;
-      updateData['problema_fecha'] = new Date().toISOString();
+      updateData['problema_fecha'] = nowISO();
     }
 
     if (previousEstado === 'problema' && newEstado !== 'problema') {
@@ -582,7 +583,7 @@ class EnvioService {
       .from('envios')
       .update({
         repartidor_id: repartidorId,
-        repartidor_asignado_en: new Date().toISOString(),
+        repartidor_asignado_en: nowISO(),
       })
       .eq('id', id)
       .select(ENVIO_COLUMNS)
@@ -716,7 +717,7 @@ class EnvioService {
       validEnvios.map(() => generateTrackingNumber(supabase))
     );
 
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = todayPY();
     const insertRows = validEnvios.map(({ input, clienteNombre }, i) => ({
       tracking_number: trackingNumbers[i]!,
       cliente_id: input.clienteId,
@@ -810,8 +811,11 @@ class EnvioService {
     const envioData = existing as { id: string; tracking_number: string; estado: string };
     const trackingNumber = envioData.tracking_number;
 
-    if (envioData.estado === 'entregado') {
-      throw AppError.badRequest('No se puede eliminar un envio ya entregado');
+    const nonDeletableStates: EnvioEstado[] = ['entregado', 'en_reparto', 'en_transito'];
+    if (nonDeletableStates.includes(envioData.estado as EnvioEstado)) {
+      throw AppError.badRequest(
+        `No se puede eliminar un envio en estado "${envioData.estado}". Solo envios pendientes, recolectados, fallidos o con problema pueden eliminarse.`
+      );
     }
 
     const { error } = await supabase
@@ -819,7 +823,7 @@ class EnvioService {
       .update({
         eliminado: true,
         eliminado_por: userId,
-        eliminado_en: new Date().toISOString(),
+        eliminado_en: nowISO(),
         motivo_eliminacion: motivo,
       })
       .eq('id', id);

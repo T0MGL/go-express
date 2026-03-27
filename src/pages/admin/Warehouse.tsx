@@ -13,8 +13,6 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-// Plus is available for future use
-// import { Plus } from 'lucide-react';
 import {
   Package,
   MagnifyingGlass,

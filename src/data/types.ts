@@ -98,11 +98,11 @@ export interface Envio {
   tarifaId: string | null;
   fecha: string;
   creadoEn: string;
-  updatedAt?: string;
-  eliminado?: boolean;
-  eliminadoPor?: string;
-  eliminadoEn?: string;
-  motivoEliminacion?: string;
+  updatedAt: string;
+  eliminado: boolean;
+  eliminadoPor: string | null;
+  eliminadoEn: string | null;
+  motivoEliminacion: string | null;
 }
 
 export interface EventoEnvio {

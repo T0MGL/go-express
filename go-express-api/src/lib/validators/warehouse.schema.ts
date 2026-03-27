@@ -3,7 +3,6 @@ import { paginationSchema, searchSchema, uuidSchema } from './common.schema.js';
 
 const estadoAlmacenEnum = z.enum(['recibido', 'en_almacen', 'listo_despacho', 'despachado', 'devuelto']);
 const prioridadEnum = z.enum(['normal', 'alta', 'urgente']);
-const movimientoTipoEnum = z.enum(['entrada', 'salida', 'movimiento_interno', 'devolucion']);
 
 export const ingresoSchema = z.object({
   envioId: uuidSchema.optional(),

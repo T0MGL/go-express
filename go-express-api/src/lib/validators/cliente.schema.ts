@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { phoneSchema, paginationSchema, searchSchema, uuidSchema } from './common.schema.js';
+import { phoneSchema, paginationSchema, searchSchema } from './common.schema.js';
 
 const clienteEstadoEnum = z.enum(['activo', 'inactivo', 'suspendido']);
 const clientePlanEnum = z.enum(['basico', 'profesional', 'enterprise']);

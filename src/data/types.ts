@@ -108,9 +108,9 @@ export interface Envio {
 export interface EventoEnvio {
   id: string;
   envioId: string;
-  estado: string;
+  estado: 'pendiente' | 'recolectado' | 'en_transito' | 'en_reparto' | 'entregado' | 'fallido' | 'problema';
   descripcion: string;
-  ubicacion?: string | null;
+  ubicacion: string | null;
   creadoEn: string;
 }
 

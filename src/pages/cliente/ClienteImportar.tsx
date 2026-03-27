@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-// import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   UploadSimple, DownloadSimple, CheckCircle, XCircle, Warning,

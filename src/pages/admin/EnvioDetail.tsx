@@ -122,6 +122,11 @@ const EnvioDetail = () => {
 
   const handleSaveEdit = () => {
     if (!id) return;
+    const phoneRegex = /^\+595\d{9,10}$/;
+    if (editForm.destinatarioTelefono && !phoneRegex.test(editForm.destinatarioTelefono)) {
+      toast.error('Telefono debe tener formato +595XXXXXXXXX');
+      return;
+    }
     const body: Record<string, unknown> = {
       origen: editForm.origen,
       destino: editForm.destino,

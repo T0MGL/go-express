@@ -143,7 +143,7 @@ export function EnvioWizard() {
   }, [formData]);
 
   // Motor Volumetrico: (Largo x Ancho x Alto) / Factor Dimensional
-  // Factor estandar: 5000 cm3/kg -- se cobra el mayor entre peso real y volumetrico
+  // Factor estandar: 5000 cm3/kg. Se cobra el mayor entre peso real y volumetrico
   const FACTOR_DIMENSIONAL = 5000;
   const tallaData = TALLAS.find(t => t.id === formData.talla) ?? null;
   const pesoVolumetrico = tallaData

@@ -114,6 +114,11 @@ const Tarifas = () => {
       return;
     }
 
+    if (form.precioBase == null || form.precioBase <= 0) {
+      toast({ title: 'El precio base debe ser mayor a 0', variant: 'destructive' });
+      return;
+    }
+
     const body = {
       origen: form.origen,
       destino: form.destino,

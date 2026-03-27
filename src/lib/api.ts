@@ -92,6 +92,9 @@ async function request<T>(
       const retryResponse = await fetch(url, { ...config, headers: retryHeaders });
       if (!retryResponse.ok) {
         const retryData = await retryResponse.json().catch(() => null);
+        if (retryResponse.status === 401 || retryResponse.status === 403) {
+          await supabase.auth.signOut();
+        }
         throw new ApiError(retryResponse.status, retryResponse.statusText, retryData);
       }
       if (retryResponse.status === 204) {
@@ -99,6 +102,9 @@ async function request<T>(
       }
       return retryResponse.json();
     }
+
+    // Refresh failed: session is expired, sign out
+    await supabase.auth.signOut();
   }
 
   if (!response.ok) {

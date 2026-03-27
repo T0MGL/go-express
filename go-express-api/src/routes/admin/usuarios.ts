@@ -63,6 +63,16 @@ router.post(
   '/',
   validate({ body: createUsuarioSchema }),
   asyncHandler(async (req, res) => {
+    const { data: existingUser } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('email', req.body.email)
+      .maybeSingle();
+
+    if (existingUser) {
+      throw AppError.conflict('Ya existe un usuario con ese email');
+    }
+
     const { data, error } = await supabase
       .from('usuarios')
       .insert({
@@ -101,6 +111,19 @@ router.put(
   validate({ params: idParamSchema, body: updateUsuarioSchema }),
   asyncHandler(async (req, res) => {
     const id = req.params['id'] as string;
+
+    if (req.body.email !== undefined) {
+      const { data: emailConflict } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('email', req.body.email)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (emailConflict) {
+        throw AppError.conflict('Ya existe un usuario con ese email');
+      }
+    }
 
     const updateData: Record<string, unknown> = {};
     if (req.body.nombre !== undefined) updateData['nombre'] = req.body.nombre;

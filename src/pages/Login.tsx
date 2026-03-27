@@ -10,16 +10,35 @@ const Login = () => {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await login(email, password);
+    setLocalError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setLocalError('Ingrese su email');
+      return;
+    }
+    if (password.length < 6) {
+      setLocalError('La contrasena debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await login(trimmedEmail, password);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // While checking auth state, show nothing to prevent flash
-  if (loading) {
+  if (loading && !submitting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-background" role="status" aria-label="Verificando sesion">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -29,6 +48,8 @@ const Login = () => {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin';
     return <Navigate to={from} replace />;
   }
+
+  const displayError = localError || error;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -44,14 +65,15 @@ const Login = () => {
           <p className="text-sm text-muted-foreground mt-1">Panel de administracion</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {displayError && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive"
+              role="alert"
             >
-              {error}
+              {displayError}
             </motion.div>
           )}
 
@@ -64,8 +86,9 @@ const Login = () => {
               type="email"
               autoComplete="email"
               required
+              aria-required="true"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={e => { setEmail(e.target.value); setLocalError(null); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="admin@goexpress.com.py"
             />
@@ -80,16 +103,18 @@ const Login = () => {
               type="password"
               autoComplete="current-password"
               required
+              aria-required="true"
+              minLength={6}
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => { setPassword(e.target.value); setLocalError(null); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Ingrese su contrasena"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? (
+              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" aria-label="Iniciando sesion" />
             ) : (
               'Iniciar sesion'
             )}

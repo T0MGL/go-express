@@ -401,7 +401,7 @@ export default function Warehouse() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
@@ -492,6 +492,19 @@ export default function Warehouse() {
                 </tr>
               </thead>
               <tbody>
+                {filteredInventario.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-16">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                        <Package size={18} weight="duotone" className="text-muted-foreground/50" />
+                      </div>
+                      <p className="text-[13px] font-medium">No se encontraron paquetes</p>
+                      <p className="text-[12px] text-muted-foreground mt-1">
+                        {searchTerm ? 'Proba con otros terminos de busqueda' : 'El inventario esta vacio'}
+                      </p>
+                    </td>
+                  </tr>
+                )}
                 {filteredInventario.map((item) => (
                   <tr key={item.id}>
                     <td className="font-data text-[13px] font-medium">

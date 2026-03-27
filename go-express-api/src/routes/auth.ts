@@ -167,13 +167,17 @@ router.post(
 
     const { data: dbUser } = await supabase
       .from('usuarios')
-      .select('id, nombre, email, rol')
+      .select('id, nombre, email, rol, estado')
       .eq('auth_id', data.user?.id)
       .single();
 
-    const userData = dbUser as { id: string; nombre: string; email: string; rol: string } | null;
+    const userData = dbUser as { id: string; nombre: string; email: string; rol: string; estado: string } | null;
 
     if (userData) {
+      if (userData.estado !== 'activo') {
+        throw AppError.forbidden('Cuenta inactiva. Contacte al administrador.');
+      }
+
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -190,13 +194,18 @@ router.post(
 
     const { data: clienteRow } = await supabase
       .from('clientes')
-      .select('id, razon_social, email, contacto_nombre')
+      .select('id, razon_social, email, contacto_nombre, estado')
       .eq('auth_id', data.user?.id)
       .eq('eliminado', false)
       .single();
 
     if (clienteRow) {
-      const cr = clienteRow as { id: string; razon_social: string; email: string; contacto_nombre: string };
+      const cr = clienteRow as { id: string; razon_social: string; email: string; contacto_nombre: string; estado: string };
+
+      if (cr.estado !== 'activo') {
+        throw AppError.forbidden('Su cuenta esta inactiva o suspendida. Contacte a GO EXPRESS.');
+      }
+
       res.json({
         token: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -211,12 +220,7 @@ router.post(
       return;
     }
 
-    res.json({
-      token: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-      expiresAt: data.session.expires_at,
-      user: null,
-    });
+    throw AppError.forbidden('No account linked to this user');
   })
 );
 
@@ -250,9 +254,9 @@ router.post(
             descripcion: `Logout: ${user.email}`,
           });
         }
-      }
 
-      await supabase.auth.admin.signOut(token);
+        await supabase.auth.admin.signOut(user.id, 'global');
+      }
     }
 
     res.status(204).send();
@@ -288,6 +292,11 @@ router.get(
 
     if (!dbError && dbUser) {
       const userData = dbUser as { id: string; nombre: string; email: string; rol: string; estado: string };
+
+      if (userData.estado !== 'activo') {
+        throw AppError.forbidden('Cuenta inactiva. Contacte al administrador.');
+      }
+
       res.json({
         id: userData.id,
         nombre: userData.nombre,
@@ -316,6 +325,11 @@ router.get(
         portal_activo: boolean;
         portal_status: string;
       };
+
+      if (cr.estado !== 'activo') {
+        throw AppError.forbidden('Su cuenta esta inactiva o suspendida. Contacte a GO EXPRESS.');
+      }
+
       res.json({
         id: cr.id,
         nombre: cr.contacto_nombre,

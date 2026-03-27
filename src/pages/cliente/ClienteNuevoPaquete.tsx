@@ -54,6 +54,36 @@ const ClienteNuevoPaquete = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const nombre = form.destinatarioNombre.trim();
+    const telefono = form.destinatarioTelefono.trim();
+    const direccion = form.destinatarioDireccion.trim();
+    const contenido = form.contenido.trim();
+
+    if (!nombre || nombre.length < 3) {
+      toast.error('El nombre del destinatario debe tener al menos 3 caracteres');
+      return;
+    }
+    if (!telefono || !/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
+      toast.error('Formato de telefono invalido. Ej: +595 981 123 456');
+      return;
+    }
+    if (!direccion || direccion.length < 5) {
+      toast.error('La direccion debe tener al menos 5 caracteres');
+      return;
+    }
+    if (!form.departamento) {
+      toast.error('Selecciona un departamento de destino');
+      return;
+    }
+    if (!form.peso || Number(form.peso) <= 0) {
+      toast.error('El peso debe ser mayor a 0');
+      return;
+    }
+    if (!contenido) {
+      toast.error('Describe el contenido del paquete');
+      return;
+    }
+
     createEnvioMutation.mutate(
       {
         destinatarioNombre: form.destinatarioNombre,

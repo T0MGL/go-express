@@ -73,6 +73,7 @@ const ClienteEnvios = () => {
             type="button"
             key={est.value}
             onClick={() => setFilterEstado(est.value)}
+            aria-pressed={filterEstado === est.value}
             className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all border ${
               filterEstado === est.value
                 ? 'bg-primary text-primary-foreground border-primary shadow-xs'
@@ -80,7 +81,6 @@ const ClienteEnvios = () => {
             }`}
           >
             {est.label}
-
           </button>
         ))}
       </div>
@@ -139,7 +139,7 @@ const ClienteEnvios = () => {
                         </td>
                         <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
                         <td className="text-right pr-4">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)} aria-label={`Ver detalle del envio ${envio.trackingNumber}`}>
                             <Eye size={14} weight="duotone" />
                           </Button>
                         </td>

@@ -369,13 +369,18 @@ class EnvioService {
   async update(id: string, input: Partial<CreateEnvioInput>, userId?: string): Promise<Envio> {
     const { data: existing, error: checkError } = await supabase
       .from('envios')
-      .select('id, tracking_number')
+      .select('id, tracking_number, estado')
       .eq('id', id)
       .eq('eliminado', false)
       .single();
 
     if (checkError || !existing) {
       throw AppError.notFound('Envio no encontrado');
+    }
+
+    const currentEstado = (existing as { id: string; tracking_number: string; estado: string }).estado;
+    if (currentEstado === 'entregado') {
+      throw AppError.badRequest('No se puede modificar un envio ya entregado');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -793,7 +798,7 @@ class EnvioService {
   async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
     const { data: existing, error: checkErr } = await supabase
       .from('envios')
-      .select('id, tracking_number')
+      .select('id, tracking_number, estado')
       .eq('id', id)
       .eq('eliminado', false)
       .single();
@@ -802,7 +807,12 @@ class EnvioService {
       throw AppError.notFound('Envio', id);
     }
 
-    const trackingNumber = (existing as { id: string; tracking_number: string }).tracking_number;
+    const envioData = existing as { id: string; tracking_number: string; estado: string };
+    const trackingNumber = envioData.tracking_number;
+
+    if (envioData.estado === 'entregado') {
+      throw AppError.badRequest('No se puede eliminar un envio ya entregado');
+    }
 
     const { error } = await supabase
       .from('envios')

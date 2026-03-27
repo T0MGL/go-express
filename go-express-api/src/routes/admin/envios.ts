@@ -76,7 +76,7 @@ router.post(
 
 router.put(
   '/:id',
-  validate({ params: idParamSchema, body: createEnvioSchema.partial() }),
+  validate({ params: idParamSchema, body: createEnvioSchema.partial().omit({ clienteId: true }) }),
   asyncHandler(async (req, res) => {
     const id = req.params['id'] as string;
     const envio = await envioService.update(id, req.body, req.userId!);

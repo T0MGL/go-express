@@ -318,10 +318,10 @@ const EnvioDetail = () => {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={openEditModal}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={openEditModal} aria-label="Editar envio">
             <PencilSimple size={14} weight="duotone" />
-            Editar
+            <span className="hidden sm:inline">Editar</span>
           </Button>
           <Button
             variant="secondary"
@@ -329,22 +329,24 @@ const EnvioDetail = () => {
             className="gap-1.5"
             onClick={() => setShowEstadoModal(true)}
             disabled={(VALID_TRANSITIONS[envio.estado] ?? []).length === 0}
+            aria-label="Actualizar estado del envio"
           >
             <ArrowsClockwise size={14} weight="duotone" />
-            Actualizar Estado
+            <span className="hidden sm:inline">Actualizar Estado</span>
           </Button>
           <Button
             variant="destructive"
             size="sm"
             className="gap-1.5"
             onClick={() => setIsProblemaModalOpen(true)}
+            aria-label="Reportar problema con el envio"
           >
             <Warning size={14} weight="duotone" />
-            Reportar Problema
+            <span className="hidden sm:inline">Reportar Problema</span>
           </Button>
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrintLabel}>
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrintLabel} aria-label="Imprimir etiqueta de envio">
             <Barcode size={14} weight="duotone" />
-            Imprimir Etiqueta
+            <span className="hidden sm:inline">Imprimir Etiqueta</span>
           </Button>
         </div>
       </div>

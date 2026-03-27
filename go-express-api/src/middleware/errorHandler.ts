@@ -84,6 +84,14 @@ export function globalErrorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (res.headersSent) {
+    logger.warn(
+      { path: req.path, method: req.method },
+      'Error occurred after headers were already sent'
+    );
+    return;
+  }
+
   if (err instanceof AppError) {
     logger.warn(
       {

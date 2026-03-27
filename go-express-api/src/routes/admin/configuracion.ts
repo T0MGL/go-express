@@ -9,7 +9,7 @@ import type { ConfiguracionRow } from '../../types/index.js';
 const router = Router();
 
 const keyParamSchema = z.object({
-  key: z.string().min(1).max(100),
+  key: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_]+$/, 'Key must be alphanumeric with underscores only'),
 });
 
 const updateConfigSchema = z.object({

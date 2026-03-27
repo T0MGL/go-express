@@ -135,8 +135,14 @@ const Configuracion = () => {
                     <Badge variant="success" className="text-[11px]">Activo</Badge>
                   </div>
                   <div className="flex items-center gap-4">
-                    <Switch defaultChecked />
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                    <Switch defaultChecked aria-label={`Activar estado ${label}`} />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      aria-label={`Editar estado ${label}`}
+                      onClick={() => toast.info('Edicion de estados disponible proximamente')}
+                    >
                       <PencilSimple size={14} weight="duotone" />
                     </Button>
                   </div>
@@ -276,10 +282,22 @@ const Configuracion = () => {
                       </td>
                       <td>
                         <div className="flex gap-1 justify-end">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            aria-label={`Editar usuario ${usuario.nombre}`}
+                            onClick={() => toast.info('Edicion de usuarios disponible proximamente')}
+                          >
                             <PencilSimple size={14} weight="duotone" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            aria-label={`Eliminar usuario ${usuario.nombre}`}
+                            onClick={() => toast.info('Eliminacion de usuarios disponible proximamente')}
+                          >
                             <Trash size={14} weight="duotone" className="text-destructive" />
                           </Button>
                         </div>

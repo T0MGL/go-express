@@ -74,6 +74,20 @@ router.put(
     const clienteId = req.clienteId!;
     const input = req.body as UpdateClienteCuentaInput;
 
+    if (input.email !== undefined) {
+      const { data: existing } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('email', input.email)
+        .eq('eliminado', false)
+        .neq('id', clienteId)
+        .maybeSingle();
+
+      if (existing) {
+        throw AppError.conflict('Ya existe otro cliente con ese email');
+      }
+    }
+
     const updateData: Record<string, unknown> = {};
 
     if (input.razonSocial !== undefined) updateData['razon_social'] = input.razonSocial;

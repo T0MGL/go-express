@@ -238,13 +238,24 @@ class RepartidorService {
       throw new AppError('Error eliminando repartidor', 500, 'DB_ERROR');
     }
 
+    const { error: unassignError } = await supabase
+      .from('envios')
+      .update({ repartidor_id: null, repartidor_asignado_en: null })
+      .eq('repartidor_id', id)
+      .eq('eliminado', false)
+      .in('estado', ['pendiente', 'recolectado', 'en_transito', 'en_reparto']);
+
+    if (unassignError) {
+      logger.error({ error: unassignError, repartidorId: id }, 'Failed to unassign envios from deleted repartidor');
+    }
+
     await auditoriaService.log({
       usuario: usuarioNombre,
       usuarioId: userId,
       accion: 'eliminar',
       entidad: 'repartidor',
       entidadId: id,
-      descripcion: `Repartidor ${repartidor.nombre} eliminado. Motivo: ${motivo}`,
+      descripcion: `Repartidor ${repartidor.nombre} eliminado. Motivo: ${motivo}. Envios activos desasignados.`,
     });
   }
 

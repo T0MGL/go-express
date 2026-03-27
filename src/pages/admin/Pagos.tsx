@@ -101,7 +101,7 @@ const Pagos = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">

@@ -158,6 +158,8 @@ export function EnvioWizard() {
     if (pasoActual === 5 && precioSugerido > 0 && !formData.costo) {
       handleChange('costo', precioSugerido.toString());
     }
+    // Only trigger when entering step 5 or when the suggested price changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pasoActual, precioSugerido]);
 
   const handleChange = (field: keyof FormData, value: string) => {

@@ -38,6 +38,19 @@ const ClienteCuenta = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!form.razonSocial.trim()) {
+      toast.error('La razon social es obligatoria');
+      return;
+    }
+    if (!form.email.trim()) {
+      toast.error('El email es obligatorio');
+      return;
+    }
+    if (!form.contactoNombre.trim()) {
+      toast.error('El nombre de contacto es obligatorio');
+      return;
+    }
+
     updateMutation.mutate(form, {
       onSuccess: () => {
         toast.success('Datos actualizados correctamente');

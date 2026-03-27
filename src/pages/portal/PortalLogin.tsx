@@ -46,12 +46,23 @@ const PortalLogin = () => {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Ingrese su email');
+      return;
+    }
+    if (password.length < 6) {
+      setError('La contrasena debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await api.post<PortalLoginResponse>('/auth/portal/login', {
-        email,
+        email: trimmedEmail,
         password,
       });
 
@@ -85,12 +96,13 @@ const PortalLogin = () => {
           <p className="text-sm text-muted-foreground mt-1">Portal de clientes</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {error && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive"
+              role="alert"
             >
               {error}
             </motion.div>
@@ -105,8 +117,9 @@ const PortalLogin = () => {
               type="email"
               autoComplete="email"
               required
+              aria-required="true"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={e => { setEmail(e.target.value); setError(null); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="su-email@empresa.com"
             />
@@ -121,8 +134,10 @@ const PortalLogin = () => {
               type="password"
               autoComplete="current-password"
               required
+              aria-required="true"
+              minLength={6}
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => { setPassword(e.target.value); setError(null); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Ingrese su contrasena"
             />

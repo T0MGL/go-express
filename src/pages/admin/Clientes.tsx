@@ -92,17 +92,35 @@ const Clientes = () => {
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    const razonSocial = (fd.get('razonSocial') as string || '').trim();
+    const ruc = (fd.get('ruc') as string || '').trim();
+    const contactoNombre = (fd.get('contactoNombre') as string || '').trim();
+    const telefono = (fd.get('telefono') as string || '').trim();
+    const email = (fd.get('email') as string || '').trim();
+    const direccion = (fd.get('direccion') as string || '').trim();
+
+    if (!razonSocial || !ruc || !contactoNombre || !telefono || !email || !direccion) {
+      toast.error('Completa todos los campos obligatorios');
+      return;
+    }
+
+    if (!/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
+      toast.error('Formato de telefono invalido. Ej: +595 21 555 1000');
+      return;
+    }
+
     const body: Record<string, unknown> = {
-      razonSocial: fd.get('razonSocial'),
-      ruc: fd.get('ruc'),
-      contactoNombre: fd.get('contactoNombre'),
-      contactoCargo: fd.get('contactoCargo'),
-      telefono: fd.get('telefono'),
-      email: fd.get('email'),
-      direccion: fd.get('direccion'),
+      razonSocial,
+      ruc,
+      contactoNombre,
+      contactoCargo: (fd.get('contactoCargo') as string || '').trim() || undefined,
+      telefono,
+      email,
+      direccion,
       ciudad: fd.get('ciudad'),
       estado: fd.get('estado') || 'activo',
-      notas: fd.get('notas'),
+      notas: (fd.get('notas') as string || '').trim() || undefined,
     };
 
     if (selectedCliente) {
@@ -195,7 +213,7 @@ const Clientes = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="stat-card">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">
@@ -286,7 +304,11 @@ const Clientes = () => {
               <div
                 key={cliente.id}
                 className="surface-card-interactive p-4"
+                role="button"
+                tabIndex={0}
+                aria-label={`Ver detalle de ${cliente.razonSocial}`}
                 onClick={() => { setDetailClienteId(cliente.id); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailClienteId(cliente.id); } }}
               >
                 <div className="flex items-start gap-4">
                   <div className="w-9 h-9 rounded-lg bg-primary/6 flex items-center justify-center flex-shrink-0 font-bold text-primary text-[11px]">

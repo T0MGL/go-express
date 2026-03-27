@@ -213,6 +213,34 @@ class ClienteService {
       throw AppError.badRequest('Cannot update a deleted client');
     }
 
+    if (input.email !== undefined && input.email !== existing.email) {
+      const { data: emailConflict } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('email', input.email)
+        .eq('eliminado', false)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (emailConflict) {
+        throw AppError.conflict('Ya existe otro cliente con ese email');
+      }
+    }
+
+    if (input.ruc !== undefined && input.ruc !== existing.ruc) {
+      const { data: rucConflict } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('ruc', input.ruc)
+        .eq('eliminado', false)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (rucConflict) {
+        throw AppError.conflict('Ya existe otro cliente con ese RUC');
+      }
+    }
+
     const updateData: Record<string, unknown> = {};
 
     if (input.razonSocial !== undefined) updateData['razon_social'] = input.razonSocial;
@@ -290,6 +318,19 @@ class ClienteService {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Client is already deleted');
+    }
+
+    const { count: activeEnvios } = await supabase
+      .from('envios')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', id)
+      .eq('eliminado', false)
+      .in('estado', ['pendiente', 'recolectado', 'en_transito', 'en_reparto']);
+
+    if (activeEnvios && activeEnvios > 0) {
+      throw AppError.conflict(
+        `No se puede eliminar el cliente: tiene ${activeEnvios} envio(s) activos. Finalicelos primero.`
+      );
     }
 
     const { error } = await supabase

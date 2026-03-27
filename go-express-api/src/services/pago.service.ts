@@ -136,14 +136,22 @@ class PagoService {
   }
 
   async create(input: CreatePagoInput, userId: string): Promise<Pago> {
+    if (input.montoRecibido > input.montoTotal) {
+      throw AppError.badRequest('El monto recibido no puede exceder el monto total');
+    }
+
     const { data: envioData } = await supabase
       .from('envios')
-      .select('tracking_number')
+      .select('tracking_number, eliminado')
       .eq('id', input.envioId)
       .single();
 
     if (!envioData) {
       throw AppError.notFound('Envio', input.envioId);
+    }
+
+    if ((envioData as { tracking_number: string; eliminado: boolean }).eliminado) {
+      throw AppError.badRequest('No se puede crear un pago para un envio eliminado');
     }
 
     const { data: existing } = await supabase
@@ -206,6 +214,11 @@ class PagoService {
     const existingRow = existing as PagoRow;
     const newMontoRecibido = input.montoRecibido;
     const montoTotal = existingRow.monto_total;
+
+    if (newMontoRecibido > montoTotal) {
+      throw AppError.badRequest('El monto recibido no puede exceder el monto total');
+    }
+
     const estadoPago = calcularEstadoPago(newMontoRecibido, montoTotal);
 
     const updateData: Record<string, unknown> = {

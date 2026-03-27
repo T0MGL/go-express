@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import type { ProductoGuardado } from '@/data/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -71,9 +71,19 @@ const ClienteProductos = () => {
     setIsModalOpen(true);
   };
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   const handleDelete = (id: string) => {
-    deleteMutation.mutate(id, {
-      onSuccess: () => toast.success('Producto eliminado'),
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirmId) return;
+    deleteMutation.mutate(deleteConfirmId, {
+      onSuccess: () => {
+        toast.success('Producto eliminado');
+        setDeleteConfirmId(null);
+      },
       onError: () => toast.error('Error al eliminar el producto'),
     });
   };
@@ -188,11 +198,11 @@ const ClienteProductos = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(producto)}>
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(producto)} aria-label={`Editar ${producto.nombre}`}>
                       <PencilSimple size={13} weight="duotone" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(producto.id)}>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(producto.id)} aria-label={`Eliminar ${producto.nombre}`}>
                       <Trash size={13} weight="duotone" />
                     </Button>
                   </div>
@@ -256,6 +266,26 @@ const ClienteProductos = () => {
           )}
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">Eliminar producto</DialogTitle>
+            <DialogDescription className="text-[13px]">
+              Esta accion no se puede deshacer. El producto se eliminara permanentemente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

@@ -60,6 +60,20 @@ app.use(
       paths: ['req.headers.authorization', 'req.headers.cookie'],
       censor: '[REDACTED]',
     },
+    customLogLevel: (_req: IncomingMessage, res: { statusCode: number }) => {
+      if (res.statusCode >= 500) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+    // Strip token from SSE query string in logged URLs
+    customReceivedMessage: (req: IncomingMessage) => {
+      const url = req.url?.replace(/token=[^&]+/, 'token=[REDACTED]') ?? req.url;
+      return `${req.method} ${url}`;
+    },
+    customSuccessMessage: (req: IncomingMessage, res: { statusCode: number }) => {
+      const url = req.url?.replace(/token=[^&]+/, 'token=[REDACTED]') ?? req.url;
+      return `${req.method} ${url} ${res.statusCode}`;
+    },
   })
 );
 

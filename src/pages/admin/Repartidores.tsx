@@ -67,25 +67,42 @@ const Repartidores = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
-      const fd = new FormData(form);
-      createMut.mutate(
-        {
-          nombre: fd.get('nombre') as string,
-          telefono: fd.get('telefono') as string,
-          vehiculo: fd.get('vehiculo') as string,
-          placa: fd.get('placa') as string,
-          licencia: fd.get('licencia') as string,
-          estado: nuevoEstado ? 'activo' : 'inactivo',
+    const fd = new FormData(form);
+
+    const nombre = (fd.get('nombre') as string || '').trim();
+    const telefono = (fd.get('telefono') as string || '').trim();
+    const vehiculo = (fd.get('vehiculo') as string || '').trim();
+    const placa = (fd.get('placa') as string || '').trim();
+    const licencia = (fd.get('licencia') as string || '').trim();
+
+    if (!nombre || !telefono || !vehiculo || !placa) {
+      toast.error('Completa todos los campos obligatorios');
+      return;
+    }
+
+    if (!/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
+      toast.error('Formato de telefono invalido. Ej: +595 981 123 456');
+      return;
+    }
+
+    createMut.mutate(
+      {
+        nombre,
+        telefono,
+        vehiculo,
+        placa,
+        licencia,
+        estado: nuevoEstado ? 'activo' : 'inactivo',
+      },
+      {
+        onSuccess: () => {
+          setIsModalOpen(false);
+          form.reset();
+          toast.success('Repartidor creado correctamente');
         },
-        {
-          onSuccess: () => {
-            setIsModalOpen(false);
-            toast.success('Repartidor creado correctamente');
-          },
-          onError: () => toast.error('Error al crear repartidor'),
-        },
-      );
-    
+        onError: () => toast.error('Error al crear repartidor'),
+      },
+    );
   };
 
   const handleToggleEstado = (id: string) => {
@@ -202,7 +219,13 @@ const Repartidores = () => {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  aria-label={`Editar ${repartidor.nombre}`}
+                                  onClick={() => toast.info('Edicion de repartidores disponible proximamente')}
+                                >
                                   <PencilSimple size={14} weight="duotone" />
                                 </Button>
                               </TooltipTrigger>

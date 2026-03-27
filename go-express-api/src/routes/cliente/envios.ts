@@ -218,6 +218,9 @@ router.post(
     const clienteId = req.clienteId!;
     const input = req.body as CreateEnvioInput;
 
+    // Enforce clienteId from auth token, ignore whatever the body sends
+    input.clienteId = clienteId;
+
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social, estado, eliminado')
@@ -312,6 +315,11 @@ router.post(
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
     const { envios } = req.body as { envios: CreateEnvioInput[] };
+
+    // Enforce clienteId from auth token on every envio in the batch
+    for (const envio of envios) {
+      envio.clienteId = clienteId;
+    }
 
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')

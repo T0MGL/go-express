@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,11 +42,12 @@ const ClienteEnvios = () => {
   const [filterEstado, setFilterEstado] = useState('todos');
   const [selectedEnvioId, setSelectedEnvioId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const debouncedSearch = useDebouncedValue(searchTerm, 350);
 
   // API data
   const { data: apiData, isLoading } = useClienteEnvios({
     estado: filterEstado,
-    search: searchTerm,
+    search: debouncedSearch,
   });
   const { data: selectedEnvio } = useClienteEnvio(selectedEnvioId ?? '');
 

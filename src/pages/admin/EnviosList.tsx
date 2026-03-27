@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,16 +15,7 @@ import type { Envio } from '@/data/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEnvios } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => {
-    timerRef.current = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timerRef.current);
-  }, [value, delayMs]);
-  return debounced;
-}
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 const EnviosList = () => {
   const [searchTerm, setSearchTerm] = useState('');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
 import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
@@ -25,16 +25,7 @@ import {
   useClientes, useCliente, useCreateCliente, useUpdateCliente,
   useInviteCliente, useReinviteCliente, useResetClientePassword,
 } from '@/hooks/api/use-clientes';
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => {
-    timerRef.current = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timerRef.current);
-  }, [value, delayMs]);
-  return debounced;
-}
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');

@@ -319,74 +319,79 @@ router.post(
 
     const clienteNombre = (clienteData as { razon_social: string }).razon_social;
 
+    // Pre-generate all tracking numbers to minimize sequential DB calls
+    const trackingNumbers: string[] = [];
+    for (let i = 0; i < envios.length; i++) {
+      trackingNumbers.push(await generateTrackingNumber(supabase));
+    }
+
+    const today = new Date().toISOString().split('T')[0]!;
+    const insertRows = envios.map((input, i) => ({
+      tracking_number: trackingNumbers[i]!,
+      cliente_id: clienteId,
+      cliente_nombre: clienteNombre,
+      codigo_referencia: input.codigoReferencia ?? null,
+      origen: input.origen,
+      destino: input.destino,
+      destinatario_nombre: input.destinatarioNombre,
+      destinatario_direccion: input.destinatarioDireccion,
+      destinatario_telefono: input.destinatarioTelefono,
+      destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+      destinatario_cedula: input.destinatarioCedula ?? null,
+      destinatario_ciudad: input.destinatarioCiudad,
+      destinatario_departamento: input.destinatarioDepartamento ?? '',
+      destinatario_barrio: input.destinatarioBarrio ?? null,
+      destinatario_referencia: input.destinatarioReferencia ?? null,
+      destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+      cantidad: input.cantidad,
+      producto: input.producto ?? '',
+      peso: input.peso,
+      dimensiones_largo: input.dimensiones?.largo ?? null,
+      dimensiones_ancho: input.dimensiones?.ancho ?? null,
+      dimensiones_alto: input.dimensiones?.alto ?? null,
+      fragil: input.fragil,
+      valor_declarado: input.valorDeclarado ?? 0,
+      instrucciones_entrega: input.instruccionesEntrega ?? null,
+      horario_entrega: input.horarioEntrega ?? null,
+      notas: input.notas ?? null,
+      estado: 'pendiente' as const,
+      costo: input.costo,
+      monto_a_cobrar: input.montoACobrar,
+      tipo_pago: input.tipoPago,
+      tags: input.tags ?? [],
+      tarifa_id: input.tarifaId ?? null,
+      fecha: today,
+    }));
+
+    // Batch insert all envios in a single query
+    const { data: insertedData, error: insertError } = await supabase
+      .from('envios')
+      .insert(insertRows)
+      .select('id, tracking_number');
+
     const results: Array<{ trackingNumber: string; id: string }> = [];
     const errors: Array<{ index: number; error: string }> = [];
 
-    for (let i = 0; i < envios.length; i++) {
-      try {
-        const input = envios[i]!;
-        const trackingNumber = await generateTrackingNumber(supabase);
+    if (insertError) {
+      // If batch fails, entire batch is rejected
+      logger.error({ error: insertError, clienteId }, 'Bulk import batch insert failed');
+      throw new AppError(`Error importing envios: ${insertError.message}`, 500, 'DB_ERROR');
+    }
 
-        const envioInsert = {
-          tracking_number: trackingNumber,
-          cliente_id: clienteId,
-          cliente_nombre: clienteNombre,
-          codigo_referencia: input.codigoReferencia ?? null,
-          origen: input.origen,
-          destino: input.destino,
-          destinatario_nombre: input.destinatarioNombre,
-          destinatario_direccion: input.destinatarioDireccion,
-          destinatario_telefono: input.destinatarioTelefono,
-          destinatario_telefono2: input.destinatarioTelefono2 ?? null,
-          destinatario_cedula: input.destinatarioCedula ?? null,
-          destinatario_ciudad: input.destinatarioCiudad,
-          destinatario_departamento: input.destinatarioDepartamento ?? '',
-          destinatario_barrio: input.destinatarioBarrio ?? null,
-          destinatario_referencia: input.destinatarioReferencia ?? null,
-          destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-          cantidad: input.cantidad,
-          producto: input.producto ?? '',
-          peso: input.peso,
-          dimensiones_largo: input.dimensiones?.largo ?? null,
-          dimensiones_ancho: input.dimensiones?.ancho ?? null,
-          dimensiones_alto: input.dimensiones?.alto ?? null,
-          fragil: input.fragil,
-          valor_declarado: input.valorDeclarado ?? 0,
-          instrucciones_entrega: input.instruccionesEntrega ?? null,
-          horario_entrega: input.horarioEntrega ?? null,
-          notas: input.notas ?? null,
-          estado: 'pendiente' as const,
-          costo: input.costo,
-          monto_a_cobrar: input.montoACobrar,
-          tipo_pago: input.tipoPago,
-          tags: input.tags ?? [],
-          tarifa_id: input.tarifaId ?? null,
-          fecha: new Date().toISOString().split('T')[0],
-        };
+    const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;
 
-        const { data: insertedData, error: insertError } = await supabase
-          .from('envios')
-          .insert(envioInsert)
-          .select('id')
-          .single();
+    // Batch insert all eventos in a single query
+    if (inserted.length > 0) {
+      const eventRows = inserted.map((row) => ({
+        envio_id: row.id,
+        estado: 'pendiente' as const,
+        descripcion: 'Envio creado por importacion masiva',
+      }));
 
-        if (insertError) {
-          errors.push({ index: i, error: insertError.message });
-          continue;
-        }
+      await supabase.from('eventos_envio').insert(eventRows);
 
-        const insertedId = (insertedData as { id: string }).id;
-
-        await supabase.from('eventos_envio').insert({
-          envio_id: insertedId,
-          estado: 'pendiente',
-          descripcion: 'Envio creado por importacion masiva',
-        });
-
-        results.push({ trackingNumber, id: insertedId });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        errors.push({ index: i, error: errorMessage });
+      for (const row of inserted) {
+        results.push({ trackingNumber: row.tracking_number, id: row.id });
       }
     }
 

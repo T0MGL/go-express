@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,12 +57,14 @@ const Auditoria = () => {
   const [filtroFecha, setFiltroFecha] = useState('');
 
 
+  const debouncedBusqueda = useDebouncedValue(busqueda, 350);
+
   const apiFilters: Record<string, string | undefined> = {};
   if (filtroUsuario !== 'todos') apiFilters.usuarioId = filtroUsuario;
   if (filtroAccion !== 'todos') apiFilters.accion = filtroAccion;
   if (filtroEntidad !== 'todos') apiFilters.entidad = filtroEntidad;
   if (filtroFecha) apiFilters.fecha = filtroFecha;
-  if (busqueda) apiFilters.busqueda = busqueda;
+  if (debouncedBusqueda) apiFilters.busqueda = debouncedBusqueda;
 
   const { data: apiAuditoria, isLoading } = useAuditoria(apiFilters);
   const { data: apiUsuarios } = useUsuarios();

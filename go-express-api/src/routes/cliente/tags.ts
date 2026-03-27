@@ -48,24 +48,34 @@ router.get(
 
     const tags = ((tagsData ?? []) as TagRow[]).map(mapRow);
 
-    const tagsWithCount = await Promise.all(
-      tags.map(async (tag) => {
-        const { count, error: countError } = await supabase
-          .from('envios')
-          .select('id', { count: 'exact', head: true })
-          .eq('cliente_id', clienteId)
-          .contains('tags', [tag.nombre]);
+    const countMap = new Map<string, number>();
 
-        if (countError) {
-          logger.error({ error: countError, clienteId, tagNombre: tag.nombre }, 'Error counting envios for tag');
+    if (tags.length > 0) {
+      const { data: enviosWithTags, error: countError } = await supabase
+        .from('envios')
+        .select('tags')
+        .eq('cliente_id', clienteId)
+        .eq('eliminado', false)
+        .not('tags', 'eq', '{}');
+
+      if (countError) {
+        logger.error({ error: countError, clienteId }, 'Error fetching envio tags for count');
+      } else if (enviosWithTags) {
+        const tagNameSet = new Set(tags.map((t) => t.nombre));
+        for (const row of enviosWithTags as Array<{ tags: string[] }>) {
+          for (const tagName of row.tags) {
+            if (tagNameSet.has(tagName)) {
+              countMap.set(tagName, (countMap.get(tagName) ?? 0) + 1);
+            }
+          }
         }
+      }
+    }
 
-        return {
-          ...tag,
-          envioCount: count ?? 0,
-        };
-      })
-    );
+    const tagsWithCount = tags.map((tag) => ({
+      ...tag,
+      envioCount: countMap.get(tag.nombre) ?? 0,
+    }));
 
     res.json({ data: tagsWithCount });
   })

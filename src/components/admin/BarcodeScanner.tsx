@@ -11,7 +11,7 @@ interface BarcodeScannerProps {
   className?: string;
 }
 
-export default function BarcodeScanner({ onScan, onClose, className }: BarcodeScannerProps) {
+export function BarcodeScanner({ onScan, onClose, className }: BarcodeScannerProps) {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const scannerId = 'barcode-scanner-reader';

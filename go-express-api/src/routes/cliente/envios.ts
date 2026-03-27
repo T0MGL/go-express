@@ -158,14 +158,21 @@ router.get(
 
     const envio = mapEnvioRow(envioData as unknown as EnvioRow);
 
-    const { data: eventosData } = await supabase
-      .from('eventos_envio')
-      .select('id, envio_id, estado, descripcion, ubicacion, created_at')
-      .eq('envio_id', id)
-      .order('created_at', { ascending: false });
+    const [eventosResult, pagoResult] = await Promise.all([
+      supabase
+        .from('eventos_envio')
+        .select('id, envio_id, estado, descripcion, ubicacion, created_at')
+        .eq('envio_id', id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('pagos')
+        .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at')
+        .eq('envio_id', id)
+        .maybeSingle(),
+    ]);
 
-    if (eventosData) {
-      envio.eventos = (eventosData as EventoEnvioRow[]).map((e) => ({
+    if (eventosResult.data) {
+      envio.eventos = (eventosResult.data as EventoEnvioRow[]).map((e) => ({
         id: e.id,
         envioId: e.envio_id,
         estado: e.estado,
@@ -175,14 +182,8 @@ router.get(
       }));
     }
 
-    const { data: pagoData } = await supabase
-      .from('pagos')
-      .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at')
-      .eq('envio_id', id)
-      .single();
-
-    if (pagoData) {
-      const p = pagoData as PagoRow;
+    if (pagoResult.data) {
+      const p = pagoResult.data as PagoRow;
       envio.pago = {
         id: p.id,
         envioId: p.envio_id,

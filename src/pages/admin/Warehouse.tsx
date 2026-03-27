@@ -36,7 +36,7 @@ import {
 } from '@/data/constants';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import BarcodeScanner from '@/components/admin/BarcodeScanner';
+import { BarcodeScanner } from '@/components/admin/BarcodeScanner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import {

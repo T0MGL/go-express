@@ -4,7 +4,7 @@ import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
-  MagnifyingGlass, Buildings, Phone, EnvelopeSimple, UserCircle,
+  MagnifyingGlass, Buildings,
   Package, PencilSimple, ArrowSquareOut, Warning, TrendUp, CurrencyDollar,
   PaperPlaneTilt, ArrowClockwise, LockKey, Globe,
 } from '@phosphor-icons/react';

@@ -52,48 +52,28 @@ router.put(
     const key = req.params['key'] as string;
     const value = req.body.value as string;
 
-    // Check if key exists
-    const { data: existing } = await supabase
+    const { data: previous } = await supabase
       .from('configuracion')
-      .select('key, value, updated_at, updated_by')
+      .select('value')
       .eq('key', key)
       .maybeSingle();
 
-    let result: ConfiguracionRow;
+    const previousValue = previous ? (previous as { value: string }).value : null;
 
-    if (existing) {
-      // Update existing
-      const { data, error } = await supabase
-        .from('configuracion')
-        .update({
-          value,
-          updated_by: req.userId!,
-        })
-        .eq('key', key)
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from('configuracion')
+      .upsert(
+        { key, value, updated_by: req.userId! },
+        { onConflict: 'key' }
+      )
+      .select()
+      .single();
 
-      if (error || !data) {
-        throw new AppError('Error updating config', 500, 'DB_ERROR');
-      }
-      result = data as ConfiguracionRow;
-    } else {
-      // Insert new
-      const { data, error } = await supabase
-        .from('configuracion')
-        .insert({
-          key,
-          value,
-          updated_by: req.userId!,
-        })
-        .select()
-        .single();
-
-      if (error || !data) {
-        throw new AppError('Error creating config', 500, 'DB_ERROR');
-      }
-      result = data as ConfiguracionRow;
+    if (error || !data) {
+      throw new AppError('Error upserting config', 500, 'DB_ERROR');
     }
+
+    const result = data as ConfiguracionRow;
 
     await auditoriaService.log({
       usuario: req.userName ?? 'Admin GoExpress',
@@ -101,8 +81,8 @@ router.put(
       accion: 'editar',
       entidad: 'sistema',
       entidadId: key,
-      descripcion: `Configuración "${key}" actualizada`,
-      valorAnterior: existing ? { value: (existing as ConfiguracionRow).value } : null,
+      descripcion: `Configuracion "${key}" actualizada`,
+      valorAnterior: previousValue !== null ? { value: previousValue } : null,
       valorNuevo: { value },
     });
 

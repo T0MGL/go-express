@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   const loginHandledRef = useRef(false);
 
-  const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null> => {
+  const fetchProfile = useCallback(async (_accessToken: string): Promise<AuthUser | null> => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);

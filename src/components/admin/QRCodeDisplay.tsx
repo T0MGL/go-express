@@ -11,7 +11,7 @@ interface QRCodeDisplayProps {
   showDownload?: boolean;
 }
 
-export default function QRCodeDisplay({
+export function QRCodeDisplay({
   value,
   size = 200,
   label,

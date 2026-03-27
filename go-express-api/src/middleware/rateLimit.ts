@@ -80,3 +80,17 @@ export const sseLimiter = rateLimit({
   message: 'Too many SSE connections, please try again later',
   keyGenerator: (req) => req.ip ?? 'unknown',
 });
+
+/**
+ * Admin write operations rate limiter.
+ * 30 mutations per minute per IP to protect against automated abuse.
+ */
+export const adminWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many admin write requests, please try again later',
+  keyGenerator: (req) => req.ip ?? 'unknown',
+});

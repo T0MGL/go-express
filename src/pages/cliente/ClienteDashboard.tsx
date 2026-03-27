@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import {
   Truck, CheckCircle, Warning, Clock,
   PlusCircle, UploadSimple, Calculator, Tag, ArrowRight, ArrowUpRight,
-  CircleNotch,
 } from '@phosphor-icons/react';
 import { estadoLabels } from '@/data/constants';
 import { Link } from 'react-router-dom';

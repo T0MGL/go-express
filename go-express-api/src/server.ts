@@ -10,7 +10,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
-import { generalLimiter, authLimiter, sseLimiter } from './middleware/rateLimit.js';
+import { generalLimiter, authLimiter, sseLimiter, adminWriteLimiter } from './middleware/rateLimit.js';
 
 import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
@@ -68,11 +68,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.use(generalLimiter);
 
-let dbHealthy = false;
-
 app.get('/health', async (_req, res) => {
   const dbOk = await testConnection();
-  dbHealthy = dbOk;
   const status = dbOk ? 'ok' : 'degraded';
   const statusCode = dbOk ? 200 : 503;
   res.status(statusCode).json({
@@ -84,7 +81,12 @@ app.get('/health', async (_req, res) => {
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/events', sseLimiter, sseRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    return adminWriteLimiter(req, res, next);
+  }
+  next();
+}, adminRoutes);
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/public', trackingRoutes);
 
@@ -108,7 +110,6 @@ const server = app.listen(env.PORT, async () => {
   );
 
   const dbOk = await testConnection();
-  dbHealthy = dbOk;
   if (!dbOk) {
     logger.error('Database connection failed at startup. API will return 503 on /health until connection is restored.');
   }

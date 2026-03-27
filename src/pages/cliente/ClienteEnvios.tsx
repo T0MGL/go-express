@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { MagnifyingGlass, Eye, Package, CircleNotch, Barcode } from '@phosphor-icons/react';
+import { MagnifyingGlass, Eye, Package, Barcode } from '@phosphor-icons/react';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import { toast } from 'sonner';
 import { estadoLabels } from '@/data/constants';

@@ -340,22 +340,27 @@ class EnvioService {
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
 
-    await supabase.from('eventos_envio').insert({
-      envio_id: envio.id,
-      estado: 'pendiente',
-      descripcion: 'Envio creado',
-    });
+    const [eventoResult] = await Promise.all([
+      supabase.from('eventos_envio').insert({
+        envio_id: envio.id,
+        estado: 'pendiente',
+        descripcion: 'Envio creado',
+      }),
+      auditoriaService.log({
+        usuario: userName ?? 'Admin GoExpress',
+        usuarioId: userId,
+        accion: 'crear',
+        entidad: 'envio',
+        entidadId: envio.id,
+        descripcion: `Envio creado: ${trackingNumber} para ${envio.clienteNombre}`,
+        ipAddress,
+        userAgent,
+      }),
+    ]);
 
-    await auditoriaService.log({
-      usuario: userName ?? 'Admin GoExpress',
-      usuarioId: userId,
-      accion: 'crear',
-      entidad: 'envio',
-      entidadId: envio.id,
-      descripcion: `Envio creado: ${trackingNumber} para ${envio.clienteNombre}`,
-      ipAddress,
-      userAgent,
-    });
+    if (eventoResult.error) {
+      logger.error({ error: eventoResult.error, envioId: envio.id }, 'Failed to insert evento_envio after envio creation');
+    }
 
     triggerNotification('envio_creado', envio);
 
@@ -500,25 +505,30 @@ class EnvioService {
       throw AppError.conflict('El estado del envio fue modificado por otro usuario. Recargue e intente de nuevo.');
     }
 
-    await supabase.from('eventos_envio').insert({
-      envio_id: id,
-      estado: newEstado,
-      descripcion: input.descripcion,
-      ubicacion: input.ubicacion ?? null,
-    });
-
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
 
-    await auditoriaService.log({
-      usuario: userName ?? 'Admin GoExpress',
-      usuarioId: userId,
-      accion: 'cambio_estado',
-      entidad: 'envio',
-      entidadId: id,
-      descripcion: `Envio ${envio.trackingNumber}: "${previousEstado}" a "${newEstado}". ${input.descripcion}`,
-      ipAddress,
-      userAgent,
-    });
+    const [eventoResult] = await Promise.all([
+      supabase.from('eventos_envio').insert({
+        envio_id: id,
+        estado: newEstado,
+        descripcion: input.descripcion,
+        ubicacion: input.ubicacion ?? null,
+      }),
+      auditoriaService.log({
+        usuario: userName ?? 'Admin GoExpress',
+        usuarioId: userId,
+        accion: 'cambio_estado',
+        entidad: 'envio',
+        entidadId: id,
+        descripcion: `Envio ${envio.trackingNumber}: "${previousEstado}" a "${newEstado}". ${input.descripcion}`,
+        ipAddress,
+        userAgent,
+      }),
+    ]);
+
+    if (eventoResult.error) {
+      logger.error({ error: eventoResult.error, envioId: id }, 'Failed to insert evento_envio after estado change');
+    }
 
     let event: NotificationEvent = 'cambio_estado';
     if (newEstado === 'entregado') event = 'entregado';
@@ -661,20 +671,108 @@ class EnvioService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<{ exitosos: number; fallidos: { fila: number; errores: string[] }[]; trackingNumbers: string[] }> {
-    const exitosos: string[] = [];
     const fallidos: { fila: number; errores: string[] }[] = [];
 
-    for (let i = 0; i < envios.length; i++) {
-      try {
-        const envio = await this.create(envios[i]!, userId, userName, ipAddress, userAgent);
-        exitosos.push(envio.trackingNumber);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        fallidos.push({ fila: i + 1, errores: [message] });
-      }
+    const clienteIds = [...new Set(envios.map((e) => e.clienteId))];
+    const { data: clientesData, error: clientesError } = await supabase
+      .from('clientes')
+      .select('id, razon_social, estado')
+      .in('id', clienteIds)
+      .eq('eliminado', false);
+
+    if (clientesError) {
+      throw new AppError('Error validating clientes for bulk import', 500, 'DB_ERROR');
     }
 
-    if (exitosos.length > 0) {
+    const clienteMap = new Map<string, { razon_social: string; estado: string }>();
+    for (const c of (clientesData ?? []) as Array<{ id: string; razon_social: string; estado: string }>) {
+      clienteMap.set(c.id, { razon_social: c.razon_social, estado: c.estado });
+    }
+
+    const validEnvios: { input: CreateEnvioInput; index: number; clienteNombre: string }[] = [];
+    for (let i = 0; i < envios.length; i++) {
+      const input = envios[i]!;
+      const cliente = clienteMap.get(input.clienteId);
+      if (!cliente) {
+        fallidos.push({ fila: i + 1, errores: ['Cliente no encontrado o inactivo'] });
+        continue;
+      }
+      if (cliente.estado !== 'activo') {
+        fallidos.push({ fila: i + 1, errores: ['No se pueden crear envios para clientes inactivos o suspendidos'] });
+        continue;
+      }
+      validEnvios.push({ input, index: i, clienteNombre: cliente.razon_social });
+    }
+
+    if (validEnvios.length === 0) {
+      return { exitosos: 0, fallidos, trackingNumbers: [] };
+    }
+
+    const trackingNumbers: string[] = [];
+    for (let i = 0; i < validEnvios.length; i++) {
+      trackingNumbers.push(await generateTrackingNumber(supabase));
+    }
+
+    const today = new Date().toISOString().split('T')[0]!;
+    const insertRows = validEnvios.map(({ input, clienteNombre }, i) => ({
+      tracking_number: trackingNumbers[i]!,
+      cliente_id: input.clienteId,
+      cliente_nombre: clienteNombre,
+      codigo_referencia: input.codigoReferencia ?? null,
+      origen: input.origen,
+      destino: input.destino,
+      destinatario_nombre: input.destinatarioNombre,
+      destinatario_direccion: input.destinatarioDireccion,
+      destinatario_telefono: input.destinatarioTelefono,
+      destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+      destinatario_cedula: input.destinatarioCedula ?? null,
+      destinatario_ciudad: input.destinatarioCiudad ?? '',
+      destinatario_departamento: input.destinatarioDepartamento ?? '',
+      destinatario_barrio: input.destinatarioBarrio ?? null,
+      destinatario_referencia: input.destinatarioReferencia ?? null,
+      destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+      cantidad: input.cantidad,
+      producto: input.producto ?? '',
+      peso: input.peso,
+      dimensiones_largo: input.dimensiones?.largo ?? null,
+      dimensiones_ancho: input.dimensiones?.ancho ?? null,
+      dimensiones_alto: input.dimensiones?.alto ?? null,
+      fragil: input.fragil,
+      valor_declarado: input.valorDeclarado ?? 0,
+      instrucciones_entrega: input.instruccionesEntrega ?? null,
+      horario_entrega: input.horarioEntrega ?? null,
+      notas: input.notas ?? null,
+      estado: 'pendiente' as const,
+      costo: input.costo,
+      monto_a_cobrar: input.montoACobrar,
+      tipo_pago: input.tipoPago,
+      tags: input.tags ?? [],
+      tarifa_id: input.tarifaId ?? null,
+      fecha: today,
+    }));
+
+    const { data: insertedData, error: insertError } = await supabase
+      .from('envios')
+      .insert(insertRows)
+      .select('id, tracking_number');
+
+    if (insertError) {
+      logger.error({ error: insertError }, 'Bulk import batch insert failed');
+      throw new AppError(`Error importing envios: ${insertError.message}`, 500, 'DB_ERROR');
+    }
+
+    const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;
+    const exitosos = inserted.map((row) => row.tracking_number);
+
+    if (inserted.length > 0) {
+      const eventRows = inserted.map((row) => ({
+        envio_id: row.id,
+        estado: 'pendiente' as const,
+        descripcion: 'Envio creado por importacion masiva',
+      }));
+
+      await supabase.from('eventos_envio').insert(eventRows);
+
       await auditoriaService.log({
         usuario: userName ?? 'Admin GoExpress',
         usuarioId: userId,

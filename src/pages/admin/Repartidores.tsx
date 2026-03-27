@@ -207,6 +207,7 @@ const Repartidores = () => {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 w-7 p-0"
+                                  aria-label={`Ver envios asignados a ${repartidor.nombre}`}
                                   onClick={() => {
                                     setSelectedRepartidor(repartidor.id);
                                     setShowEnviosModal(true);
@@ -237,12 +238,13 @@ const Repartidores = () => {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 w-7 p-0"
+                                  aria-label={`${repartidor.estado === 'activo' ? 'Desactivar' : 'Activar'} ${repartidor.nombre}`}
                                   onClick={() => handleToggleEstado(repartidor.id)}
                                 >
                                   <UserMinus size={14} weight="duotone" className="text-destructive" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Desactivar repartidor</TooltipContent>
+                              <TooltipContent>{repartidor.estado === 'activo' ? 'Desactivar' : 'Activar'} repartidor</TooltipContent>
                             </Tooltip>
                           </div>
                         </td>

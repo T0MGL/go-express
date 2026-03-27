@@ -44,16 +44,16 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground mb-6">
               Ocurrio un error inesperado. Podes intentar de nuevo o recargar la pagina.
             </p>
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-center" role="group" aria-label="Opciones de recuperacion">
               <button
                 onClick={this.resetError}
-                className="px-6 py-2.5 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors active:scale-[0.98]"
+                className="px-6 py-2.5 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Intentar de nuevo
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors active:scale-[0.98]"
+                className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Recargar pagina
               </button>

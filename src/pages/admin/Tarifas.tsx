@@ -309,6 +309,7 @@ const Tarifas = () => {
                               variant="ghost"
                               className="h-7 w-7 p-0"
                               onClick={() => abrirEditar(t)}
+                              aria-label={`Editar tarifa ${t.origen} a ${t.destino}`}
                             >
                               <PencilSimple size={14} weight="duotone" />
                             </Button>
@@ -317,6 +318,7 @@ const Tarifas = () => {
                               variant="ghost"
                               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                               onClick={() => { setDeleteModal({ open: true, tarifa: t }); setMotivoEliminacion(''); }}
+                              aria-label={`Desactivar tarifa ${t.origen} a ${t.destino}`}
                             >
                               <Trash size={14} weight="duotone" />
                             </Button>

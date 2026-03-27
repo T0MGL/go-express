@@ -108,7 +108,7 @@ const ClienteEtiquetas = () => {
                   <Badge variant={colorToBadgeVariant(tag.color)}>{tag.nombre}</Badge>
                   <span className="text-[11px] text-muted-foreground font-data">{tag.envioCount} paquetes</span>
                 </div>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeTag(tag)}>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeTag(tag)} aria-label={`Eliminar etiqueta ${tag.nombre}`}>
                   <X size={12} weight="bold" className="text-muted-foreground hover:text-destructive" />
                 </Button>
               </div>

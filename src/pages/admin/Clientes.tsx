@@ -373,6 +373,7 @@ const Clientes = () => {
                             size="sm"
                             className="h-7 w-7 p-0"
                             onClick={(e) => { e.stopPropagation(); }}
+                            aria-label={`Ver envios de ${cliente.razonSocial}`}
                             asChild
                           >
                             <Link to="/admin/envios">
@@ -389,6 +390,7 @@ const Clientes = () => {
                             size="sm"
                             className="h-7 w-7 p-0"
                             onClick={(e) => { e.stopPropagation(); setSelectedCliente(cliente); setIsModalOpen(true); }}
+                            aria-label={`Editar ${cliente.razonSocial}`}
                           >
                             <PencilSimple size={14} weight="duotone" />
                           </Button>
@@ -402,6 +404,7 @@ const Clientes = () => {
                             size="sm"
                             className="h-7 w-7 p-0"
                             onClick={(e) => { e.stopPropagation(); }}
+                            aria-label={`Ver portal de ${cliente.razonSocial}`}
                             asChild
                           >
                             <Link to="/cliente">

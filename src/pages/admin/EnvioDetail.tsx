@@ -61,7 +61,7 @@ const EnvioDetail = () => {
   const [estadoDescripcion, setEstadoDescripcion] = useState('');
 
   const { data: apiEnvio, isLoading } = useEnvio(id);
-  const { data: apiRepartidores } = useRepartidores();
+  const { data: apiRepartidores, isLoading: loadingRepartidores } = useRepartidores();
   const updateEnvioMut = useUpdateEnvio();
   const updateEstadoMut = useUpdateEnvioEstado();
   const asignarRepMut = useAsignarRepartidor();
@@ -432,16 +432,26 @@ const EnvioDetail = () => {
                   <p className="text-[12px] text-muted-foreground font-data">{repartidor.telefono}</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setShowRepartidorModal(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRepartidorModal(true)}
+                disabled={loadingRepartidores || asignarRepMut.isPending}
+              >
                 Cambiar
               </Button>
             </div>
           ) : (
             <div className="text-center py-6">
               <p className="text-muted-foreground mb-4 text-[13px]">Sin repartidor asignado</p>
-              <Button size="sm" onClick={() => setShowRepartidorModal(true)} className="gap-1.5">
+              <Button
+                size="sm"
+                onClick={() => setShowRepartidorModal(true)}
+                disabled={loadingRepartidores || asignarRepMut.isPending}
+                className="gap-1.5"
+              >
                 <UserCheck size={14} weight="duotone" />
-                Asignar Repartidor
+                {loadingRepartidores ? 'Cargando...' : 'Asignar Repartidor'}
               </Button>
             </div>
           )}

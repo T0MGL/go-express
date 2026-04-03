@@ -23,7 +23,7 @@ export function useRepartidores(
       api.get<PaginatedResponse<Repartidor>>(
         '/admin/repartidores' + buildQueryString(filters),
       ),
-    
+    staleTime: 10 * 60 * 1000,
   });
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +23,13 @@ const EnviosList = () => {
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [filterRepartidor, setFilterRepartidor] = useState<string>('todos');
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
-  if (debouncedSearch) apiFilters.search = debouncedSearch;
-  if (filterRepartidor !== 'todos') apiFilters.repartidorId = filterRepartidor === 'sin_asignar' ? 'sin_asignar' : filterRepartidor;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (filterEstado !== 'todos') f.estado = filterEstado;
+    if (debouncedSearch) f.search = debouncedSearch;
+    if (filterRepartidor !== 'todos') f.repartidorId = filterRepartidor === 'sin_asignar' ? 'sin_asignar' : filterRepartidor;
+    return f;
+  }, [filterEstado, debouncedSearch, filterRepartidor]);
 
   const { data: apiEnvios, isLoading: loadingEnvios } = useEnvios(apiFilters);
   const { data: apiRepartidores } = useRepartidores();

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import type { Envio } from '@/data/types';
@@ -102,7 +102,7 @@ export function useEnvios(
       api.get<PaginatedResponse<Envio>>(
         '/admin/envios' + buildQueryString(filters),
       ),
-    
+    placeholderData: keepPreviousData,
   });
 }
 

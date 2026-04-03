@@ -23,6 +23,6 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: dashboardKeys.stats(),
     queryFn: () => api.get<DashboardStats>('/admin/dashboard/stats'),
-    
+    staleTime: 2 * 60 * 1000,
   });
 }

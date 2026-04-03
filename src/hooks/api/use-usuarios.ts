@@ -7,7 +7,7 @@ export function useUsuarios() {
   return useQuery({
     queryKey: usuarioKeys.lists(),
     queryFn: () => api.get<Usuario[]>('/admin/usuarios'),
-    
+    staleTime: 10 * 60 * 1000,
   });
 }
 
@@ -16,8 +16,11 @@ export function useCreateUsuario() {
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api.post<Usuario>('/admin/usuarios', body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: usuarioKeys.all });
+    onSuccess: (newUser) => {
+      qc.setQueryData<Usuario[]>(usuarioKeys.lists(), (old) => {
+        if (!old) return [newUser];
+        return [...old, newUser];
+      });
     },
   });
 }
@@ -27,8 +30,11 @@ export function useUpdateUsuario() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
       api.put<Usuario>(`/admin/usuarios/${id}`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: usuarioKeys.all });
+    onSuccess: (updated) => {
+      qc.setQueryData<Usuario[]>(usuarioKeys.lists(), (old) => {
+        if (!old) return old;
+        return old.map((u) => (u.id === updated.id ? updated : u));
+      });
     },
   });
 }

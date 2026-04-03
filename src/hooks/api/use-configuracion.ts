@@ -13,7 +13,7 @@ export function useConfiguracion() {
   return useQuery({
     queryKey: configuracionKeys.all,
     queryFn: () => api.get<ConfigItem[]>('/admin/configuracion'),
-    
+    staleTime: 30 * 60 * 1000,
   });
 }
 
@@ -22,8 +22,11 @@ export function useUpdateConfiguracion() {
   return useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) =>
       api.put<ConfigItem>(`/admin/configuracion/${key}`, { value }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: configuracionKeys.all });
+    onSuccess: (updated) => {
+      qc.setQueryData<ConfigItem[]>(configuracionKeys.all, (old) => {
+        if (!old) return [updated];
+        return old.map((item) => (item.key === updated.key ? updated : item));
+      });
     },
   });
 }

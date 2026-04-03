@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,8 +22,11 @@ const Repartidores = () => {
   const [showEnviosModal, setShowEnviosModal] = useState(false);
 
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (filterEstado !== 'todos') f.estado = filterEstado;
+    return f;
+  }, [filterEstado]);
 
   const { data: apiRepartidores, isLoading } = useRepartidores(apiFilters);
   const { data: apiEnviosAsignados } = useRepartidorEnvios(
@@ -240,6 +243,7 @@ const Repartidores = () => {
                                   className="h-7 w-7 p-0"
                                   aria-label={`${repartidor.estado === 'activo' ? 'Desactivar' : 'Activar'} ${repartidor.nombre}`}
                                   onClick={() => handleToggleEstado(repartidor.id)}
+                                  disabled={toggleEstadoMut.isPending}
                                 >
                                   <UserMinus size={14} weight="duotone" className="text-destructive" />
                                 </Button>

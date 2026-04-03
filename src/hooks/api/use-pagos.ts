@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { pagoKeys, envioKeys } from './use-envios';
@@ -47,7 +47,7 @@ export function usePagos(
       api.get<PaginatedResponse<PagoItem>>(
         '/admin/pagos' + buildQueryString(filters),
       ),
-    
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -55,7 +55,7 @@ export function usePagoStats() {
   return useQuery({
     queryKey: pagoKeys.stats(),
     queryFn: () => api.get<PagoStats>('/admin/pagos/stats'),
-    
+    staleTime: 2 * 60 * 1000,
   });
 }
 

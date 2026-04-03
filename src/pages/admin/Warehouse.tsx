@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,8 +69,11 @@ export default function Warehouse() {
 
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (debouncedSearch) apiFilters.search = debouncedSearch;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (debouncedSearch) f.search = debouncedSearch;
+    return f;
+  }, [debouncedSearch]);
 
   const { data: apiInventario, isLoading } = useInventario(apiFilters);
   const { data: apiStats } = useWarehouseStats();

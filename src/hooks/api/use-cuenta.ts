@@ -20,6 +20,7 @@ export function useCuenta() {
   return useQuery<CuentaData>({
     queryKey: cuentaKeys.detail(),
     queryFn: () => api.get<CuentaData>('/cliente/cuenta'),
+    staleTime: 10 * 60 * 1000,
   });
 }
 
@@ -28,8 +29,8 @@ export function useUpdateCuenta() {
   return useMutation({
     mutationFn: (data: Partial<CuentaData>) =>
       api.put<CuentaData>('/cliente/cuenta', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: cuentaKeys.all });
+    onSuccess: (updated) => {
+      queryClient.setQueryData<CuentaData>(cuentaKeys.detail(), updated);
     },
   });
 }

@@ -23,6 +23,7 @@ export function useTags() {
   return useQuery<TagsListResponse>({
     queryKey: tagKeys.lists(),
     queryFn: () => api.get<TagsListResponse>('/cliente/tags'),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -31,8 +32,11 @@ export function useCreateTag() {
   return useMutation({
     mutationFn: (data: { nombre: string; color: string }) =>
       api.post<{ data: TagData }>('/cliente/tags', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tagKeys.all });
+    onSuccess: (res) => {
+      queryClient.setQueryData<TagsListResponse>(tagKeys.lists(), (old) => {
+        if (!old) return { data: [res.data] };
+        return { ...old, data: [...old.data, res.data] };
+      });
     },
   });
 }
@@ -41,8 +45,11 @@ export function useDeleteTag() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/cliente/tags/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tagKeys.all });
+    onSuccess: (_data, id) => {
+      queryClient.setQueryData<TagsListResponse>(tagKeys.lists(), (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.filter((t) => t.id !== id) };
+      });
     },
   });
 }

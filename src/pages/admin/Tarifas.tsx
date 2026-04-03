@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { tipoServicioLabels, departamentosPY } from '@/data/constants';
 import type { Tarifa } from '@/data/types';
 import { formatCurrency } from '@/lib/utils';
@@ -73,9 +73,12 @@ const Tarifas = () => {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; tarifa: Tarifa | null }>({ open: false, tarifa: null });
   const [motivoEliminacion, setMotivoEliminacion] = useState('');
 
-  const apiFilters: Record<string, string | boolean | undefined> = {};
-  if (busqueda) apiFilters.search = busqueda;
-  if (mostrarEliminadas) apiFilters.includeDeleted = true;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | boolean | undefined> = {};
+    if (busqueda) f.search = busqueda;
+    if (mostrarEliminadas) f.includeDeleted = true;
+    return f;
+  }, [busqueda, mostrarEliminadas]);
 
   const { data: apiTarifas, isLoading } = useTarifas(apiFilters);
   const createMut = useCreateTarifa();
@@ -299,8 +302,8 @@ const Tarifas = () => {
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {t.eliminado ? (
-                          <Button size="sm" variant="outline" onClick={() => restaurar(t.id)} className="text-[11px] h-7">
-                            Restaurar
+                          <Button size="sm" variant="outline" onClick={() => restaurar(t.id)} className="text-[11px] h-7" disabled={restoreMut.isPending}>
+                            {restoreMut.isPending ? 'Restaurando...' : 'Restaurar'}
                           </Button>
                         ) : (
                           <>

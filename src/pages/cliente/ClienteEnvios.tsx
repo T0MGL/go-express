@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -44,11 +44,12 @@ const ClienteEnvios = () => {
   const navigate = useNavigate();
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
 
-  // API data
-  const { data: apiData, isLoading } = useClienteEnvios({
+  const envioFilters = useMemo(() => ({
     estado: filterEstado,
     search: debouncedSearch,
-  });
+  }), [filterEstado, debouncedSearch]);
+
+  const { data: apiData, isLoading } = useClienteEnvios(envioFilters);
   const { data: selectedEnvio } = useClienteEnvio(selectedEnvioId ?? '');
 
   const envios: Envio[] = apiData?.data ?? [];

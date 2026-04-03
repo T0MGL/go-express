@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { auditoriaKeys } from './use-envios';
@@ -23,6 +23,6 @@ export function useAuditoria(
       api.get<PaginatedResponse<AuditoriaLog>>(
         '/admin/auditoria' + buildQueryString(filters),
       ),
-    
+    placeholderData: keepPreviousData,
   });
 }

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { estadoLabels, estadoColors, estadosPagoColors } from '@/data/constants';
-import { Plus, Download, ArrowUpRight } from 'lucide-react';
+import { Plus, Download, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportCSV';
@@ -17,19 +17,27 @@ import { useEnvios } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+const PAGE_SIZE = 20;
+
 const EnviosList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [filterRepartidor, setFilterRepartidor] = useState<string>('todos');
+  const [page, setPage] = useState(1);
 
   const apiFilters = useMemo(() => {
-    const f: Record<string, string | undefined> = {};
+    const f: Record<string, string | number | undefined> = {
+      page,
+      limit: PAGE_SIZE,
+    };
     if (filterEstado !== 'todos') f.estado = filterEstado;
     if (debouncedSearch) f.search = debouncedSearch;
     if (filterRepartidor !== 'todos') f.repartidorId = filterRepartidor === 'sin_asignar' ? 'sin_asignar' : filterRepartidor;
     return f;
-  }, [filterEstado, debouncedSearch, filterRepartidor]);
+  }, [filterEstado, debouncedSearch, filterRepartidor, page]);
+
+  const resetPage = () => setPage(1);
 
   const { data: apiEnvios, isLoading: loadingEnvios } = useEnvios(apiFilters);
   const { data: apiRepartidores } = useRepartidores();
@@ -106,11 +114,11 @@ const EnviosList = () => {
                 <Input
                   placeholder="Buscar por tracking o cliente..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); resetPage(); }}
                   className="pl-9"
                 />
               </div>
-              <Select value={filterEstado} onValueChange={setFilterEstado}>
+              <Select value={filterEstado} onValueChange={(v) => { setFilterEstado(v); resetPage(); }}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
@@ -122,7 +130,7 @@ const EnviosList = () => {
                   <SelectItem value="problema">Con Problema</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={filterRepartidor} onValueChange={setFilterRepartidor}>
+              <Select value={filterRepartidor} onValueChange={(v) => { setFilterRepartidor(v); resetPage(); }}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Repartidor" />
                 </SelectTrigger>
@@ -228,10 +236,35 @@ const EnviosList = () => {
               </div>
 
               {filteredEnvios.length > 0 && (
-                <div className="px-4 py-3 border-t border-border/40">
+                <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between">
                   <p className="text-[12px] text-muted-foreground">
                     Mostrando {filteredEnvios.length} de {totalCount} envios
                   </p>
+                  {(apiEnvios?.pagination?.totalPages ?? 1) > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </Button>
+                      <span className="text-[12px] text-muted-foreground tabular-nums px-2">
+                        {page} / {apiEnvios?.pagination?.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        disabled={page >= (apiEnvios?.pagination?.totalPages ?? 1)}
+                        onClick={() => setPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

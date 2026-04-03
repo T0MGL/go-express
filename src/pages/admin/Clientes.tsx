@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
 import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
@@ -36,9 +36,12 @@ const Clientes = () => {
   const [detailClienteId, setDetailClienteId] = useState<string | null>(null);
 
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (debouncedSearch) apiFilters.search = debouncedSearch;
-  if (filterEstado !== 'todos') apiFilters.estado = filterEstado;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (debouncedSearch) f.search = debouncedSearch;
+    if (filterEstado !== 'todos') f.estado = filterEstado;
+    return f;
+  }, [debouncedSearch, filterEstado]);
 
   const { data: apiClientes, isLoading } = useClientes(apiFilters);
   const { data: detailCliente } = useCliente(detailClienteId ?? undefined);

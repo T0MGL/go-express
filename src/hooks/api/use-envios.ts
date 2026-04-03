@@ -140,10 +140,19 @@ export function useUpdateEnvioEstado() {
       descripcion: string;
       ubicacion?: string;
     }) => api.patch<Envio>(`/admin/envios/${id}/estado`, { estado, descripcion, ubicacion }),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: envioKeys.all });
+    onSuccess: (updatedEnvio, vars) => {
+      qc.setQueryData(envioKeys.detail(vars.id), updatedEnvio);
+      qc.setQueriesData<PaginatedResponse<Envio>>(
+        { queryKey: envioKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((e) => (e.id === vars.id ? updatedEnvio : e)),
+          };
+        },
+      );
       qc.invalidateQueries({ queryKey: dashboardKeys.all });
-      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
     },
   });
 }
@@ -158,9 +167,18 @@ export function useAsignarRepartidor() {
       id: string;
       repartidorId: string;
     }) => api.patch<Envio>(`/admin/envios/${id}/repartidor`, { repartidorId }),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: envioKeys.all });
-      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
+    onSuccess: (updatedEnvio, vars) => {
+      qc.setQueryData(envioKeys.detail(vars.id), updatedEnvio);
+      qc.setQueriesData<PaginatedResponse<Envio>>(
+        { queryKey: envioKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((e) => (e.id === vars.id ? updatedEnvio : e)),
+          };
+        },
+      );
     },
   });
 }
@@ -175,8 +193,18 @@ export function useReportarProblema() {
       id: string;
       descripcion: string;
     }) => api.patch<Envio>(`/admin/envios/${id}/problema`, { descripcion }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: envioKeys.all });
+    onSuccess: (updatedEnvio, vars) => {
+      qc.setQueryData(envioKeys.detail(vars.id), updatedEnvio);
+      qc.setQueriesData<PaginatedResponse<Envio>>(
+        { queryKey: envioKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((e) => (e.id === vars.id ? updatedEnvio : e)),
+          };
+        },
+      );
       qc.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
@@ -187,10 +215,19 @@ export function useUpdateEnvio() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
       api.put<Envio>(`/admin/envios/${id}`, body),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: envioKeys.all });
+    onSuccess: (updatedEnvio, vars) => {
+      qc.setQueryData(envioKeys.detail(vars.id), updatedEnvio);
+      qc.setQueriesData<PaginatedResponse<Envio>>(
+        { queryKey: envioKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((e) => (e.id === vars.id ? updatedEnvio : e)),
+          };
+        },
+      );
       qc.invalidateQueries({ queryKey: dashboardKeys.all });
-      qc.refetchQueries({ queryKey: envioKeys.detail(vars.id) });
     },
   });
 }

@@ -10,6 +10,7 @@ export function useCiudadesDisponibles() {
   return useQuery<string[]>({
     queryKey: cotizadorKeys.ciudades(),
     queryFn: () => api.get<string[]>('/cliente/cotizador/ciudades'),
+    staleTime: 30 * 60 * 1000,
   });
 }
 

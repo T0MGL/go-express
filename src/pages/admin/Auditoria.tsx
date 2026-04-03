@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -59,15 +59,18 @@ const Auditoria = () => {
 
   const debouncedBusqueda = useDebouncedValue(busqueda, 350);
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (filtroUsuario !== 'todos') apiFilters.usuarioId = filtroUsuario;
-  if (filtroAccion !== 'todos') apiFilters.accion = filtroAccion;
-  if (filtroEntidad !== 'todos') apiFilters.entidad = filtroEntidad;
-  if (filtroFecha) {
-    apiFilters.fechaDesde = filtroFecha;
-    apiFilters.fechaHasta = filtroFecha;
-  }
-  if (debouncedBusqueda) apiFilters.search = debouncedBusqueda;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (filtroUsuario !== 'todos') f.usuarioId = filtroUsuario;
+    if (filtroAccion !== 'todos') f.accion = filtroAccion;
+    if (filtroEntidad !== 'todos') f.entidad = filtroEntidad;
+    if (filtroFecha) {
+      f.fechaDesde = filtroFecha;
+      f.fechaHasta = filtroFecha;
+    }
+    if (debouncedBusqueda) f.search = debouncedBusqueda;
+    return f;
+  }, [filtroUsuario, filtroAccion, filtroEntidad, filtroFecha, debouncedBusqueda]);
 
   const { data: apiAuditoria, isLoading } = useAuditoria(apiFilters);
   const { data: apiUsuarios } = useUsuarios();

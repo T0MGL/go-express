@@ -17,6 +17,7 @@ export function useProductos() {
   return useQuery<ProductosListResponse>({
     queryKey: productoKeys.lists(),
     queryFn: () => api.get<ProductosListResponse>('/cliente/productos'),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -25,8 +26,11 @@ export function useCreateProducto() {
   return useMutation({
     mutationFn: (data: Omit<ProductoGuardado, 'id' | 'clienteId' | 'creadoEn' | 'updatedAt'>) =>
       api.post<ProductoGuardado>('/cliente/productos', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: productoKeys.all });
+    onSuccess: (newProduct) => {
+      queryClient.setQueryData<ProductosListResponse>(productoKeys.lists(), (old) => {
+        if (!old) return { data: [newProduct] };
+        return { ...old, data: [...old.data, newProduct] };
+      });
     },
   });
 }
@@ -36,8 +40,11 @@ export function useUpdateProducto() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string } & Partial<Omit<ProductoGuardado, 'id' | 'clienteId' | 'creadoEn' | 'updatedAt'>>) =>
       api.put<ProductoGuardado>(`/cliente/productos/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: productoKeys.all });
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ProductosListResponse>(productoKeys.lists(), (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.map((p) => (p.id === updated.id ? updated : p)) };
+      });
     },
   });
 }
@@ -46,8 +53,11 @@ export function useDeleteProducto() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/cliente/productos/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: productoKeys.all });
+    onSuccess: (_data, id) => {
+      queryClient.setQueryData<ProductosListResponse>(productoKeys.lists(), (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.filter((p) => p.id !== id) };
+      });
     },
   });
 }

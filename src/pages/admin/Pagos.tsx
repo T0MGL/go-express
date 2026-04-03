@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,9 +36,12 @@ const Pagos = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
 
-  const apiFilters: Record<string, string | undefined> = {};
-  if (filtroEstado !== 'todos') apiFilters.estadoPago = filtroEstado;
-  if (filtroMetodo !== 'todos') apiFilters.metodoPago = filtroMetodo;
+  const apiFilters = useMemo(() => {
+    const f: Record<string, string | undefined> = {};
+    if (filtroEstado !== 'todos') f.estadoPago = filtroEstado;
+    if (filtroMetodo !== 'todos') f.metodoPago = filtroMetodo;
+    return f;
+  }, [filtroEstado, filtroMetodo]);
 
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();

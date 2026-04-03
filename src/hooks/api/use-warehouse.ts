@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { warehouseKeys } from './use-envios';
@@ -30,7 +30,7 @@ export function useInventario(
       api.get<PaginatedResponse<PaqueteInventario>>(
         '/admin/warehouse/inventario' + buildQueryString(filters),
       ),
-    
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -38,7 +38,6 @@ export function usePickingList() {
   return useQuery({
     queryKey: warehouseKeys.picking(),
     queryFn: () => api.get<PickingItem[]>('/admin/warehouse/picking'),
-    
   });
 }
 
@@ -46,7 +45,7 @@ export function useWarehouseStats() {
   return useQuery({
     queryKey: warehouseKeys.stats(),
     queryFn: () => api.get<WarehouseStats>('/admin/warehouse/stats'),
-    
+    staleTime: 2 * 60 * 1000,
   });
 }
 

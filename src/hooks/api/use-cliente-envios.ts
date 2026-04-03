@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import type { Envio } from '@/data/types';
@@ -33,6 +33,7 @@ export function useClienteEnvios(filters?: ClienteEnviosFilters) {
   return useQuery<ClienteEnviosListResponse>({
     queryKey: clienteEnvioKeys.list(filters as Record<string, unknown> | undefined),
     queryFn: () => api.get<ClienteEnviosListResponse>(`/cliente/envios${buildQueryString(queryParams as Record<string, string | number | boolean | undefined>)}`),
+    placeholderData: keepPreviousData,
   });
 }
 

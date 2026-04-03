@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildQueryString } from './helpers';
 import { clienteKeys } from './use-envios';
@@ -23,7 +23,8 @@ export function useClientes(
       api.get<PaginatedResponse<Cliente>>(
         '/admin/clientes' + buildQueryString(filters),
       ),
-
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -40,8 +41,9 @@ export function useCreateCliente() {
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api.post<Cliente>('/admin/clientes', body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (newCliente) => {
+      qc.setQueryData(clienteKeys.detail(newCliente.id), newCliente);
+      qc.invalidateQueries({ queryKey: clienteKeys.lists() });
     },
   });
 }
@@ -51,8 +53,18 @@ export function useUpdateCliente() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
       api.put<Cliente>(`/admin/clientes/${id}`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (updated, vars) => {
+      qc.setQueryData(clienteKeys.detail(vars.id), updated);
+      qc.setQueriesData<PaginatedResponse<Cliente>>(
+        { queryKey: clienteKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((c) => (c.id === vars.id ? updated : c)),
+          };
+        },
+      );
     },
   });
 }
@@ -69,8 +81,18 @@ export function useUpdateClienteEstado() {
       estado: string;
       motivo?: string;
     }) => api.patch<Cliente>(`/admin/clientes/${id}/estado`, { estado, motivo }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (updated, vars) => {
+      qc.setQueryData(clienteKeys.detail(vars.id), updated);
+      qc.setQueriesData<PaginatedResponse<Cliente>>(
+        { queryKey: clienteKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((c) => (c.id === vars.id ? updated : c)),
+          };
+        },
+      );
     },
   });
 }
@@ -80,21 +102,30 @@ export function useDeleteCliente() {
   return useMutation({
     mutationFn: ({ id, motivo }: { id: string; motivo: string }) =>
       api.delete<void>(`/admin/clientes/${id}`, { motivo }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (_data, vars) => {
+      qc.removeQueries({ queryKey: clienteKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: clienteKeys.lists() });
     },
   });
 }
-
-// Portal management hooks (admin actions)
 
 export function useInviteCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
       api.post<Cliente>(`/admin/clientes/${id}/invite`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (updated, id) => {
+      qc.setQueryData(clienteKeys.detail(id), updated);
+      qc.setQueriesData<PaginatedResponse<Cliente>>(
+        { queryKey: clienteKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((c) => (c.id === id ? updated : c)),
+          };
+        },
+      );
     },
   });
 }
@@ -104,19 +135,25 @@ export function useReinviteCliente() {
   return useMutation({
     mutationFn: (id: string) =>
       api.post<Cliente>(`/admin/clientes/${id}/reinvite`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
+    onSuccess: (updated, id) => {
+      qc.setQueryData(clienteKeys.detail(id), updated);
+      qc.setQueriesData<PaginatedResponse<Cliente>>(
+        { queryKey: clienteKeys.lists() },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((c) => (c.id === id ? updated : c)),
+          };
+        },
+      );
     },
   });
 }
 
 export function useResetClientePassword() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
       api.post<{ message: string }>(`/admin/clientes/${id}/reset-password`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: clienteKeys.all });
-    },
   });
 }

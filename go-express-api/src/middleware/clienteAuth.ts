@@ -67,7 +67,7 @@ export async function requireCliente(req: Request, _res: Response, next: NextFun
 
   // Fallback: X-Cliente-Id header (development only, for testing convenience)
   // SECURITY: This bypass is disabled in production to prevent client impersonation.
-  if (env.NODE_ENV !== 'development') {
+  if (env.NODE_ENV === 'production') {
     next(AppError.unauthorized('Client authentication required. Provide a valid Bearer token.'));
     return;
   }

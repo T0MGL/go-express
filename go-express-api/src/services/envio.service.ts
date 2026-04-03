@@ -2,6 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { emailService } from './email.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import type {
@@ -91,16 +92,27 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
 }
 
 function extractListPago(row: Record<string, unknown>): Pago | null {
-  const pagos = row['pagos'] as Array<{ estado_pago: string }> | null;
-  if (!pagos || pagos.length === 0) return null;
-  const p = pagos[0]!;
+  const raw = row['pagos'];
+  if (!raw) return null;
+
+  let estadoPago: string;
+
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) return null;
+    estadoPago = (raw[0] as { estado_pago: string }).estado_pago;
+  } else if (typeof raw === 'object') {
+    estadoPago = (raw as { estado_pago: string }).estado_pago;
+  } else {
+    return null;
+  }
+
   return {
     id: '',
     envioId: row['id'] as string,
     montoTotal: 0,
     montoRecibido: 0,
     metodoPago: 'efectivo',
-    estadoPago: p.estado_pago as EstadoPago,
+    estadoPago: estadoPago as EstadoPago,
     fechaPago: null,
     referencia: null,
     notas: null,
@@ -154,6 +166,24 @@ function triggerNotification(event: NotificationEvent, envio: Envio, previousEst
     { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
     `Notification hook: ${event}`
   );
+
+  switch (event) {
+    case 'envio_creado':
+      emailService.sendEnvioCreado(envio);
+      break;
+    case 'cambio_estado':
+      if (envio.estado === 'entregado') {
+        emailService.sendEntregado(envio);
+      } else if (envio.estado === 'problema') {
+        emailService.sendProblema(envio);
+      } else if (previousEstado) {
+        emailService.sendCambioEstado(envio, previousEstado);
+      }
+      break;
+    case 'problema':
+      emailService.sendProblema(envio);
+      break;
+  }
 }
 
 // Explicit column lists

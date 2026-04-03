@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import * as Sentry from '@sentry/node';
 import { logger } from '../config/logger.js';
 import { env } from '../config/env.js';
 
@@ -152,6 +153,10 @@ export function globalErrorHandler(
   }
 
   const error = err instanceof Error ? err : new Error(String(err));
+
+  Sentry.captureException(error, {
+    extra: { path: req.path, method: req.method, requestId: req.headers['x-request-id'] },
+  });
 
   logger.error(
     {

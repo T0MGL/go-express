@@ -828,8 +828,24 @@ const Landing = () => {
           </div>
 
           <div className="border-t border-muted pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-sidebar/30 text-xs font-medium">
-              &copy; {new Date().getFullYear()} Go Express E.A.S. Todos los derechos reservados.
+            <div className="flex flex-col sm:flex-row items-center gap-3 text-sidebar/30 text-xs font-medium">
+              <span>&copy; {new Date().getFullYear()} Go Express E.A.S.</span>
+              <span className="hidden sm:inline text-sidebar/10">·</span>
+              <a
+                href="https://thebrightidea.ai/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group relative inline-block text-sidebar/30 transition-none"
+              >
+                <span className="relative">
+                  Desarrollado por{" "}
+                  <span className="font-semibold relative inline-block">
+                    <span className="relative z-10 bg-gradient-to-r from-sidebar/30 via-primary to-sidebar/30 bg-clip-text text-transparent bg-[length:200%_100%] group-hover:animate-shimmer">
+                      Bright Idea
+                    </span>
+                  </span>
+                </span>
+              </a>
             </div>
             <div className="flex gap-6 text-sidebar/30 text-xs font-medium">
               <button onClick={() => navigate('/track')} className="hover:text-sidebar transition-colors">Rastreo</button>

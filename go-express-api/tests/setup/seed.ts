@@ -1,0 +1,124 @@
+import { createClient } from '@supabase/supabase-js';
+
+const ADMIN_USER_ID = '00000000-0000-4000-a000-000000000001';
+
+const supabase = createClient(
+  process.env['SUPABASE_URL']!,
+  process.env['SUPABASE_SERVICE_ROLE_KEY']!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
+export interface TestData {
+  clienteId: string;
+  repartidorId: string;
+  tarifaId: string;
+}
+
+let seeded: TestData | null = null;
+
+export async function seedTestData(): Promise<TestData> {
+  if (seeded) return seeded;
+
+  const clienteId = crypto.randomUUID();
+  const repartidorId = crypto.randomUUID();
+  const tarifaId = crypto.randomUUID();
+  const suffix = clienteId.slice(0, 8);
+
+  const { error: clienteErr } = await supabase.from('clientes').insert({
+    id: clienteId,
+    razon_social: `Test Client SA ${suffix}`,
+    ruc: `TEST-${suffix}`,
+    contacto_nombre: 'Test Contact',
+    telefono: '+595 971 000 001',
+    email: `test-${suffix}@goexpress.test`,
+    direccion: 'Test Address 123, Asuncion',
+    ciudad: 'Asuncion',
+    estado: 'activo',
+    plan: 'profesional',
+    portal_activo: true,
+    portal_status: 'activo',
+    saldo_cuenta_corriente: 0,
+    total_envios: 0,
+    envios_activos: 0,
+    eliminado: false,
+  });
+
+  if (clienteErr) {
+    throw new Error(`Seed: failed to create test client: ${clienteErr.message}`);
+  }
+
+  const { error: repartidorErr } = await supabase.from('repartidores').insert({
+    id: repartidorId,
+    nombre: `Test Repartidor ${suffix}`,
+    telefono: '+595 971 000 002',
+    vehiculo: 'Moto',
+    placa: `T${suffix.slice(0, 5).toUpperCase()}`,
+    licencia: `LIC-${suffix}`,
+    estado: 'activo',
+    eliminado: false,
+  });
+
+  if (repartidorErr) {
+    throw new Error(`Seed: failed to create test repartidor: ${repartidorErr.message}`);
+  }
+
+  const { error: tarifaErr } = await supabase.from('tarifas').insert({
+    id: tarifaId,
+    origen: 'Asuncion',
+    destino: 'Encarnacion',
+    tipo_servicio: 'estandar',
+    precio_base: 35000,
+    peso_base: 5,
+    precio_por_kg_extra: 5000,
+    factor_dimensional: 5000,
+    activo: true,
+    eliminado: false,
+    creado_por: ADMIN_USER_ID,
+  });
+
+  if (tarifaErr) {
+    throw new Error(`Seed: failed to create test tarifa: ${tarifaErr.message}`);
+  }
+
+  seeded = { clienteId, repartidorId, tarifaId };
+  return seeded;
+}
+
+export async function cleanupTestData(data: TestData): Promise<void> {
+  const { data: envios } = await supabase
+    .from('envios')
+    .select('id')
+    .eq('cliente_id', data.clienteId);
+
+  if (envios && envios.length > 0) {
+    const envioIds = envios.map((e: { id: string }) => e.id);
+    await supabase.from('notas_internas').delete().in('envio_id', envioIds);
+    await supabase.from('eventos_envio').delete().in('envio_id', envioIds);
+    await supabase.from('pagos').delete().in('envio_id', envioIds);
+    await supabase.from('envios').delete().in('id', envioIds);
+  }
+
+  await supabase.from('tarifas').delete().eq('id', data.tarifaId);
+  await supabase.from('repartidores').delete().eq('id', data.repartidorId);
+  await supabase.from('clientes').delete().eq('id', data.clienteId);
+
+  seeded = null;
+}
+
+export function makeEnvioPayload(clienteId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    clienteId,
+    origen: 'Asuncion',
+    destino: 'Encarnacion',
+    destinatarioNombre: 'Juan Test Perez',
+    destinatarioDireccion: 'Av. Mcal Lopez 1234, Barrio Jara',
+    destinatarioTelefono: '+595 971 123 456',
+    destinatarioCiudad: 'Encarnacion',
+    destinatarioDepartamento: 'Itapua',
+    peso: 2.5,
+    costo: 45000,
+    montoACobrar: 45000,
+    tipoPago: 'contra_entrega' as const,
+    ...overrides,
+  };
+}

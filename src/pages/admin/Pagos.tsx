@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,19 +30,26 @@ interface PagoListItem {
   costo?: number;
 }
 
+const PAGE_SIZE = 20;
+
 const Pagos = () => {
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroMetodo, setFiltroMetodo] = useState<string>('todos');
   const [selectedPago, setSelectedPago] = useState<PagoListItem | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
 
+  const resetPage = useCallback(() => setPage(1), []);
 
   const apiFilters = useMemo(() => {
-    const f: Record<string, string | undefined> = {};
+    const f: Record<string, string | number | undefined> = {
+      page,
+      limit: PAGE_SIZE,
+    };
     if (filtroEstado !== 'todos') f.estadoPago = filtroEstado;
     if (filtroMetodo !== 'todos') f.metodoPago = filtroMetodo;
     return f;
-  }, [filtroEstado, filtroMetodo]);
+  }, [filtroEstado, filtroMetodo, page]);
 
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();
@@ -149,7 +157,7 @@ const Pagos = () => {
       <div className="surface-card">
         <div className="p-5 pb-4">
           <div className="flex gap-3 mb-4">
-            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+            <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); resetPage(); }}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
@@ -161,7 +169,7 @@ const Pagos = () => {
               </SelectContent>
             </Select>
 
-            <Select value={filtroMetodo} onValueChange={setFiltroMetodo}>
+            <Select value={filtroMetodo} onValueChange={(v) => { setFiltroMetodo(v); resetPage(); }}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Metodo de pago" />
               </SelectTrigger>
@@ -261,10 +269,35 @@ const Pagos = () => {
               </div>
 
               {pagosFiltrados.length > 0 && (
-                <div className="px-5 py-3 border-t border-border/40">
+                <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between">
                   <p className="text-[12px] text-muted-foreground">
                     Mostrando {pagosFiltrados.length} de {totalCount} registros
                   </p>
+                  {(apiPagos?.pagination?.totalPages ?? 1) > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </Button>
+                      <span className="text-[12px] text-muted-foreground tabular-nums px-2">
+                        {page} / {apiPagos?.pagination?.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        disabled={page >= (apiPagos?.pagination?.totalPages ?? 1)}
+                        onClick={() => setPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

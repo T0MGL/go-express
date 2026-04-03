@@ -296,7 +296,7 @@ const Tarifas = () => {
                           Desactivada
                         </Badge>
                       ) : (
-                        <Badge className="text-[11px] bg-green-100 text-green-700 border-green-200">Activa</Badge>
+                        <Badge variant="success" className="text-[11px]">Activa</Badge>
                       )}
                     </td>
                     <td className="text-right">

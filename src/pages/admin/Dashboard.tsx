@@ -32,7 +32,7 @@ const Dashboard = () => {
   const entregados = apiStats?.entregados ?? 0;
   const tasaEntregaNum = apiStats?.tasaEntrega ?? 0;
   const pendienteCobro = apiStats?.porCobrar ?? 0;
-  const enviosPendientesCobro = 0;
+  const enviosPendientesCobro = apiStats?.enviosPendientesCobro ?? 0;
   const enviosConProblema = apiStats?.problemasHoy ?? 0;
   const recentEnvios = (apiStats?.enviosRecientes ?? []).map(e => ({
     ...e,
@@ -207,6 +207,19 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
+              {recentEnvios.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                      <Truck size={18} weight="duotone" className="text-muted-foreground/50" />
+                    </div>
+                    <p className="text-[13px] font-medium text-foreground">Sin envios recientes</p>
+                    <p className="text-[12px] text-muted-foreground mt-1">
+                      Los envios del dia apareceran aqui
+                    </p>
+                  </td>
+                </tr>
+              )}
               {recentEnvios.map((envio) => (
                 <tr key={envio.id} className="group">
                   <td className="pl-5">

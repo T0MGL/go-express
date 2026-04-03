@@ -7,9 +7,16 @@ import {
 } from '@phosphor-icons/react';
 import { estadoLabels } from '@/data/constants';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { useClienteDashboardStats } from '@/hooks/api/use-cliente-dashboard';
 import { useCuenta } from '@/hooks/api/use-cuenta';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Timeline } from '@/components/tracking/Timeline';
+import { Barcode } from '@phosphor-icons/react';
+import { printShippingLabel } from '@/components/printing/generateShippingLabel';
+import { useClienteEnvio } from '@/hooks/api/use-cliente-envios';
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
@@ -43,6 +50,8 @@ const defaultStats = { activos: 0, entregados: 0, pendientes: 0, problemas: 0 };
 const ClienteDashboard = () => {
   const { data: apiStats, isLoading } = useClienteDashboardStats();
   const { data: cuenta } = useCuenta();
+  const [selectedEnvioId, setSelectedEnvioId] = useState<string | null>(null);
+  const { data: selectedEnvio } = useClienteEnvio(selectedEnvioId ?? '');
 
   const dashStats = apiStats ?? defaultStats;
   const clienteEnvios = apiStats?.enviosRecientes ?? [];
@@ -156,10 +165,17 @@ const ClienteDashboard = () => {
                 </tr>
               </thead>
               <tbody>
+                {clienteEnvios.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12">
+                      <p className="text-[13px] text-muted-foreground">Sin envios recientes</p>
+                    </td>
+                  </tr>
+                )}
                 {clienteEnvios.map((envio) => {
                   const badge = estadoBadge[envio.estado] || { label: estadoLabels[envio.estado], variant: 'secondary' as const };
                   return (
-                    <tr key={envio.id} className="group">
+                    <tr key={envio.id} className="group cursor-pointer" onClick={() => setSelectedEnvioId(envio.id)}>
                       <td className="pl-5 font-data font-medium text-primary">{envio.trackingNumber}</td>
                       <td className="text-[13px] text-muted-foreground">{envio.destino}</td>
                       <td className="text-[13px]">{envio.destinatarioNombre}</td>
@@ -168,9 +184,7 @@ const ClienteDashboard = () => {
                       </td>
                       <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
                       <td className="pr-5">
-                        <Link to={`/cliente/envios`}>
-                          <ArrowUpRight size={14} weight="bold" className="text-transparent group-hover:text-muted-foreground transition-colors" />
-                        </Link>
+                        <ArrowUpRight size={14} weight="bold" className="text-transparent group-hover:text-muted-foreground transition-colors" />
                       </td>
                     </tr>
                   );
@@ -180,6 +194,59 @@ const ClienteDashboard = () => {
           </div>
         )}
       </motion.div>
+      <Dialog open={!!selectedEnvioId} onOpenChange={() => setSelectedEnvioId(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-data text-sm">{selectedEnvio?.trackingNumber}</DialogTitle>
+          </DialogHeader>
+          {selectedEnvio && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Destino</p>
+                  <p className="text-[13px] font-medium">{selectedEnvio.destino}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Destinatario</p>
+                  <p className="text-[13px] font-medium">{selectedEnvio.destinatarioNombre}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Fecha</p>
+                  <p className="text-[13px] font-medium">{formatDate(selectedEnvio.fecha)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Estado</p>
+                  <Badge variant={estadoBadge[selectedEnvio.estado]?.variant || 'secondary'}>
+                    {estadoLabels[selectedEnvio.estado]}
+                  </Badge>
+                </div>
+              </div>
+              {selectedEnvio.eventos && selectedEnvio.eventos.length > 0 && (
+                <div>
+                  <p className="text-[13px] font-semibold mb-3">Historial de seguimiento</p>
+                  <Timeline eventos={selectedEnvio.eventos} />
+                </div>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={() => {
+                  const success = printShippingLabel(selectedEnvio);
+                  if (success) {
+                    toast.success('Etiqueta generada');
+                  } else {
+                    toast.error('Error al generar etiqueta');
+                  }
+                }}
+              >
+                <Barcode size={14} weight="duotone" />
+                Imprimir Etiqueta
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };

@@ -5,13 +5,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { estadoLabels } from '@/data/constants';
-import { Plus } from 'lucide-react';
-import { PencilSimple, Trash, UserPlus } from '@phosphor-icons/react';
+import { UserPlus } from '@phosphor-icons/react';
 import { useUsuarios, useCreateUsuario } from '@/hooks/api/use-usuarios';
 import { useConfiguracion, useUpdateConfiguracion } from '@/hooks/api/use-configuracion';
 import { toast } from 'sonner';
@@ -127,6 +125,11 @@ const Configuracion = () => {
 
         <TabsContent value="estados">
           <div className="space-y-3">
+            <div className="surface-card p-4 bg-muted/30 border-border/60 flex items-start gap-2.5 mb-2">
+              <p className="text-[12px] text-muted-foreground">
+                Los estados del sistema son fijos y garantizan la trazabilidad de los envios. La personalizacion de estados estara disponible en una futura actualizacion.
+              </p>
+            </div>
             {Object.entries(estadoLabels).map(([key, label]) => (
               <div key={key} className="surface-card p-4">
                 <div className="flex items-center justify-between">
@@ -134,25 +137,9 @@ const Configuracion = () => {
                     <span className="font-medium text-[13px]">{label}</span>
                     <Badge variant="success" className="text-[11px]">Activo</Badge>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <Switch defaultChecked aria-label={`Activar estado ${label}`} />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      aria-label={`Editar estado ${label}`}
-                      onClick={() => toast.info('Edicion de estados disponible proximamente')}
-                    >
-                      <PencilSimple size={14} weight="duotone" />
-                    </Button>
-                  </div>
                 </div>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full gap-1.5">
-              <Plus className="w-3.5 h-3.5" />
-              Agregar Estado Custom
-            </Button>
           </div>
         </TabsContent>
 
@@ -282,24 +269,6 @@ const Configuracion = () => {
                       </td>
                       <td>
                         <div className="flex gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            aria-label={`Editar usuario ${usuario.nombre}`}
-                            onClick={() => toast.info('Edicion de usuarios disponible proximamente')}
-                          >
-                            <PencilSimple size={14} weight="duotone" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            aria-label={`Eliminar usuario ${usuario.nombre}`}
-                            onClick={() => toast.info('Eliminacion de usuarios disponible proximamente')}
-                          >
-                            <Trash size={14} weight="duotone" className="text-destructive" />
-                          </Button>
                         </div>
                       </td>
                     </tr>

@@ -61,9 +61,8 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
           <kbd className="kbd">K</kbd>
         </div>
 
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Notificaciones">
           <Bell size={17} weight="duotone" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full ring-2 ring-card" />
         </Button>
 
         <DropdownMenu>

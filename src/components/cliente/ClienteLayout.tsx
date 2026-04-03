@@ -252,7 +252,17 @@ export const ClienteLayout = () => {
             {...pageTransition}
             className="p-6 lg:p-8 max-w-[1400px] mx-auto w-full"
           >
-            <Suspense fallback={<div className="h-[60vh] bg-background" />}>
+            <Suspense fallback={
+              <div className="space-y-4 pt-4">
+                <div className="h-7 w-48 bg-muted/40 rounded animate-pulse" />
+                <div className="h-4 w-80 bg-muted/30 rounded animate-pulse" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className="h-24 bg-muted/20 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            }>
               <Outlet />
             </Suspense>
           </motion.div>

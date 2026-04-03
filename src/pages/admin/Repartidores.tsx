@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { estadoLabels } from '@/data/constants';
 import { Plus } from 'lucide-react';
-import { Eye, PencilSimple, UserMinus, UsersThree } from '@phosphor-icons/react';
+import { Eye, UserMinus, UserPlus as UserActivate, UsersThree } from '@phosphor-icons/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useRepartidores, useRepartidorEnvios, useCreateRepartidor, useToggleRepartidorEstado } from '@/hooks/api/use-repartidores';
 import { toast } from 'sonner';
@@ -20,6 +20,7 @@ const Repartidores = () => {
   const [nuevoEstado, setNuevoEstado] = useState(true);
   const [selectedRepartidor, setSelectedRepartidor] = useState<string | null>(null);
   const [showEnviosModal, setShowEnviosModal] = useState(false);
+  const [confirmToggleId, setConfirmToggleId] = useState<string | null>(null);
 
 
   const apiFilters = useMemo(() => {
@@ -108,12 +109,18 @@ const Repartidores = () => {
     );
   };
 
-  const handleToggleEstado = (id: string) => {
-    toggleEstadoMut.mutate(id, {
-        onSuccess: () => toast.success('Estado actualizado'),
+  const handleToggleEstado = () => {
+    if (!confirmToggleId) return;
+    toggleEstadoMut.mutate(confirmToggleId, {
+        onSuccess: () => {
+          toast.success('Estado actualizado');
+          setConfirmToggleId(null);
+        },
         onError: () => toast.error('Error al actualizar estado'),
       });
   };
+
+  const confirmToggleRep = allRepartidores.find(r => r.id === confirmToggleId);
 
   return (
     <TooltipProvider>
@@ -227,25 +234,15 @@ const Repartidores = () => {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 w-7 p-0"
-                                  aria-label={`Editar ${repartidor.nombre}`}
-                                  onClick={() => toast.info('Edicion de repartidores disponible proximamente')}
-                                >
-                                  <PencilSimple size={14} weight="duotone" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar informacion del repartidor</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
                                   aria-label={`${repartidor.estado === 'activo' ? 'Desactivar' : 'Activar'} ${repartidor.nombre}`}
-                                  onClick={() => handleToggleEstado(repartidor.id)}
+                                  onClick={() => setConfirmToggleId(repartidor.id)}
                                   disabled={toggleEstadoMut.isPending}
                                 >
-                                  <UserMinus size={14} weight="duotone" className="text-destructive" />
+                                  {repartidor.estado === 'activo' ? (
+                                    <UserMinus size={14} weight="duotone" className="text-destructive" />
+                                  ) : (
+                                    <UserActivate size={14} weight="duotone" className="text-success" />
+                                  )}
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>{repartidor.estado === 'activo' ? 'Desactivar' : 'Activar'} repartidor</TooltipContent>
@@ -310,6 +307,35 @@ const Repartidores = () => {
               <p className="text-center py-8 text-muted-foreground text-[13px]">No hay envios asignados</p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmToggleId} onOpenChange={(open) => { if (!open) setConfirmToggleId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {confirmToggleRep?.estado === 'activo' ? 'Desactivar' : 'Activar'} repartidor
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[13px] text-muted-foreground py-2">
+            {confirmToggleRep?.estado === 'activo'
+              ? `Se desactivara a ${confirmToggleRep?.nombre ?? ''}. No podra recibir envios asignados.`
+              : `Se activara a ${confirmToggleRep?.nombre ?? ''}. Podra recibir envios nuevamente.`
+            }
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirmToggleId(null)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              variant={confirmToggleRep?.estado === 'activo' ? 'destructive' : 'default'}
+              onClick={handleToggleEstado}
+              disabled={toggleEstadoMut.isPending}
+            >
+              {toggleEstadoMut.isPending ? 'Procesando...' : (confirmToggleRep?.estado === 'activo' ? 'Desactivar' : 'Activar')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

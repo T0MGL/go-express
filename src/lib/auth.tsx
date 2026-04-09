@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from './supabase';
-import { api } from './api';
+import env from './env';
 import type { Session } from '@supabase/supabase-js';
 
 interface AuthUser {
@@ -37,13 +37,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   const loginHandledRef = useRef(false);
 
-  const fetchProfile = useCallback(async (_accessToken: string): Promise<AuthUser | null> => {
+  const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null> => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const profile = await api.get<AuthUser>('/auth/me', { signal: controller.signal });
+      const response = await fetch(`${env.apiUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
-      return profile as AuthUser;
+      if (!response.ok) return null;
+      return (await response.json()) as AuthUser;
     } catch {
       return null;
     }

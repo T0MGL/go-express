@@ -538,7 +538,7 @@ CREATE POLICY "deny_anon" ON configuracion FOR ALL TO anon USING (false) WITH CH
 CREATE POLICY "deny_authenticated" ON configuracion FOR ALL TO authenticated USING (false) WITH CHECK (false);
 
 INSERT INTO configuracion (key, value) VALUES
-  ('empresa', '{"telefono": "+595 21 555 0000", "email": "info@goexpress.com.py", "direccion": "Asunción, Paraguay", "nombre": "GO EXPRESS"}'),
+  ('empresa', '{"telefono": "+595215550000", "email": "info@goexpress.com.py", "direccion": "Asunción, Paraguay", "nombre": "GO EXPRESS"}'),
   ('notificaciones', '{"email_nuevo_envio": true, "email_cambio_estado": true, "email_entrega": true, "whatsapp_enabled": false}'),
   ('tracking_prefix', '"GE"'),
   ('tracking_year', '"2026"'),

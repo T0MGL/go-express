@@ -140,7 +140,7 @@ export const PrintableGuide = ({ envio }: PrintableGuideProps) => {
         {/* Footer */}
         <div className="text-center text-xs text-gray-500 mt-8">
           <p>Rastrea tu envio en: www.goexpress.com.py/track</p>
-          <p>Contacto: +595 21 123 4567 | info@goexpress.com.py</p>
+          <p>Contacto: +595211234567 | info@goexpress.com.py</p>
         </div>
       </div>
     </div>

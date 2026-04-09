@@ -8,7 +8,7 @@ const uniqueSuffix = Date.now().toString(36);
 
 const validRepartidor = {
   nombre: `Repartidor Test ${uniqueSuffix}`,
-  telefono: '+595 982 200 300',
+  telefono: '+595982200300',
   vehiculo: 'Moto',
   placa: `RT${uniqueSuffix.slice(0, 4).toUpperCase()}`,
   licencia: 'LIC-TEST-99',
@@ -228,7 +228,7 @@ describe('DELETE /api/admin/repartidores/:id', () => {
       .set(adminHeaders())
       .send({
         nombre: `Delete Test ${suffix}`,
-        telefono: '+595 983 300 400',
+        telefono: '+595983300400',
         vehiculo: 'Camioneta',
         placa: `DL${suffix.slice(0, 4).toUpperCase()}`,
       });

@@ -10,6 +10,7 @@ import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, CircleNotch } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
 import { useProductos } from '@/hooks/api/use-productos';
@@ -98,7 +99,7 @@ const ClienteNuevoPaquete = () => {
     e.preventDefault();
 
     const nombre = form.destinatarioNombre.trim();
-    const telefono = form.destinatarioTelefono.trim();
+    const telefonoRaw = form.destinatarioTelefono.trim();
     const direccion = form.destinatarioDireccion.trim();
     const contenido = form.contenido.trim();
 
@@ -106,10 +107,11 @@ const ClienteNuevoPaquete = () => {
       toast.error('El nombre del destinatario debe tener al menos 3 caracteres');
       return;
     }
-    if (!telefono || !/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
-      toast.error('Formato de telefono invalido. Ej: +595 981 123 456');
+    if (!telefonoRaw || !isValidPhone(telefonoRaw)) {
+      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
+    const telefono = normalizePhone(telefonoRaw);
     if (!direccion || direccion.length < 5) {
       toast.error('La direccion debe tener al menos 5 caracteres');
       return;
@@ -133,7 +135,7 @@ const ClienteNuevoPaquete = () => {
     createEnvioMutation.mutate(
       {
         destinatarioNombre: form.destinatarioNombre,
-        destinatarioTelefono: form.destinatarioTelefono,
+        destinatarioTelefono: telefono,
         destinatarioDireccion: form.destinatarioDireccion,
         destinatarioDepartamento: form.departamento,
         ...(ciudadTrimmed ? { destinatarioCiudad: ciudadTrimmed } : {}),
@@ -183,7 +185,7 @@ const ClienteNuevoPaquete = () => {
               </div>
               <div>
                 <Label className="text-[11px]">Telefono *</Label>
-                <Input required type="tel" placeholder="+595" value={form.destinatarioTelefono} onChange={(e) => handleChange('destinatarioTelefono', e.target.value)} className="mt-1.5 font-data" />
+                <Input required type="tel" placeholder={PHONE_PLACEHOLDER} value={form.destinatarioTelefono} onChange={(e) => handleChange('destinatarioTelefono', e.target.value)} className="mt-1.5 font-data" />
               </div>
             </div>
             <div>

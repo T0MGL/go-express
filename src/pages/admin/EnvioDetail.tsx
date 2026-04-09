@@ -22,6 +22,7 @@ import {
   UserCircle,
 } from '@phosphor-icons/react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -122,9 +123,8 @@ const EnvioDetail = () => {
 
   const handleSaveEdit = () => {
     if (!id) return;
-    const phoneRegex = /^\+595\d{9,10}$/;
-    if (editForm.destinatarioTelefono && !phoneRegex.test(editForm.destinatarioTelefono)) {
-      toast.error('Telefono debe tener formato +595XXXXXXXXX');
+    if (editForm.destinatarioTelefono && !isValidPhone(editForm.destinatarioTelefono)) {
+      toast.error(`Telefono debe tener formato ${PHONE_PLACEHOLDER}`);
       return;
     }
     const body: Record<string, unknown> = {
@@ -132,7 +132,7 @@ const EnvioDetail = () => {
       destino: editForm.destino,
       destinatarioNombre: editForm.destinatarioNombre,
       destinatarioDireccion: editForm.destinatarioDireccion,
-      destinatarioTelefono: editForm.destinatarioTelefono,
+      destinatarioTelefono: editForm.destinatarioTelefono ? normalizePhone(editForm.destinatarioTelefono) : editForm.destinatarioTelefono,
       destinatarioCiudad: editForm.destinatarioCiudad || undefined,
       peso: parseFloat(editForm.peso),
       costo: Math.round(parseFloat(editForm.costo)),
@@ -712,6 +712,7 @@ const EnvioDetail = () => {
                     <Input
                       value={editForm.destinatarioTelefono}
                       onChange={(e) => handleEditChange('destinatarioTelefono', e.target.value)}
+                      placeholder={PHONE_PLACEHOLDER}
                       className="mt-1 font-data"
                     />
                   </div>

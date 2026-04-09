@@ -68,7 +68,7 @@ test.describe('Clientes Management', () => {
     await page.getByRole('dialog').locator('input[name="razonSocial"]').fill(razonSocial);
     await page.getByRole('dialog').locator('input[name="ruc"]').fill(`80${uniqueSuffix}-1`);
     await page.getByRole('dialog').locator('input[name="contactoNombre"]').fill('Test Contacto');
-    await page.getByRole('dialog').locator('input[name="telefono"]').fill('+595 21 555 1000');
+    await page.getByRole('dialog').locator('input[name="telefono"]').fill('+595215551000');
     await page.getByRole('dialog').locator('input[name="email"]').fill(`test${uniqueSuffix}@e2e.com`);
     await page.getByRole('dialog').locator('input[name="direccion"]').fill('Calle Test 456');
 

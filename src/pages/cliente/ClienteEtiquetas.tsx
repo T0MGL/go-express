@@ -26,7 +26,14 @@ const ClienteEtiquetas = () => {
 
   const addTag = () => {
     const nombre = newTag.trim();
-    if (!nombre || tags.find((t) => t.nombre.toLowerCase() === nombre.toLowerCase())) return;
+    if (!nombre) {
+      toast.error('Escribe un nombre para la etiqueta');
+      return;
+    }
+    if (tags.find((t) => t.nombre.toLowerCase() === nombre.toLowerCase())) {
+      toast.error(`Ya existe una etiqueta llamada "${nombre}"`);
+      return;
+    }
 
     createTagMutation.mutate(
       { nombre, color: '#6B7280' },
@@ -35,8 +42,9 @@ const ClienteEtiquetas = () => {
           setNewTag('');
           toast.success(`Etiqueta "${nombre}" creada`);
         },
-        onError: () => {
-          toast.error('Error al crear la etiqueta');
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : 'Error al crear la etiqueta';
+          toast.error(msg);
         },
       }
     );
@@ -74,7 +82,7 @@ const ClienteEtiquetas = () => {
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
           />
-          <Button onClick={addTag} size="sm" className="gap-1.5" disabled={createTagMutation.isPending}>
+          <Button type="button" onClick={addTag} size="sm" className="gap-1.5" disabled={createTagMutation.isPending || !newTag.trim()}>
             {createTagMutation.isPending ? (
               <CircleNotch size={14} weight="bold" className="animate-spin" />
             ) : (

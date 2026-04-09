@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Switch } from '@/components/ui/switch';
 import { estadoLabels } from '@/data/constants';
@@ -86,20 +87,22 @@ const Repartidores = () => {
     const fd = new FormData(form);
 
     const nombre = (fd.get('nombre') as string || '').trim();
-    const telefono = (fd.get('telefono') as string || '').trim();
+    const telefonoRaw = (fd.get('telefono') as string || '').trim();
     const vehiculo = (fd.get('vehiculo') as string || '').trim();
     const placa = (fd.get('placa') as string || '').trim();
     const licencia = (fd.get('licencia') as string || '').trim();
 
-    if (!nombre || !telefono || !vehiculo || !placa) {
+    if (!nombre || !telefonoRaw || !vehiculo || !placa) {
       toast.error('Completa todos los campos obligatorios');
       return;
     }
 
-    if (!/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
-      toast.error('Formato de telefono invalido. Ej: +595 981 123 456');
+    if (!isValidPhone(telefonoRaw)) {
+      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
+
+    const telefono = normalizePhone(telefonoRaw);
 
     createMut.mutate(
       {
@@ -370,7 +373,7 @@ const Repartidores = () => {
               </div>
               <div>
                 <Label htmlFor="telefono" className="text-[13px]">Telefono *</Label>
-                <Input id="telefono" name="telefono" type="tel" placeholder="+595" required className="mt-1.5 font-data" />
+                <Input id="telefono" name="telefono" type="tel" placeholder={PHONE_PLACEHOLDER} required className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label htmlFor="vehiculo" className="text-[13px]">Tipo de vehiculo *</Label>

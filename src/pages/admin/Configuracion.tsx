@@ -100,7 +100,7 @@ const Configuracion = () => {
             <form className="space-y-6" onSubmit={handleSaveConfig}>
               <div>
                 <Label htmlFor="telefono" className="text-[13px]">Telefono de contacto</Label>
-                <Input id="telefono" name="telefono" type="tel" defaultValue="+595 21 123 4567" className="mt-1.5 font-data" />
+                <Input id="telefono" name="telefono" type="tel" defaultValue="+595211234567" className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label htmlFor="email-config" className="text-[13px]">Email de contacto</Label>

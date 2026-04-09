@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { useClienteBulkImport, type BulkImportEnvio } from '@/hooks/api/use-cliente-envios';
+import { isValidPhone, normalizePhone } from '@/lib/phone';
 
 interface FilaImportada {
   fila: number;
@@ -41,6 +42,7 @@ const parsearCSV = (text: string): FilaImportada[] => {
     const errores: string[] = [];
     if (!nombre) errores.push('Falta nombre del destinatario');
     if (!telefono) errores.push('Falta telefono');
+    else if (!isValidPhone(telefono)) errores.push('Telefono invalido');
     if (!direccion) errores.push('Falta direccion');
     if (!destino) errores.push('Falta ciudad de destino');
     if (!peso || isNaN(Number(peso))) errores.push('Peso invalido');
@@ -48,7 +50,7 @@ const parsearCSV = (text: string): FilaImportada[] => {
       fila: idx + 2,
       destinatarioNombre: nombre,
       destinatarioDireccion: direccion,
-      destinatarioTelefono: telefono,
+      destinatarioTelefono: telefono ? normalizePhone(telefono) : telefono,
       destino,
       peso,
       contenido,
@@ -60,8 +62,8 @@ const parsearCSV = (text: string): FilaImportada[] => {
 
 const descargarTemplate = () => {
   const header = COLUMNAS_TEMPLATE.join(',');
-  const ejemplo1 = 'Juan Perez Garcia,+595 983 123 456,"Av. San Blas 1234, Centro",Ciudad del Este,2.5,Ropa y accesorios,Fragil';
-  const ejemplo2 = 'Maria Lopez Hernandez,+595 984 987 654,"Calle Padre Bolik 567, Centro",Encarnacion,1.2,Electronico,';
+  const ejemplo1 = 'Juan Perez Garcia,+595983123456,"Av. San Blas 1234, Centro",Ciudad del Este,2.5,Ropa y accesorios,Fragil';
+  const ejemplo2 = 'Maria Lopez Hernandez,+595984987654,"Calle Padre Bolik 567, Centro",Encarnacion,1.2,Electronico,';
   const csv = [header, ejemplo1, ejemplo2].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

@@ -12,6 +12,7 @@ import { exportToCSV } from '@/lib/exportCSV';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn, formatCurrency } from '@/lib/utils';
+import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,19 +101,21 @@ const Clientes = () => {
     const razonSocial = (fd.get('razonSocial') as string || '').trim();
     const ruc = (fd.get('ruc') as string || '').trim();
     const contactoNombre = (fd.get('contactoNombre') as string || '').trim();
-    const telefono = (fd.get('telefono') as string || '').trim();
+    const telefonoRaw = (fd.get('telefono') as string || '').trim();
     const email = (fd.get('email') as string || '').trim();
     const direccion = (fd.get('direccion') as string || '').trim();
 
-    if (!razonSocial || !ruc || !contactoNombre || !telefono || !email || !direccion) {
+    if (!razonSocial || !ruc || !contactoNombre || !telefonoRaw || !email || !direccion) {
       toast.error('Completa todos los campos obligatorios');
       return;
     }
 
-    if (!/^\+?595\s?\d{2,4}\s?\d{3}\s?\d{3,4}$/.test(telefono)) {
-      toast.error('Formato de telefono invalido. Ej: +595 21 555 1000');
+    if (!isValidPhone(telefonoRaw)) {
+      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
+
+    const telefono = normalizePhone(telefonoRaw);
 
     const body: Record<string, unknown> = {
       razonSocial,
@@ -507,7 +510,7 @@ const Clientes = () => {
                     <Input
                       name="telefono"
                       defaultValue={selectedCliente?.telefono}
-                      placeholder="+595 21 555 1000"
+                      placeholder={PHONE_PLACEHOLDER}
                       required
                       className="mt-1.5 font-data"
                     />

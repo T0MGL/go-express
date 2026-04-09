@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
+import { PHONE_PLACEHOLDER, normalizePhone, isValidPhone } from '@/lib/phone';
 import { useClientes } from '@/hooks/api/use-clientes';
 import { useCreateEnvio } from '@/hooks/api/use-envios';
 
@@ -55,7 +56,9 @@ const paso3Schema = z.object({
 const paso4Schema = z.object({
   destinatarioNombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   destinatarioDireccion: z.string().min(5, 'La direccion debe tener al menos 5 caracteres'),
-  destinatarioTelefono: z.string().regex(/^\+?595\s?\d{3}\s?\d{3}\s?\d{3}$/, 'Formato: +595 XXX XXX XXX'),
+  destinatarioTelefono: z.string().refine((v) => isValidPhone(v), {
+    message: `Formato: ${PHONE_PLACEHOLDER}`,
+  }),
 });
 
 const paso5Schema = z.object({
@@ -260,7 +263,7 @@ export function EnvioWizard() {
           dimensiones: talla ? { largo: talla.largo, ancho: talla.ancho, alto: talla.alto } : undefined,
           destinatarioNombre: formData.destinatarioNombre,
           destinatarioDireccion: formData.destinatarioDireccion,
-          destinatarioTelefono: formData.destinatarioTelefono,
+          destinatarioTelefono: normalizePhone(formData.destinatarioTelefono),
           notas: formData.notas,
           costo: Math.round(parseFloat(formData.costo)),
           tipoPago: formData.tipoPago,
@@ -559,7 +562,7 @@ export function EnvioWizard() {
                 <Label className="text-[12px]" htmlFor="destinatarioTelefono">Telefono *</Label>
                 <Input
                   id="destinatarioTelefono"
-                  placeholder="+595 XXX XXX XXX"
+                  placeholder={PHONE_PLACEHOLDER}
                   value={formData.destinatarioTelefono}
                   onChange={(e) => handleChange('destinatarioTelefono', e.target.value)}
                   className={cn("font-data", errors.destinatarioTelefono && 'border-destructive')}
@@ -567,7 +570,7 @@ export function EnvioWizard() {
                 {errors.destinatarioTelefono && (
                   <p className="text-[12px] text-destructive mt-1">{errors.destinatarioTelefono}</p>
                 )}
-                <p className="text-[11px] text-muted-foreground mt-1">Formato: +595 XXX XXX XXX</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Formato: {PHONE_PLACEHOLDER}</p>
               </div>
 
               <div>

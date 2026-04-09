@@ -31,11 +31,12 @@ export function useCreateTag() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: { nombre: string; color: string }) =>
-      api.post<{ data: TagData }>('/cliente/tags', data),
+      api.post<{ data: Omit<TagData, 'envioCount'> }>('/cliente/tags', data),
     onSuccess: (res) => {
+      const newTag: TagData = { ...res.data, envioCount: 0 };
       queryClient.setQueryData<TagsListResponse>(tagKeys.lists(), (old) => {
-        if (!old) return { data: [res.data] };
-        return { ...old, data: [...old.data, res.data] };
+        if (!old) return { data: [newTag] };
+        return { ...old, data: [...old.data, newTag] };
       });
     },
   });

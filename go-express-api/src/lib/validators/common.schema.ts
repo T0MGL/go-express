@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PHONE_REGEX, normalizePhone } from '../phone.js';
 
 // UUID validation
 export const uuidSchema = z.string().uuid('ID must be a valid UUID');
@@ -36,14 +37,20 @@ export const dateRangeSchema = z.object({
   fechaHasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-// Paraguayan phone number
-export const phoneSchema = z.string().regex(
-  /^\+?595\s?\d{3}\s?\d{3}\s?\d{3}$/,
-  'Phone must be in Paraguayan format: +595 XXX XXX XXX'
-);
+export const phoneSchema = z
+  .string()
+  .transform((v) => normalizePhone(v))
+  .refine((v) => PHONE_REGEX.test(v), {
+    message: 'Phone must be in Paraguayan format: +595XXXXXXXXX',
+  });
 
-// Optional phone
-export const optionalPhoneSchema = phoneSchema.optional().or(z.literal(''));
+export const optionalPhoneSchema = z
+  .string()
+  .optional()
+  .transform((v) => (v ? normalizePhone(v) : v))
+  .refine((v) => !v || PHONE_REGEX.test(v), {
+    message: 'Phone must be in Paraguayan format: +595XXXXXXXXX',
+  });
 
 // Sort order
 export const sortSchema = z.object({

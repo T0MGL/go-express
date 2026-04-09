@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Buildings, UserCircle, FloppyDisk, CircleNotch } from '@phosphor-icons/react';
 import { useCuenta, useUpdateCuenta, type CuentaData } from '@/hooks/api/use-cuenta';
+import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 
 const defaultCuenta: CuentaData = {
   razonSocial: '',
@@ -50,8 +51,17 @@ const ClienteCuenta = () => {
       toast.error('El nombre de contacto es obligatorio');
       return;
     }
+    if (form.telefono && !isValidPhone(form.telefono)) {
+      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
+      return;
+    }
 
-    updateMutation.mutate(form, {
+    const payload: CuentaData = {
+      ...form,
+      telefono: form.telefono ? normalizePhone(form.telefono) : form.telefono,
+    };
+
+    updateMutation.mutate(payload, {
       onSuccess: () => {
         toast.success('Datos actualizados correctamente');
       },
@@ -115,7 +125,7 @@ const ClienteCuenta = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px]">Telefono</Label>
-                <Input value={form.telefono} onChange={(e) => handleChange('telefono', e.target.value)} className="mt-1.5 font-data" />
+                <Input value={form.telefono} onChange={(e) => handleChange('telefono', e.target.value)} placeholder={PHONE_PLACEHOLDER} className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label className="text-[11px]">Email</Label>

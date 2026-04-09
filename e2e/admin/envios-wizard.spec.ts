@@ -76,7 +76,7 @@ test.describe('Envio Wizard (5-step creation)', () => {
 
     await page.locator('#destinatarioNombre').fill('Juan Perez Garcia');
     await page.locator('#destinatarioDireccion').fill('Av. Espana 1234, Barrio Centro');
-    await page.locator('#destinatarioTelefono').fill('+595 981 123 456');
+    await page.locator('#destinatarioTelefono').fill('+595981123456');
 
     await page.getByRole('button', { name: 'Siguiente' }).click();
     await expect(page.getByText('Paso 5 de 5')).toBeVisible();
@@ -87,10 +87,10 @@ test.describe('Envio Wizard (5-step creation)', () => {
 
     await page.locator('#destinatarioNombre').fill('Juan Perez Garcia');
     await page.locator('#destinatarioDireccion').fill('Av. Espana 1234, Barrio Centro');
-    await page.locator('#destinatarioTelefono').fill('0981123456');
+    await page.locator('#destinatarioTelefono').fill('12345');
 
     await page.getByRole('button', { name: 'Siguiente' }).click();
-    await expect(page.getByText('Formato: +595 XXX XXX XXX')).toBeVisible();
+    await expect(page.getByText('Formato: +595981123456')).toBeVisible();
   });
 
   test('step 5: shows payment form with suggested price', async ({ adminPage: page }) => {
@@ -198,7 +198,7 @@ async function advanceToStep(page: import('@playwright/test').Page, targetStep: 
   if (targetStep >= 5) {
     await page.locator('#destinatarioNombre').fill('Juan Perez Garcia');
     await page.locator('#destinatarioDireccion').fill('Av. Espana 1234, Barrio Centro');
-    await page.locator('#destinatarioTelefono').fill('+595 981 123 456');
+    await page.locator('#destinatarioTelefono').fill('+595981123456');
 
     await page.getByRole('button', { name: 'Siguiente' }).click();
     await expect(page.getByText('Paso 5 de 5')).toBeVisible();

@@ -7,7 +7,7 @@ const validCliente = {
   razonSocial: `Test Corp ${uniqueSuffix}`,
   ruc: `80099${uniqueSuffix.slice(0, 5)}-1`,
   contactoNombre: 'Carlos Test',
-  telefono: '+595 981 100 200',
+  telefono: '+595981100200',
   email: `test-cliente-${uniqueSuffix}@goexpress.test`,
   direccion: 'Av. Espana 1234, Asuncion',
   ciudad: 'Asuncion',

@@ -704,7 +704,7 @@ const Landing = () => {
               <div className="space-y-6">
                 {[
                   { icon: MapPin, title: 'Central', desc: 'Itapúa, Paraguay' },
-                  { icon: Phone, title: 'Atención a Empresas', desc: '+595 900 000 000' },
+                  { icon: Phone, title: 'Atención a Empresas', desc: '+595900000000' },
                   { icon: EnvelopeSimple, title: 'Comercial', desc: 'contacto@goexpressparaguay.com' },
                 ].map((item, i) => (
                   <motion.div

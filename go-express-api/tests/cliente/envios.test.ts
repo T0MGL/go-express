@@ -49,7 +49,7 @@ describe('POST /api/cliente/envios', () => {
 
   it('rejects envio with invalid phone format with 400', async () => {
     const payload = makeEnvioPayload(testData.clienteId, {
-      destinatarioTelefono: '0981123456',
+      destinatarioTelefono: '12345',
     });
 
     const res = await request

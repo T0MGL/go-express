@@ -7,7 +7,7 @@ interface AuthUser {
   id: string;
   nombre: string;
   email: string;
-  rol: 'admin' | 'operador';
+  rol: 'admin' | 'operador' | 'cliente';
 }
 
 interface AuthState {

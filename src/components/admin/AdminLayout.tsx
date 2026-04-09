@@ -65,9 +65,9 @@ export const AdminLayout = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Redirect client users to their portal (prevents clients from seeing admin UI)
+  // Cliente users logged in via portal should not access admin UI
   if (user && user.rol !== 'admin' && user.rol !== 'operador') {
-    return <Navigate to="/cliente" replace />;
+    return <Navigate to="/cliente" state={{ from: location }} replace />;
   }
 
   return (

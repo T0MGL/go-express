@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 
 
 const Login = () => {
-  const { login, loading, error, isAuthenticated } = useAuth();
+  const { login, loading, error, isAuthenticated, user } = useAuth();
   const location = useLocation();
+  const isAdminUser = user?.rol === 'admin' || user?.rol === 'operador';
+
+  useEffect(() => {
+    if (isAuthenticated && user && !isAdminUser) {
+      supabase.auth.signOut();
+      sessionStorage.removeItem('go_express_cliente');
+    }
+  }, [isAuthenticated, user, isAdminUser]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +53,7 @@ const Login = () => {
     );
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && isAdminUser) {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin';
     return <Navigate to={from} replace />;
   }

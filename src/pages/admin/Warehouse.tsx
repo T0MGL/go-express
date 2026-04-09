@@ -16,7 +16,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Package,
-  MagnifyingGlass,
   TrendUp,
   Warehouse as WarehouseIcon,
   MapPin,
@@ -459,15 +458,12 @@ export default function Warehouse() {
       <div className="surface-card">
         <div className="p-5 pb-4 flex items-center justify-between">
           <h3 className="text-[14px] font-semibold">Inventario</h3>
-          <div className="relative w-80">
-            <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-            <Input
-              placeholder="Buscar por tracking o cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar por tracking o cliente..."
+            className="w-80"
+          />
         </div>
         {isLoading ? (
           <div className="p-4 space-y-3">

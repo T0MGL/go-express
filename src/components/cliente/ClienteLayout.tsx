@@ -65,6 +65,7 @@ export const ClienteLayout = () => {
           const parsed = JSON.parse(stored) as ClienteProfile;
           if (mounted) setProfile(parsed);
         } catch {
+          // Ignore malformed sessionStorage payload
         }
       }
 

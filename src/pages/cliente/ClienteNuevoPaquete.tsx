@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,19 +9,40 @@ import { departamentosPY } from '@/data/constants';
 import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, CircleNotch } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
 import { useProductos } from '@/hooks/api/use-productos';
+import { useCiudadesDisponibles } from '@/hooks/api/use-cotizador';
+
+interface SizePreset {
+  id: 'pequeno' | 'mediano' | 'grande' | 'muy_grande';
+  label: string;
+  description: string;
+  largo: number;
+  ancho: number;
+  alto: number;
+}
+
+const SIZE_PRESETS: SizePreset[] = [
+  { id: 'pequeno', label: 'Pequeno', description: '20 x 15 x 10', largo: 20, ancho: 15, alto: 10 },
+  { id: 'mediano', label: 'Mediano', description: '30 x 25 x 20', largo: 30, ancho: 25, alto: 20 },
+  { id: 'grande', label: 'Grande', description: '50 x 40 x 30', largo: 50, ancho: 40, alto: 30 },
+  { id: 'muy_grande', label: 'Muy grande', description: '80 x 60 x 50', largo: 80, ancho: 60, alto: 50 },
+];
 
 const ClienteNuevoPaquete = () => {
   const navigate = useNavigate();
   const [etiquetaInput, setEtiquetaInput] = useState('');
   const [etiquetas, setEtiquetas] = useState<string[]>([]);
+  const [selectedSize, setSelectedSize] = useState<SizePreset['id'] | null>(null);
   const [form, setForm] = useState({
     destinatarioNombre: '',
     destinatarioTelefono: '',
     destinatarioDireccion: '',
     departamento: '',
+    ciudad: '',
+    codigoReferencia: '',
     peso: '',
     largo: '',
     ancho: '',
@@ -32,11 +53,33 @@ const ClienteNuevoPaquete = () => {
 
   const createEnvioMutation = useClienteCreateEnvio();
   const { data: apiProductos } = useProductos();
+  const { data: ciudadesDisponibles } = useCiudadesDisponibles();
 
   const productos: ProductoGuardado[] = apiProductos?.data ?? [];
 
+  const activeDepartamentos = useMemo(() => {
+    const active = new Set(ciudadesDisponibles ?? []);
+    return departamentosPY.map((d) => ({
+      name: d,
+      isActive: active.size === 0 ? true : active.has(d),
+    }));
+  }, [ciudadesDisponibles]);
+
+  const applySizePreset = (preset: SizePreset) => {
+    setSelectedSize(preset.id);
+    setForm((prev) => ({
+      ...prev,
+      largo: String(preset.largo),
+      ancho: String(preset.ancho),
+      alto: String(preset.alto),
+    }));
+  };
+
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === 'largo' || field === 'ancho' || field === 'alto') {
+      setSelectedSize(null);
+    }
   };
 
   const addEtiqueta = () => {
@@ -84,12 +127,17 @@ const ClienteNuevoPaquete = () => {
       return;
     }
 
+    const ciudadTrimmed = form.ciudad.trim();
+    const codigoTrimmed = form.codigoReferencia.trim();
+
     createEnvioMutation.mutate(
       {
         destinatarioNombre: form.destinatarioNombre,
         destinatarioTelefono: form.destinatarioTelefono,
         destinatarioDireccion: form.destinatarioDireccion,
         destinatarioDepartamento: form.departamento,
+        ...(ciudadTrimmed ? { destinatarioCiudad: ciudadTrimmed } : {}),
+        ...(codigoTrimmed ? { codigoReferencia: codigoTrimmed } : {}),
         peso: Number(form.peso),
         dimensiones: {
           largo: Number(form.largo) || 0,
@@ -142,18 +190,45 @@ const ClienteNuevoPaquete = () => {
               <Label className="text-[11px]">Direccion de entrega *</Label>
               <Input required value={form.destinatarioDireccion} onChange={(e) => handleChange('destinatarioDireccion', e.target.value)} className="mt-1.5" />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px]">Departamento *</Label>
+                <Select value={form.departamento} onValueChange={(v) => handleChange('departamento', v)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Seleccionar departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeDepartamentos.map((d) => (
+                      <SelectItem key={d.name} value={d.name} disabled={!d.isActive}>
+                        <span className="flex items-center justify-between gap-2 w-full">
+                          <span>{d.name}</span>
+                          {!d.isActive && (
+                            <span className="text-[10px] text-muted-foreground/60 italic">sin cobertura</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px]">Ciudad</Label>
+                <Input
+                  value={form.ciudad}
+                  onChange={(e) => handleChange('ciudad', e.target.value)}
+                  placeholder="Ej: Ciudad del Este"
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
             <div>
-              <Label className="text-[11px]">Departamento *</Label>
-              <Select value={form.departamento} onValueChange={(v) => handleChange('departamento', v)}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Seleccionar departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departamentosPY.map((d) => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[11px]">Numero de pedido (opcional)</Label>
+              <Input
+                value={form.codigoReferencia}
+                onChange={(e) => handleChange('codigoReferencia', e.target.value)}
+                placeholder="Ej: PED-2026-0042"
+                className="mt-1.5 font-data"
+              />
             </div>
           </div>
         </div>
@@ -183,6 +258,7 @@ const ClienteNuevoPaquete = () => {
                         alto: String(prod.dimensiones.alto),
                         contenido: prod.nombre + (prod.descripcion ? `: ${prod.descripcion}` : ''),
                       }));
+                      setSelectedSize(null);
                       if (prod.fragil && !etiquetas.includes('Fragil')) {
                         setEtiquetas((prev) => [...prev, 'Fragil']);
                       }
@@ -213,22 +289,45 @@ const ClienteNuevoPaquete = () => {
               </div>
             )}
 
+            <div>
+              <Label className="text-[11px] mb-1.5 block">Tamano del paquete</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {SIZE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applySizePreset(preset)}
+                    aria-pressed={selectedSize === preset.id}
+                    className={cn(
+                      'flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-all',
+                      selectedSize === preset.id
+                        ? 'border-primary bg-primary/5 text-foreground shadow-xs'
+                        : 'border-border/60 bg-card hover:border-border hover:bg-muted/40 text-muted-foreground'
+                    )}
+                  >
+                    <span className="text-[12px] font-semibold">{preset.label}</span>
+                    <span className="text-[10px] font-data text-muted-foreground/80">{preset.description} cm</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <Label className="text-[11px]">Peso (kg) *</Label>
-                <Input required type="number" step="0.1" value={form.peso} onChange={(e) => handleChange('peso', e.target.value)} className="mt-1.5 font-data" />
+                <Input required type="number" step="0.1" min="0.1" value={form.peso} onChange={(e) => handleChange('peso', e.target.value)} className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label className="text-[11px]">Largo (cm)</Label>
-                <Input type="number" value={form.largo} onChange={(e) => handleChange('largo', e.target.value)} className="mt-1.5 font-data" />
+                <Input type="number" min="0" value={form.largo} onChange={(e) => handleChange('largo', e.target.value)} className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label className="text-[11px]">Ancho (cm)</Label>
-                <Input type="number" value={form.ancho} onChange={(e) => handleChange('ancho', e.target.value)} className="mt-1.5 font-data" />
+                <Input type="number" min="0" value={form.ancho} onChange={(e) => handleChange('ancho', e.target.value)} className="mt-1.5 font-data" />
               </div>
               <div>
                 <Label className="text-[11px]">Alto (cm)</Label>
-                <Input type="number" value={form.alto} onChange={(e) => handleChange('alto', e.target.value)} className="mt-1.5 font-data" />
+                <Input type="number" min="0" value={form.alto} onChange={(e) => handleChange('alto', e.target.value)} className="mt-1.5 font-data" />
               </div>
             </div>
 

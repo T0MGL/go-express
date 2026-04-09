@@ -4,17 +4,18 @@ import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
-  MagnifyingGlass, Buildings,
+  Buildings,
   Package, PencilSimple, ArrowSquareOut, Warning, TrendUp, CurrencyDollar,
   PaperPlaneTilt, ArrowClockwise, LockKey, Globe,
 } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/exportCSV';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -254,17 +255,14 @@ const Clientes = () => {
 
         {/* Filters */}
         <div className="flex gap-3">
-          <div className="relative flex-1">
-            <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-            <Input
-              placeholder="Buscar por empresa, RUC, contacto o email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar por empresa, RUC, contacto o email..."
+            className="flex-1"
+          />
           <Select value={filterEstado} onValueChange={setFilterEstado}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className={cn('w-36 transition-colors', filterEstado !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>

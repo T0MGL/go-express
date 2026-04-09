@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
 import { tipoServicioLabels, departamentosPY } from '@/data/constants';
 import type { Tarifa } from '@/data/types';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
 import {
-  MagnifyingGlass,
   PencilSimple,
   Trash,
   Warning,
@@ -13,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -211,20 +211,20 @@ const Tarifas = () => {
 
       {/* Filtros */}
       <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por origen, destino o tipo..."
-            className="pl-9"
-          />
-        </div>
+        <SearchInput
+          value={busqueda}
+          onChange={setBusqueda}
+          placeholder="Buscar por origen, destino o tipo..."
+          className="flex-1 max-w-sm"
+        />
         <Button
           variant={mostrarEliminadas ? 'secondary' : 'outline'}
           size="sm"
           onClick={() => setMostrarEliminadas((v) => !v)}
-          className="gap-1.5"
+          className={cn(
+            'gap-1.5 transition-colors',
+            mostrarEliminadas && 'border-primary/50 bg-primary/5 text-primary hover:bg-primary/10',
+          )}
         >
           <Warning size={14} weight="duotone" />
           {mostrarEliminadas ? 'Ocultar desactivadas' : 'Ver desactivadas'}

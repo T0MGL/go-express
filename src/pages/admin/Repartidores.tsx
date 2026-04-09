@@ -5,7 +5,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Switch } from '@/components/ui/switch';
 import { estadoLabels } from '@/data/constants';
 import { Plus } from 'lucide-react';
@@ -15,6 +18,7 @@ import { useRepartidores, useRepartidorEnvios, useCreateRepartidor, useToggleRep
 import { toast } from 'sonner';
 
 const Repartidores = () => {
+  const [busqueda, setBusqueda] = useState('');
   const [filterEstado, setFilterEstado] = useState<string>('todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState(true);
@@ -22,6 +26,7 @@ const Repartidores = () => {
   const [showEnviosModal, setShowEnviosModal] = useState(false);
   const [confirmToggleId, setConfirmToggleId] = useState<string | null>(null);
 
+  const debouncedBusqueda = useDebouncedValue(busqueda, 350);
 
   const apiFilters = useMemo(() => {
     const f: Record<string, string | undefined> = {};
@@ -36,10 +41,17 @@ const Repartidores = () => {
   const createMut = useCreateRepartidor();
   const toggleEstadoMut = useToggleRepartidorEstado();
 
-  // Resolve data
   const allRepartidores = apiRepartidores?.data ?? [];
 
-  const filteredRepartidores = allRepartidores;
+  const filteredRepartidores = useMemo(() => {
+    if (!debouncedBusqueda) return allRepartidores;
+    const q = debouncedBusqueda.toLowerCase();
+    return allRepartidores.filter((r) =>
+      r.nombre.toLowerCase().includes(q) ||
+      (r.placa?.toLowerCase().includes(q) ?? false) ||
+      (r.telefono?.toLowerCase().includes(q) ?? false)
+    );
+  }, [allRepartidores, debouncedBusqueda]);
 
   const totalCount = apiRepartidores?.pagination?.total ?? allRepartidores.length;
 
@@ -143,9 +155,15 @@ const Repartidores = () => {
 
       <div className="surface-card">
         <div className="p-5 pb-4">
-          <div className="mb-4">
+          <div className="flex flex-wrap gap-3 mb-4">
+            <SearchInput
+              value={busqueda}
+              onChange={setBusqueda}
+              placeholder="Buscar por nombre, placa o telefono..."
+              className="flex-1 min-w-48"
+            />
             <Select value={filterEstado} onValueChange={setFilterEstado}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className={cn('w-48', filterEstado !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

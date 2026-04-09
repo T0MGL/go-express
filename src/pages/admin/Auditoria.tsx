@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,11 +18,12 @@ import {
 } from '@/data/constants';
 import {
   ShieldCheck,
-  MagnifyingGlass,
   DownloadSimple,
   Info,
   UserCircle,
   Clock,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import { cn, formatTimestamp, formatTimestampTime } from '@/lib/utils';
 import { useAuditoria } from '@/hooks/api/use-auditoria';
@@ -49,18 +51,24 @@ const badgeVariantForColor = (color: string) => {
   }
 };
 
+const PAGE_SIZE = 20;
+
 const Auditoria = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroUsuario, setFiltroUsuario] = useState('todos');
   const [filtroAccion, setFiltroAccion] = useState('todos');
   const [filtroEntidad, setFiltroEntidad] = useState('todos');
   const [filtroFecha, setFiltroFecha] = useState('');
-
+  const [page, setPage] = useState(1);
 
   const debouncedBusqueda = useDebouncedValue(busqueda, 350);
 
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedBusqueda, filtroUsuario, filtroAccion, filtroEntidad, filtroFecha]);
+
   const apiFilters = useMemo(() => {
-    const f: Record<string, string | undefined> = {};
+    const f: Record<string, string | number | undefined> = { page, limit: PAGE_SIZE };
     if (filtroUsuario !== 'todos') f.usuarioId = filtroUsuario;
     if (filtroAccion !== 'todos') f.accion = filtroAccion;
     if (filtroEntidad !== 'todos') f.entidad = filtroEntidad;
@@ -70,7 +78,7 @@ const Auditoria = () => {
     }
     if (debouncedBusqueda) f.search = debouncedBusqueda;
     return f;
-  }, [filtroUsuario, filtroAccion, filtroEntidad, filtroFecha, debouncedBusqueda]);
+  }, [filtroUsuario, filtroAccion, filtroEntidad, filtroFecha, debouncedBusqueda, page]);
 
   const { data: apiAuditoria, isLoading } = useAuditoria(apiFilters);
   const { data: apiUsuarios } = useUsuarios();
@@ -78,6 +86,7 @@ const Auditoria = () => {
   const logs = (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
   const logsFiltrados = (apiAuditoria?.data ?? []) as unknown as AuditoriaLog[];
   const totalCount = apiAuditoria?.pagination?.total ?? logs.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const exportarCSV = () => {
     const headers = ['Fecha', 'Hora', 'Usuario', 'Accion', 'Entidad', 'ID Entidad', 'Descripcion', 'Valor Anterior', 'Valor Nuevo'];
@@ -136,17 +145,14 @@ const Auditoria = () => {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar en descripcion o ID..."
-            className="pl-9"
-          />
-        </div>
+        <SearchInput
+          value={busqueda}
+          onChange={setBusqueda}
+          placeholder="Buscar en descripcion o ID..."
+          className="flex-1 min-w-48"
+        />
         <Select value={filtroUsuario} onValueChange={setFiltroUsuario}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className={cn('w-40', filtroUsuario !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
             <SelectValue placeholder="Usuario" />
           </SelectTrigger>
           <SelectContent>
@@ -157,7 +163,7 @@ const Auditoria = () => {
           </SelectContent>
         </Select>
         <Select value={filtroAccion} onValueChange={setFiltroAccion}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className={cn('w-44', filtroAccion !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
             <SelectValue placeholder="Accion" />
           </SelectTrigger>
           <SelectContent>
@@ -168,7 +174,7 @@ const Auditoria = () => {
           </SelectContent>
         </Select>
         <Select value={filtroEntidad} onValueChange={setFiltroEntidad}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className={cn('w-36', filtroEntidad !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
             <SelectValue placeholder="Entidad" />
           </SelectTrigger>
           <SelectContent>
@@ -182,7 +188,7 @@ const Auditoria = () => {
           type="date"
           value={filtroFecha}
           onChange={(e) => setFiltroFecha(e.target.value)}
-          className="w-40"
+          className={cn('w-40', filtroFecha && 'border-primary/50 bg-primary/5 text-foreground')}
         />
         {(busqueda || filtroUsuario !== 'todos' || filtroAccion !== 'todos' || filtroEntidad !== 'todos' || filtroFecha) && (
           <Button variant="ghost" size="sm" onClick={limpiarFiltros} className="text-muted-foreground">
@@ -292,11 +298,35 @@ const Auditoria = () => {
           </table>
         </div>
         {logsFiltrados.length > 0 && (
-          <div className="border-t px-4 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground bg-muted/20">
-            <span>{logsFiltrados.length} registros mostrados</span>
+          <div className="border-t px-4 py-2.5 flex items-center justify-between gap-3 text-[11px] text-muted-foreground bg-muted/20">
             <span className="flex items-center gap-1">
-              <ShieldCheck size={12} weight="duotone" /> Registro protegido · Solo lectura
+              <ShieldCheck size={12} weight="duotone" /> Registro protegido
             </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="h-7 px-2"
+                >
+                  <CaretLeft size={12} weight="bold" />
+                </Button>
+                <span className="font-medium text-foreground/80">
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-7 px-2"
+                >
+                  <CaretRight size={12} weight="bold" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
         </>

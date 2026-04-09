@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { MagnifyingGlass, Eye, Package, Barcode } from '@phosphor-icons/react';
+import { Eye, Package, Barcode, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import { toast } from 'sonner';
 import { estadoLabels } from '@/data/constants';
@@ -37,22 +37,33 @@ const estadoBadge: Record<string, { label: string; variant: 'default' | 'seconda
   problema: { label: 'Problema', variant: 'destructive' },
 };
 
+const PAGE_SIZE = 20;
+
 const ClienteEnvios = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
   const [selectedEnvioId, setSelectedEnvioId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const navigate = useNavigate();
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterEstado]);
 
   const envioFilters = useMemo(() => ({
     estado: filterEstado,
     search: debouncedSearch,
-  }), [filterEstado, debouncedSearch]);
+    page,
+    limit: PAGE_SIZE,
+  }), [filterEstado, debouncedSearch, page]);
 
   const { data: apiData, isLoading } = useClienteEnvios(envioFilters);
   const { data: selectedEnvio } = useClienteEnvio(selectedEnvioId ?? '');
 
   const envios: Envio[] = apiData?.data ?? [];
+  const totalCount = apiData?.pagination?.total ?? envios.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
@@ -88,15 +99,11 @@ const ClienteEnvios = () => {
 
       <div className="surface-card">
         <div className="p-4 border-b border-border/40">
-          <div className="relative">
-            <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-            <Input
-              placeholder="Buscar por tracking, destinatario o destino..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar por tracking, destinatario o destino..."
+          />
         </div>
 
         {isLoading ? (
@@ -166,6 +173,34 @@ const ClienteEnvios = () => {
                     Crear tu primer envio
                   </Button>
                 )}
+              </div>
+            )}
+
+            {envios.length > 0 && totalPages > 1 && (
+              <div className="border-t px-4 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground bg-muted/20">
+                <span>
+                  Pagina {page} de {totalPages} ({totalCount} envios)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="h-7 px-2"
+                  >
+                    <CaretLeft size={12} weight="bold" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="h-7 px-2"
+                  >
+                    <CaretRight size={12} weight="bold" />
+                  </Button>
+                </div>
               </div>
             )}
           </>

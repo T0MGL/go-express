@@ -2,9 +2,11 @@ import { useState, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SearchInput } from '@/components/ui/search-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { exportToCSV } from '@/lib/exportCSV';
 import { Link } from 'react-router-dom';
 import { DownloadSimple, Eye, CurrencyDollar, Clock, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react';
@@ -33,12 +35,14 @@ interface PagoListItem {
 const PAGE_SIZE = 20;
 
 const Pagos = () => {
+  const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroMetodo, setFiltroMetodo] = useState<string>('todos');
   const [selectedPago, setSelectedPago] = useState<PagoListItem | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [page, setPage] = useState(1);
 
+  const debouncedBusqueda = useDebouncedValue(busqueda, 350);
   const resetPage = useCallback(() => setPage(1), []);
 
   const apiFilters = useMemo(() => {
@@ -48,8 +52,9 @@ const Pagos = () => {
     };
     if (filtroEstado !== 'todos') f.estadoPago = filtroEstado;
     if (filtroMetodo !== 'todos') f.metodoPago = filtroMetodo;
+    if (debouncedBusqueda) f.search = debouncedBusqueda;
     return f;
-  }, [filtroEstado, filtroMetodo, page]);
+  }, [filtroEstado, filtroMetodo, page, debouncedBusqueda]);
 
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();
@@ -156,9 +161,15 @@ const Pagos = () => {
 
       <div className="surface-card">
         <div className="p-5 pb-4">
-          <div className="flex gap-3 mb-4">
+          <div className="flex flex-wrap gap-3 mb-4">
+            <SearchInput
+              value={busqueda}
+              onChange={(v) => { setBusqueda(v); resetPage(); }}
+              placeholder="Buscar por tracking o cliente..."
+              className="flex-1 min-w-48"
+            />
             <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); resetPage(); }}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className={cn('w-48', filtroEstado !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -170,7 +181,7 @@ const Pagos = () => {
             </Select>
 
             <Select value={filtroMetodo} onValueChange={(v) => { setFiltroMetodo(v); resetPage(); }}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className={cn('w-48', filtroMetodo !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
                 <SelectValue placeholder="Metodo de pago" />
               </SelectTrigger>
               <SelectContent>

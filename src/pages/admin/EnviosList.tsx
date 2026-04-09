@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { estadoLabels, estadoColors, estadosPagoColors } from '@/data/constants';
@@ -9,7 +9,7 @@ import { Plus, Download, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportCSV';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Envio } from '@/data/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -109,17 +109,14 @@ const EnviosList = () => {
         <div className="surface-card">
           <div className="p-4 border-b border-border/40">
             <div className="flex gap-3">
-              <div className="relative flex-1">
-                <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-                <Input
-                  placeholder="Buscar por tracking o cliente..."
-                  value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); resetPage(); }}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                value={searchTerm}
+                onChange={(v) => { setSearchTerm(v); resetPage(); }}
+                placeholder="Buscar por tracking o cliente..."
+                className="flex-1"
+              />
               <Select value={filterEstado} onValueChange={(v) => { setFilterEstado(v); resetPage(); }}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className={cn('w-44 transition-colors', filterEstado !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -131,7 +128,7 @@ const EnviosList = () => {
                 </SelectContent>
               </Select>
               <Select value={filterRepartidor} onValueChange={(v) => { setFilterRepartidor(v); resetPage(); }}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className={cn('w-44 transition-colors', filterRepartidor !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
                   <SelectValue placeholder="Repartidor" />
                 </SelectTrigger>
                 <SelectContent>

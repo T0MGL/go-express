@@ -387,22 +387,36 @@ export function generateBatchLabelsPDF(envios: Envio[]): Blob {
 
 export function triggerLabelPrint(blob: Blob): void {
   const url = URL.createObjectURL(blob);
-  const printWindow = window.open(url, '_blank');
 
-  if (!printWindow) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'etiqueta-go-express.pdf';
-    a.click();
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.src = url;
+
+  const cleanup = () => {
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
     URL.revokeObjectURL(url);
-    return;
-  }
-
-  printWindow.onload = () => {
-    setTimeout(() => { printWindow.print(); }, 800);
   };
 
-  setTimeout(() => { URL.revokeObjectURL(url); }, 30000);
+  iframe.onload = () => {
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.print();
+      } catch {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'etiqueta-go-express.pdf';
+        a.click();
+      }
+      setTimeout(cleanup, 5000);
+    }, 600);
+  };
+
+  document.body.appendChild(iframe);
 }
 
 export function printShippingLabel(envio: Envio): boolean {

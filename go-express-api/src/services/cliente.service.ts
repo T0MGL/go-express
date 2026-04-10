@@ -1,9 +1,17 @@
+import { randomBytes } from 'node:crypto';
 import { supabase } from '../config/database.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { emailService } from './email.service.js';
 import { logger } from '../config/logger.js';
 import { nowISO } from '../lib/datetime.js';
+
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = randomBytes(12);
+  return 'GoExp-' + Array.from(bytes).map(b => chars[b % chars.length]).join('');
+}
 import type {
   ClienteRow,
   Cliente,
@@ -205,6 +213,12 @@ class ClienteService {
       descripcion: `Cliente creado: ${cliente.razonSocial} (ID: ${cliente.id})`,
     });
 
+    if (input.email) {
+      this.inviteToPortal(cliente.id, userId).catch((err) => {
+        logger.warn({ err, clienteId: cliente.id }, 'Auto-invite to portal failed (non-blocking)');
+      });
+    }
+
     return cliente;
   }
 
@@ -387,50 +401,43 @@ class ClienteService {
     }
 
     let authUserId: string;
+    const tempPassword = generateTempPassword();
 
-    const redirectTo = `${env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`;
-
-    const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-      data: {
+    const { data: createData, error: createErr } = await supabase.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: {
         role: 'cliente',
         cliente_id: clienteId,
         razon_social: clienteRow.razon_social,
       },
-      redirectTo,
     });
 
-    if (inviteErr) {
-      const errMsg = inviteErr.message?.toLowerCase() ?? '';
+    if (createErr) {
+      const errMsg = createErr.message?.toLowerCase() ?? '';
       const isExistingUser = errMsg.includes('already') || errMsg.includes('duplicate') || errMsg.includes('exists');
 
       if (isExistingUser) {
-        const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-          type: 'magiclink',
-          email,
-          options: { redirectTo },
-        });
+        const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1 });
+        const existing = !listErr ? users?.find(u => u.email === email) : null;
 
-        if (linkErr || !linkData?.user) {
-          logger.error({ linkErr, clienteId, email }, 'User exists in auth but could not resolve ID');
-          throw new AppError(
-            'Error al vincular cuenta existente. Contacte soporte.',
-            500,
-            'INVITE_ERROR'
-          );
+        if (existing) {
+          authUserId = existing.id;
+          await supabase.auth.admin.updateUserById(authUserId, { password: tempPassword });
+        } else {
+          logger.error({ createErr, clienteId, email }, 'User exists in auth but could not resolve ID');
+          throw new AppError('Error al vincular cuenta existente. Contacte soporte.', 500, 'INVITE_ERROR');
         }
-
-        authUserId = linkData.user.id;
       } else {
-        logger.error({ inviteErr, clienteId, email }, 'Failed to invite client to portal');
-        throw new AppError(
-          `Error al enviar invitacion: ${inviteErr.message}`,
-          500,
-          'INVITE_ERROR'
-        );
+        logger.error({ createErr, clienteId, email }, 'Failed to create portal user');
+        throw new AppError(`Error al crear cuenta de portal: ${createErr.message}`, 500, 'INVITE_ERROR');
       }
     } else {
-      authUserId = inviteData.user.id;
+      authUserId = createData.user.id;
     }
+
+    emailService.sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social);
 
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')
@@ -478,26 +485,21 @@ class ClienteService {
     const email = clienteRow.email;
 
     if (!clienteRow.auth_id) {
-      throw AppError.badRequest('El cliente no ha sido invitado al portal. Use la accion "Invitar" primero.');
+      return this.inviteToPortal(clienteId, userId);
     }
 
-    const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-      data: {
-        role: 'cliente',
-        cliente_id: clienteId,
-        razon_social: clienteRow.razon_social,
-      },
-      redirectTo: `${env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080'}/portal/login`,
+    const tempPassword = generateTempPassword();
+
+    const { error: updateAuthErr } = await supabase.auth.admin.updateUserById(clienteRow.auth_id, {
+      password: tempPassword,
     });
 
-    if (inviteErr) {
-      logger.error({ inviteErr, clienteId, email }, 'Failed to reinvite client');
-      throw new AppError(
-        `Error al reenviar invitacion: ${inviteErr.message}`,
-        500,
-        'INVITE_ERROR'
-      );
+    if (updateAuthErr) {
+      logger.error({ updateAuthErr, clienteId, email }, 'Failed to reset portal password');
+      throw new AppError(`Error al reenviar invitacion: ${updateAuthErr.message}`, 500, 'INVITE_ERROR');
     }
+
+    emailService.sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social);
 
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')

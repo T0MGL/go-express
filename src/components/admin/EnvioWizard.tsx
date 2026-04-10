@@ -77,6 +77,7 @@ interface FormData {
   destinatarioNombre: string;
   destinatarioDireccion: string;
   destinatarioTelefono: string;
+  destinatarioEmail: string;
   notas: string;
   costo: string;
   tipoPago: string;
@@ -104,6 +105,8 @@ export function EnvioWizard() {
         label: c.razonSocial,
         contacto: c.contactoNombre,
         telefono: c.telefono,
+        email: c.email ?? '',
+        ciudad: c.ciudad ?? '',
       }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const defaultFormData: FormData = {
@@ -115,6 +118,7 @@ export function EnvioWizard() {
     destinatarioNombre: '',
     destinatarioDireccion: '',
     destinatarioTelefono: '',
+    destinatarioEmail: '',
     notas: '',
     costo: '',
     tipoPago: '',
@@ -353,7 +357,15 @@ export function EnvioWizard() {
               <div>
                 <h3 className="text-[15px] font-semibold mb-4">Informacion del Cliente</h3>
                 <Label className="text-[12px]" htmlFor="cliente">Cliente *</Label>
-                <Select value={formData.cliente} onValueChange={(v) => handleChange('cliente', v)}>
+                <Select value={formData.cliente} onValueChange={(v) => {
+                  handleChange('cliente', v);
+                  const selected = CLIENTES.find(c => c.value === v);
+                  if (selected?.ciudad && !formData.origen) {
+                    const cityLower = selected.ciudad.toLowerCase();
+                    const match = departamentosPY.find(d => d.toLowerCase().startsWith(cityLower));
+                    if (match) handleChange('origen', match);
+                  }
+                }}>
                   <SelectTrigger id="cliente" className={errors.cliente ? 'border-destructive' : ''}>
                     <SelectValue placeholder="Selecciona un cliente" />
                   </SelectTrigger>
@@ -379,6 +391,12 @@ export function EnvioWizard() {
                   <div className="space-y-1 text-[13px]">
                     <p><span className="text-muted-foreground">Contacto:</span> {clienteSeleccionado.contacto}</p>
                     <p><span className="text-muted-foreground">Telefono:</span> <span className="font-data">{clienteSeleccionado.telefono}</span></p>
+                    {clienteSeleccionado.email && (
+                      <p><span className="text-muted-foreground">Email:</span> {clienteSeleccionado.email}</p>
+                    )}
+                    {clienteSeleccionado.ciudad && (
+                      <p><span className="text-muted-foreground">Ciudad:</span> {clienteSeleccionado.ciudad}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -571,6 +589,22 @@ export function EnvioWizard() {
                   <p className="text-[12px] text-destructive mt-1">{errors.destinatarioTelefono}</p>
                 )}
                 <p className="text-[11px] text-muted-foreground mt-1">Formato: {PHONE_PLACEHOLDER}</p>
+              </div>
+
+              <div>
+                <Label className="text-[12px]" htmlFor="destinatarioEmail">
+                  Email del destinatario (opcional)
+                </Label>
+                <Input
+                  id="destinatarioEmail"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  value={formData.destinatarioEmail}
+                  onChange={(e) => handleChange('destinatarioEmail', e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Se enviaran las actualizaciones de estado del envio a este correo
+                </p>
               </div>
 
               <div>

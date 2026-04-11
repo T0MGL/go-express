@@ -23,7 +23,7 @@ const envSchema = z.object({
 
   // Email
   RESEND_API_KEY: z.string().optional().default(''),
-  EMAIL_FROM: z.string().email('EMAIL_FROM must be a valid email').default('envios@goexpressparaguay.com'),
+  EMAIL_FROM: z.string().min(1, 'EMAIL_FROM is required').default('GoExpress <envios@goexpressparaguay.com>'),
 
   // App
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

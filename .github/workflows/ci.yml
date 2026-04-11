@@ -83,4 +83,4 @@ jobs:
           PORT: 3001
           TRACKING_PREFIX: GE
           TRACKING_YEAR: 2026
-          EMAIL_FROM: envios@goexpressparaguay.com
+          EMAIL_FROM: "GoExpress <envios@goexpressparaguay.com>"

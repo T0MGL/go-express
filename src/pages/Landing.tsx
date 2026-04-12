@@ -158,6 +158,7 @@ const Landing = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [heroCardPage, setHeroCardPage] = useState(0);
+  const [contactForm, setContactForm] = useState({ nombre: '', empresa: '', email: '', tel: '' });
 
   const { scrollY } = useScroll();
   const bgParallax = useTransform(scrollY, [0, 600], [0, 60]);
@@ -182,6 +183,17 @@ const Landing = () => {
 
   const handleContact = (e: React.FormEvent) => {
     e.preventDefault();
+    const { nombre, empresa, email, tel } = contactForm;
+    const lineas = [
+      'Hola Go Express, quiero abrir una cuenta corporativa.',
+      '',
+      `Nombre del encargado: ${nombre}`,
+      empresa ? `Razon social: ${empresa}` : null,
+      `Correo corporativo: ${email}`,
+      tel ? `Telefono directo: ${tel}` : null,
+    ].filter(Boolean);
+    const mensaje = encodeURIComponent(lineas.join('\n'));
+    window.open(`https://wa.me/595991600777?text=${mensaje}`, '_blank', 'noopener,noreferrer');
     setContactSent(true);
   };
 
@@ -704,7 +716,7 @@ const Landing = () => {
               <div className="space-y-6">
                 {[
                   { icon: MapPin, title: 'Central', desc: 'Itapúa, Paraguay' },
-                  { icon: Phone, title: 'Atención a Empresas', desc: '+595900000000' },
+                  { icon: Phone, title: 'Atención a Empresas', desc: '0991600777' },
                   { icon: EnvelopeSimple, title: 'Comercial', desc: 'contacto@goexpressparaguay.com' },
                 ].map((item, i) => (
                   <motion.div
@@ -741,23 +753,24 @@ const Landing = () => {
                       <div className="grid md:grid-cols-2 gap-5">
                         <div className="space-y-2">
                           <Label htmlFor="nombre" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Nombre del Encargado</Label>
-                          <Input id="nombre" className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
+                          <Input id="nombre" value={contactForm.nombre} onChange={(e) => setContactForm({ ...contactForm, nombre: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="empresa" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Razón Social</Label>
-                          <Input id="empresa" className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
+                          <Input id="empresa" value={contactForm.empresa} onChange={(e) => setContactForm({ ...contactForm, empresa: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Correo Corporativo</Label>
-                        <Input id="email" type="email" className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
+                        <Input id="email" type="email" value={contactForm.email} onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="tel" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Teléfono Directo</Label>
-                        <Input id="tel" type="tel" className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
+                        <Input id="tel" type="tel" value={contactForm.tel} onChange={(e) => setContactForm({ ...contactForm, tel: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
                       </div>
-                      <Button type="submit" className="w-full h-14 rounded-xl text-sm font-bold bg-primary text-white hover:bg-sidebar transition-colors mt-6 shadow-md shadow-primary/20">
-                        Enviar Solicitud
+                      <Button type="submit" className="w-full h-14 rounded-xl text-sm font-bold bg-primary text-white hover:bg-sidebar transition-colors mt-6 shadow-md shadow-primary/20 gap-2">
+                        <WhatsappLogo weight="fill" className="w-4 h-4" />
+                        Enviar por WhatsApp
                       </Button>
                     </motion.form>
                   )}

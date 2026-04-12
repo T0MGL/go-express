@@ -89,12 +89,6 @@ const fadeUpVariant = {
   show: { opacity: 1, y: 0, transition: { type: "tween" as const, ease: "easeOut" as const, duration: 0.5 } }
 } as const;
 
-const clientNames = [
-  'Distribuidora Central SA', 'TechSoluciones PY', 'Comercial del Norte',
-  'Global Imports SA', 'FarmaRoque', 'Comercial Guaraní SRL',
-  'AgroPedro SA', 'Constructora Ñandutí'
-];
-
 const departments = [
   { name: 'Asunción', city: 'Capital', hub: true },
   { name: 'Central', city: 'Areguá', hub: true },
@@ -394,18 +388,7 @@ const Landing = () => {
       </section>
 
       {/* ═══ SOCIAL PROOF ══════════════════════════════════════════════════ */}
-      <section className="py-10 bg-gradient-to-b from-white via-slate-50/80 to-slate-50 border-y border-muted/40 overflow-hidden">
-        <div className="overflow-hidden mb-8">
-          <div className="flex items-center" style={{ animation: 'scroll-left 35s linear infinite', width: 'max-content' }}>
-            {[...clientNames, ...clientNames].map((name, i) => (
-              <div key={i} className="flex items-center gap-10 px-10 flex-shrink-0">
-                <span className="font-display font-bold text-xl text-sidebar/10 whitespace-nowrap select-none">{name}</span>
-                <span className="text-sidebar/8 text-lg select-none">&#9670;</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <section className="py-14 bg-gradient-to-b from-white via-slate-50/80 to-slate-50 border-y border-muted/40 overflow-hidden">
         <div className="max-w-3xl mx-auto px-6">
           <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
             {[

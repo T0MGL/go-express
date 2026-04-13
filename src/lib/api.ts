@@ -85,6 +85,7 @@ async function request<T>(
   if (response.status === 401 && token) {
     const { data } = await supabase.auth.refreshSession();
     if (data.session) {
+      cachedAccessToken = data.session.access_token;
       const retryHeaders = {
         ...config.headers as Record<string, string>,
         'Authorization': `Bearer ${data.session.access_token}`,
@@ -92,9 +93,6 @@ async function request<T>(
       const retryResponse = await fetch(url, { ...config, headers: retryHeaders });
       if (!retryResponse.ok) {
         const retryData = await retryResponse.json().catch(() => null);
-        if (retryResponse.status === 401 || retryResponse.status === 403) {
-          await supabase.auth.signOut();
-        }
         throw new ApiError(retryResponse.status, retryResponse.statusText, retryData);
       }
       if (retryResponse.status === 204) {
@@ -103,8 +101,12 @@ async function request<T>(
       return retryResponse.json();
     }
 
-    // Refresh failed: session is expired, sign out
-    await supabase.auth.signOut();
+    // Refresh failed: clear the stale cached token so the next call
+    // picks up a fresh session from Supabase (which may have been
+    // refreshed by its own internal visibility-change handler).
+    // Do NOT call signOut() here: the session may still be recoverable
+    // from another tab or from Supabase's own auto-refresh cycle.
+    cachedAccessToken = null;
   }
 
   if (!response.ok) {

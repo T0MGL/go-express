@@ -125,7 +125,7 @@ const ClienteImportar = () => {
       return;
     }
 
-    const stored = sessionStorage.getItem('go_express_cliente');
+    const stored = localStorage.getItem('go_express_cliente');
     const clienteId = stored ? (JSON.parse(stored) as { id: string }).id : '';
 
     const envios: BulkImportEnvio[] = filasValidas.map((f) => ({

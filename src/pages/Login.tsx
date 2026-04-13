@@ -14,7 +14,7 @@ const Login = () => {
   useEffect(() => {
     if (isAuthenticated && user && !isAdminUser) {
       supabase.auth.signOut();
-      sessionStorage.removeItem('go_express_cliente');
+      localStorage.removeItem('go_express_cliente');
     }
   }, [isAuthenticated, user, isAdminUser]);
   const [email, setEmail] = useState('');

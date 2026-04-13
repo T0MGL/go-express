@@ -71,7 +71,7 @@ const PortalLogin = () => {
         refresh_token: response.refreshToken,
       });
 
-      sessionStorage.setItem('go_express_cliente', JSON.stringify(response.cliente));
+      localStorage.setItem('go_express_cliente', JSON.stringify(response.cliente));
 
       navigate('/cliente', { replace: true });
     } catch (err) {

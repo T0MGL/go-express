@@ -59,13 +59,14 @@ export const ClienteLayout = () => {
     let mounted = true;
 
     async function resolveClient() {
-      const stored = sessionStorage.getItem('go_express_cliente');
+      // Read cached profile from localStorage (persists across tabs and reloads)
+      const stored = localStorage.getItem('go_express_cliente');
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as ClienteProfile;
           if (mounted) setProfile(parsed);
         } catch {
-          // Ignore malformed sessionStorage payload
+          // Ignore malformed payload
         }
       }
 
@@ -94,7 +95,7 @@ export const ClienteLayout = () => {
             email: me.email,
           };
           setProfile(p);
-          sessionStorage.setItem('go_express_cliente', JSON.stringify(p));
+          localStorage.setItem('go_express_cliente', JSON.stringify(p));
         } else {
           navigate('/admin', { replace: true });
           return;
@@ -136,7 +137,7 @@ export const ClienteLayout = () => {
       }
       await supabase.auth.signOut();
     } finally {
-      sessionStorage.removeItem('go_express_cliente');
+      localStorage.removeItem('go_express_cliente');
       navigate('/portal/login', { replace: true });
     }
   };

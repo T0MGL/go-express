@@ -100,6 +100,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mountedRef.current) return;
 
       if (event === 'SIGNED_OUT' || !session) {
+        // Before clearing the auth state, double-check that the session is truly
+        // gone from storage. Supabase can fire spurious SIGNED_OUT events when a
+        // background-tab token refresh races with the internal recovery cycle.
+        // If the storage still holds a valid session, ignore the SIGNED_OUT event
+        // and let the next TOKEN_REFRESHED event restore normal state.
+        if (event === 'SIGNED_OUT') {
+          try {
+            const { data: { session: storedSession } } = await supabase.auth.getSession();
+            if (storedSession) {
+              await loadProfile(storedSession, 0, true);
+              return;
+            }
+          } catch {
+            // Storage read failed, proceed with sign-out
+          }
+        }
         setState({ user: null, session: null, loading: false, error: null });
         return;
       }

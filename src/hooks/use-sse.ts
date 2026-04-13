@@ -67,7 +67,18 @@ export function useSSE() {
     if (!mountedRef.current) return;
     if (document.visibilityState === 'hidden') return;
 
-    const { data: { session } } = await supabase.auth.getSession();
+    let { data: { session } } = await supabase.auth.getSession();
+
+    // If the access token expires within 60 seconds, refresh proactively
+    // to avoid connecting with a stale token that the backend will reject.
+    if (session?.expires_at) {
+      const expiresInSec = session.expires_at - Math.floor(Date.now() / 1000);
+      if (expiresInSec < 60) {
+        const { data } = await supabase.auth.refreshSession();
+        session = data.session;
+      }
+    }
+
     if (!session?.access_token) return;
 
     const controller = new AbortController();

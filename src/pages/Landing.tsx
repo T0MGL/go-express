@@ -103,9 +103,9 @@ function computePricingSummary(ciudades: PublicCiudad[]) {
   let minInterior = Infinity;
 
   const granAsuncionNames = new Set([
-    'Asunción', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambaré',
-    'Capiatá', 'Limpio', 'Ñemby', 'Mariano Roque Alonso', 'Villa Elisa',
-    'San Antonio', 'Areguá', 'Itauguá',
+    'Asuncion', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambare',
+    'Capiata', 'Limpio', 'Nemby', 'Mariano Roque Alonso', 'Villa Elisa',
+    'San Antonio', 'Itaugua', 'Ypane',
   ]);
 
   for (const c of ciudades) {
@@ -170,7 +170,7 @@ const Landing = () => {
   const [contactForm, setContactForm] = useState({ nombre: '', empresa: '', email: '', tel: '' });
   const [insuranceOpen, setInsuranceOpen] = useState(false);
 
-  const { data: tarifasData } = usePublicTarifas();
+  const { data: tarifasData, isLoading: tarifasLoading } = usePublicTarifas();
   const ciudades = tarifasData?.ciudades ?? [];
   const pricing = useMemo(() => computePricingSummary(ciudades), [ciudades]);
 
@@ -604,9 +604,9 @@ const Landing = () => {
 
               <div className="grid grid-cols-3 gap-8">
                 {[
-                  { value: ciudades.length > 0 ? String(ciudades.length) : '17', label: 'Ciudades activas' },
+                  { value: ciudades.length > 0 ? String(ciudades.length) : '...', label: 'Ciudades activas' },
                   { value: '24h', label: 'Tiempo maximo' },
-                  { value: '+500', label: 'Rutas activas' },
+                  { value: ciudades.length > 0 ? String(ciudades.filter(c => c.express !== null).length) : '...', label: 'Con Express' },
                 ].map((stat) => (
                   <div key={stat.label}>
                     <div className="font-display text-3xl font-extrabold text-primary mb-1">{stat.value}</div>
@@ -617,14 +617,18 @@ const Landing = () => {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
-              {ciudades.length === 0 ? (
+              {ciudades.length === 0 && tarifasLoading ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 12 }).map((_, i) => (
+                  {Array.from({ length: 9 }).map((_, i) => (
                     <div key={i} className="rounded-xl px-3 py-2.5 border border-muted bg-slate-50 animate-pulse">
                       <div className="h-4 bg-slate-200 rounded w-3/4 mb-1.5" />
                       <div className="h-3 bg-slate-100 rounded w-1/2" />
                     </div>
                   ))}
+                </div>
+              ) : ciudades.length === 0 ? (
+                <div className="flex items-center justify-center h-48 rounded-xl border border-muted bg-slate-50">
+                  <p className="text-sm text-sidebar/40 font-medium">Cobertura en expansion. Contactanos para mas info.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">

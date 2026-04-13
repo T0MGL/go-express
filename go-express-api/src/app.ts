@@ -16,6 +16,7 @@ import { generalLimiter, authLimiter, sseLimiter, adminWriteLimiter } from './mi
 import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
 import trackingRoutes from './routes/public/tracking.js';
+import publicTarifaRoutes from './routes/public/tarifas.js';
 import authRoutes from './routes/auth.js';
 import sseRoutes from './routes/sse.js';
 
@@ -126,6 +127,7 @@ app.use('/api/admin', (req, res, next) => {
 }, adminRoutes);
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/public', trackingRoutes);
+app.use('/api/public/tarifas', publicTarifaRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,11 @@ import {
   MagnifyingGlass, MapPin, Phone, EnvelopeSimple, CheckCircle,
   Package, Truck, ShieldCheck, BuildingOffice, ArrowRight,
   ArrowUpRight, List, X, SealCheck, Handshake, Globe,
-  FacebookLogo, InstagramLogo, LinkedinLogo, WhatsappLogo, CaretDown
+  FacebookLogo, InstagramLogo, LinkedinLogo, WhatsappLogo, CaretDown,
+  Lightning
 } from '@phosphor-icons/react';
+import { usePublicTarifas } from '@/hooks/api/use-public-tarifas';
+import type { PublicCiudad } from '@/hooks/api/use-public-tarifas';
 
 
 const NumberCounter = ({ target, duration = 2, suffix = '' }: { target: number; duration?: number; suffix?: string }) => {
@@ -90,26 +93,37 @@ const fadeUpVariant = {
   show: { opacity: 1, y: 0, transition: { type: "tween" as const, ease: "easeOut" as const, duration: 0.5 } }
 } as const;
 
-const departments = [
-  { name: 'Asunción', city: 'Capital', hub: true },
-  { name: 'Central', city: 'Areguá', hub: true },
-  { name: 'Alto Paraná', city: 'Ciudad del Este', hub: true },
-  { name: 'Itapúa', city: 'Encarnación', hub: true },
-  { name: 'Caaguazú', city: 'Cnel. Oviedo', hub: false },
-  { name: 'San Pedro', city: 'San Pedro', hub: false },
-  { name: 'Cordillera', city: 'Caacupé', hub: false },
-  { name: 'Guairá', city: 'Villarrica', hub: false },
-  { name: 'Caazapá', city: 'Caazapá', hub: false },
-  { name: 'Misiones', city: 'San Juan Bautista', hub: false },
-  { name: 'Paraguarí', city: 'Paraguarí', hub: false },
-  { name: 'Ñeembucú', city: 'Pilar', hub: false },
-  { name: 'Amambay', city: 'Pedro J. Caballero', hub: false },
-  { name: 'Canindeyú', city: 'Salto del Guairá', hub: false },
-  { name: 'Concepción', city: 'Concepción', hub: false },
-  { name: 'Pdte. Hayes', city: 'Villa Hayes', hub: false },
-  { name: 'Boquerón', city: 'Filadelfia', hub: false },
-  { name: 'Alto Paraguay', city: 'Fuerte Olimpo', hub: false },
-];
+function formatGs(amount: number): string {
+  return new Intl.NumberFormat('es-PY').format(amount);
+}
+
+function computePricingSummary(ciudades: PublicCiudad[]) {
+  let minEstandar = Infinity;
+  let minExpress = Infinity;
+  let minInterior = Infinity;
+
+  const granAsuncionNames = new Set([
+    'Asunción', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambaré',
+    'Capiatá', 'Limpio', 'Ñemby', 'Mariano Roque Alonso', 'Villa Elisa',
+    'San Antonio', 'Areguá', 'Itauguá',
+  ]);
+
+  for (const c of ciudades) {
+    const isGranAsuncion = granAsuncionNames.has(c.nombre);
+    if (isGranAsuncion) {
+      if (c.estandar !== null && c.estandar < minEstandar) minEstandar = c.estandar;
+      if (c.express !== null && c.express < minExpress) minExpress = c.express;
+    } else {
+      if (c.estandar !== null && c.estandar < minInterior) minInterior = c.estandar;
+    }
+  }
+
+  return {
+    granAsuncionEstandar: minEstandar === Infinity ? null : minEstandar,
+    granAsuncionExpress: minExpress === Infinity ? null : minExpress,
+    interiorDesde: minInterior === Infinity ? null : minInterior,
+  };
+}
 
 const FaqItem = ({ question, answer, index }: { question: string; answer: string; index: number }) => {
   const [open, setOpen] = useState(false);
@@ -155,6 +169,10 @@ const Landing = () => {
   const [heroCardPage, setHeroCardPage] = useState(0);
   const [contactForm, setContactForm] = useState({ nombre: '', empresa: '', email: '', tel: '' });
   const [insuranceOpen, setInsuranceOpen] = useState(false);
+
+  const { data: tarifasData } = usePublicTarifas();
+  const ciudades = tarifasData?.ciudades ?? [];
+  const pricing = useMemo(() => computePricingSummary(ciudades), [ciudades]);
 
   const { scrollY } = useScroll();
   const bgParallax = useTransform(scrollY, [0, 600], [0, 60]);
@@ -547,7 +565,7 @@ const Landing = () => {
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <div className="inline-flex items-center gap-2 mb-4">
                 <Globe weight="duotone" className="w-5 h-5 text-primary" />
-                <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase">Cobertura Nacional</span>
+                <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase">Cobertura y Tarifas</span>
               </div>
               <h2 className="font-display text-3xl md:text-5xl font-extrabold mb-6 tracking-tight text-sidebar">
                 Presencia en todo<br />el territorio.
@@ -556,10 +574,38 @@ const Landing = () => {
                 Red de distribución con alcance a los 18 departamentos del Paraguay, con hubs principales en las ciudades de mayor actividad comercial.
               </p>
 
+              {/* Pricing summary cards */}
+              <div className="space-y-3 mb-10">
+                {pricing.granAsuncionEstandar !== null && (
+                  <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Gran Asuncion</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-2xl font-extrabold text-sidebar">Gs. {formatGs(pricing.granAsuncionEstandar)}</span>
+                      <span className="text-sm text-sidebar/40 font-medium">estandar</span>
+                    </div>
+                    {pricing.granAsuncionExpress !== null && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Lightning weight="fill" className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-sm font-semibold text-sidebar/60">Gs. {formatGs(pricing.granAsuncionExpress)} express</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {pricing.interiorDesde !== null && (
+                  <div className="rounded-2xl border border-muted bg-slate-50 p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-sidebar/50 mb-2">Interior</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-2xl font-extrabold text-sidebar">Gs. {formatGs(pricing.interiorDesde)}</span>
+                      <span className="text-sm text-sidebar/40 font-medium">desde</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-8">
                 {[
-                  { value: '4', label: 'Hubs principales' },
-                  { value: '24h', label: 'Tiempo máximo' },
+                  { value: ciudades.length > 0 ? String(ciudades.length) : '17', label: 'Ciudades activas' },
+                  { value: '24h', label: 'Tiempo maximo' },
                   { value: '+500', label: 'Rutas activas' },
                 ].map((stat) => (
                   <div key={stat.label}>
@@ -571,24 +617,53 @@ const Landing = () => {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
-              <div className="grid grid-cols-3 gap-2">
-                {departments.map((dept) => (
-                  <div
-                    key={dept.name}
-                    className={`rounded-xl px-3 py-2.5 border transition-all duration-300 ${
-                      dept.hub
-                        ? 'bg-primary/4 border-primary/15 hover:border-primary/30 hover:bg-primary/8'
-                        : 'bg-slate-50 border-muted hover:border-sidebar/15 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      {dept.hub && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
-                      <div className={`text-sm font-bold truncate ${dept.hub ? 'text-sidebar' : 'text-sidebar/60'}`}>{dept.name}</div>
+              {ciudades.length === 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="rounded-xl px-3 py-2.5 border border-muted bg-slate-50 animate-pulse">
+                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-1.5" />
+                      <div className="h-3 bg-slate-100 rounded w-1/2" />
                     </div>
-                    <div className="text-[11px] text-sidebar/35 font-medium mt-0.5 truncate">{dept.city}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {ciudades.map((ciudad) => {
+                    const hasExpress = ciudad.express !== null;
+                    return (
+                      <motion.div
+                        key={ciudad.nombre}
+                        initial={{ opacity: 0, y: 8 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className={`rounded-xl px-3 py-2.5 border transition-all duration-300 ${
+                          hasExpress
+                            ? 'bg-primary/4 border-primary/15 hover:border-primary/30 hover:bg-primary/8'
+                            : 'bg-slate-50 border-muted hover:border-sidebar/15 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {hasExpress && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
+                          <div className={`text-sm font-bold truncate ${hasExpress ? 'text-sidebar' : 'text-sidebar/60'}`}>
+                            {ciudad.nombre}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-sidebar/35 font-medium truncate">
+                            {ciudad.estandar !== null ? `Gs. ${formatGs(ciudad.estandar)}` : ''}
+                          </span>
+                          {hasExpress && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200/60 rounded px-1 py-px">
+                              <Lightning weight="fill" className="w-2.5 h-2.5" />
+                              Express
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           </div>
         </div>

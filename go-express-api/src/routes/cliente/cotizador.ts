@@ -1,12 +1,18 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { cotizarSchema } from '../../lib/validators/tarifa.schema.js';
 import { calcularCosto } from '../../lib/volumetric.js';
+import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import type { TarifaRow } from '../../types/index.js';
 import type { CotizarInput } from '../../lib/validators/tarifa.schema.js';
+
+const seguroCotizarSchema = z.object({
+  valorDeclarado: z.number().int().nonnegative().max(1_000_000_000),
+});
 
 const router = Router();
 
@@ -86,6 +92,47 @@ router.post(
         origen: tarifa.origen,
         destino: tarifa.destino,
       },
+    });
+  })
+);
+
+/**
+ * POST /seguro: cotiza seguro para un valor declarado sin exponer la config.
+ * Devuelve solo el resultado calculado por-envio. La tasa, minimo y maximo no se exponen
+ * crudos; el cliente recibe `umbralIncluido` y `maximoAsegurable` porque son limites
+ * que necesita comunicar al usuario ("incluido hasta X", "contactanos arriba de Y"),
+ * pero NO recibe `tasaAdicional` ni `minimoAdicional` que son parametros internos.
+ */
+router.post(
+  '/seguro',
+  validate({ body: seguroCotizarSchema }),
+  asyncHandler(async (req, res) => {
+    const { valorDeclarado } = req.body as { valorDeclarado: number };
+
+    const { data, error } = await supabase
+      .from('configuracion')
+      .select('value')
+      .eq('key', 'seguro_config')
+      .maybeSingle();
+
+    if (error) {
+      logger.error({ error }, 'Error fetching seguro config for cliente cotizar');
+      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+    }
+
+    const cfg = parseSeguroConfig((data as { value: unknown } | null)?.value ?? null);
+    const costoAdicional = calcularSeguroAdicional(valorDeclarado, cfg);
+    const incluido = valorDeclarado <= cfg.umbralIncluido;
+    const asegurable = puedeAsegurar(valorDeclarado, cfg);
+    const requiereRevisionManual = valorDeclarado > cfg.maximoAsegurable;
+
+    res.json({
+      incluido,
+      asegurable,
+      requiereRevisionManual,
+      costoAdicional,
+      umbralIncluido: cfg.umbralIncluido,
+      maximoAsegurable: cfg.maximoAsegurable,
     });
   })
 );

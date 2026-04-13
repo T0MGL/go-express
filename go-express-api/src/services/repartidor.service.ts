@@ -309,6 +309,8 @@ class RepartidorService {
       costo: row['costo'] as number,
       montoACobrar: 0,
       tipoPago: 'anticipado' as const,
+      seguroAdicional: false,
+      costoSeguro: 0,
       repartidorId: id,
       repartidorAsignadoEn: null,
       problemaDescripcion: null,

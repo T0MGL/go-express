@@ -5,6 +5,7 @@ import { auditoriaService } from './auditoria.service.js';
 import { emailService } from './email.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
+import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
 import type {
   EnvioRow,
   EventoEnvioRow,
@@ -72,6 +73,8 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     costo: row.costo,
     montoACobrar: row.monto_a_cobrar,
     tipoPago: row.tipo_pago,
+    seguroAdicional: row.seguro_adicional,
+    costoSeguro: row.costo_seguro,
     repartidorId: row.repartidor_id,
     repartidorAsignadoEn: row.repartidor_asignado_en,
     problemaDescripcion: row.problema_descripcion,
@@ -199,6 +202,7 @@ const ENVIO_COLUMNS = [
   'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
   'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
   'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'seguro_adicional', 'costo_seguro',
   'repartidor_id', 'repartidor_asignado_en',
   'problema_descripcion', 'problema_fecha',
   'tags', 'tarifa_id', 'fecha',
@@ -211,6 +215,46 @@ const ENVIO_LIST_COLUMNS = ENVIO_COLUMNS + ', pagos(estado_pago)';
 const EVENTO_COLUMNS = 'id, envio_id, estado, descripcion, ubicacion, created_at';
 const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
 const NOTA_COLUMNS = 'id, envio_id, texto, usuario, usuario_id, created_at';
+
+/**
+ * Fetch seguro config desde DB y calcula el costo de seguro para un envio.
+ * Se hace server-side siempre: nunca se confia en lo que manda el cliente.
+ * Si el cliente opto in pero el valor declarado no califica, se fuerza false.
+ * Si el valor declarado excede el maximo asegurable, se rechaza la operacion.
+ */
+export async function computeSeguroForEnvio(
+  valorDeclarado: number,
+  seguroAdicionalSolicitado: boolean
+): Promise<{ seguroAdicional: boolean; costoSeguro: number }> {
+  const { data, error } = await supabase
+    .from('configuracion')
+    .select('value')
+    .eq('key', 'seguro_config')
+    .maybeSingle();
+
+  if (error) {
+    logger.error({ error }, 'Error fetching seguro config');
+    throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+  }
+
+  const cfg = parseSeguroConfig((data as { value: unknown } | null)?.value ?? null);
+
+  if (valorDeclarado > cfg.maximoAsegurable) {
+    throw AppError.badRequest(
+      `El valor declarado supera el maximo asegurable (${cfg.maximoAsegurable} Gs). Contacta a Go Express para envios de alto valor.`
+    );
+  }
+
+  if (!seguroAdicionalSolicitado) {
+    return { seguroAdicional: false, costoSeguro: 0 };
+  }
+
+  if (!puedeAsegurar(valorDeclarado, cfg)) {
+    return { seguroAdicional: false, costoSeguro: 0 };
+  }
+
+  return { seguroAdicional: true, costoSeguro: calcularSeguroAdicional(valorDeclarado, cfg) };
+}
 
 class EnvioService {
   async list(query: EnvioQuery): Promise<PaginatedResponse<Envio>> {
@@ -322,6 +366,12 @@ class EnvioService {
 
     const today = todayPY();
 
+    const valorDeclarado = input.valorDeclarado ?? 0;
+    const { seguroAdicional, costoSeguro } = await computeSeguroForEnvio(
+      valorDeclarado,
+      input.seguroAdicional
+    );
+
     const { data, error } = await supabase
       .from('envios')
       .insert({
@@ -348,7 +398,7 @@ class EnvioService {
         dimensiones_ancho: input.dimensiones?.ancho ?? null,
         dimensiones_alto: input.dimensiones?.alto ?? null,
         fragil: input.fragil,
-        valor_declarado: input.valorDeclarado ?? 0,
+        valor_declarado: valorDeclarado,
         instrucciones_entrega: input.instruccionesEntrega ?? null,
         horario_entrega: input.horarioEntrega ?? null,
         notas: input.notas ?? null,
@@ -356,6 +406,8 @@ class EnvioService {
         costo: input.costo,
         monto_a_cobrar: input.montoACobrar,
         tipo_pago: input.tipoPago,
+        seguro_adicional: seguroAdicional,
+        costo_seguro: costoSeguro,
         tags: input.tags ?? [],
         tarifa_id: input.tarifaId ?? null,
         fecha: today,

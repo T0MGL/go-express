@@ -4,6 +4,7 @@ import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
+import { parseSeguroConfig, validateSeguroConfigInput, SEGURO_DEFAULTS } from '../../lib/seguro.js';
 import type { ConfiguracionRow } from '../../types/index.js';
 
 const router = Router();
@@ -12,12 +13,26 @@ const keyParamSchema = z.object({
   key: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_]+$/, 'Key must be alphanumeric with underscores only'),
 });
 
+// Accept string (for legacy simple configs), number, boolean or object (for JSONB structured configs).
+// Arrays deliberately excluded: no current config uses array shape.
 const updateConfigSchema = z.object({
-  value: z.string().min(1).max(5000),
+  value: z.union([
+    z.string().min(1).max(5000),
+    z.number(),
+    z.boolean(),
+    z.record(z.unknown()),
+  ]),
+});
+
+const seguroConfigSchema = z.object({
+  umbralIncluido: z.number().int().nonnegative().max(1_000_000_000),
+  tasaAdicional: z.number().min(0).max(1),
+  minimoAdicional: z.number().int().nonnegative().max(1_000_000_000),
+  maximoAsegurable: z.number().int().nonnegative().max(1_000_000_000_000),
 });
 
 /**
- * GET /:Get all config
+ * GET /: list all config (raw).
  */
 router.get(
   '/',
@@ -43,14 +58,113 @@ router.get(
 );
 
 /**
- * PUT /:key:Update config value
+ * GET /seguro: fetch seguro config (typed, with defaults fallback).
+ * Admin-only. Cliente portal NEVER reads this directly; it uses its own cliente endpoint
+ * that returns only per-envio calculation results, never the raw rates.
+ * NOTE: must be declared BEFORE /:key so express route matching resolves the static path first.
+ */
+router.get(
+  '/seguro',
+  asyncHandler(async (_req, res) => {
+    const { data, error } = await supabase
+      .from('configuracion')
+      .select('value, updated_at, updated_by')
+      .eq('key', 'seguro_config')
+      .maybeSingle();
+
+    if (error) {
+      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+    }
+
+    if (!data) {
+      res.json({
+        config: { ...SEGURO_DEFAULTS },
+        updatedAt: null,
+        updatedBy: null,
+      });
+      return;
+    }
+
+    const row = data as { value: unknown; updated_at: string; updated_by: string | null };
+    res.json({
+      config: parseSeguroConfig(row.value),
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
+    });
+  })
+);
+
+/**
+ * PUT /seguro: replace seguro config. Validates structure and writes audit log.
+ * NOTE: must be declared BEFORE /:key so express route matching resolves the static path first.
+ */
+router.put(
+  '/seguro',
+  validate({ body: seguroConfigSchema }),
+  asyncHandler(async (req, res) => {
+    let cfg;
+    try {
+      cfg = validateSeguroConfigInput(req.body);
+    } catch (err) {
+      throw AppError.badRequest(err instanceof Error ? err.message : 'Invalid seguro config');
+    }
+
+    const { data: previous } = await supabase
+      .from('configuracion')
+      .select('value')
+      .eq('key', 'seguro_config')
+      .maybeSingle();
+
+    const previousValue = previous ? (previous as { value: unknown }).value : null;
+
+    const { data, error } = await supabase
+      .from('configuracion')
+      .upsert(
+        { key: 'seguro_config', value: cfg, updated_by: req.userId! },
+        { onConflict: 'key' }
+      )
+      .select('value, updated_at, updated_by')
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error upserting seguro config', 500, 'DB_ERROR');
+    }
+
+    const row = data as { value: unknown; updated_at: string; updated_by: string | null };
+
+    await auditoriaService.log({
+      usuario: req.userName ?? 'Admin GoExpress',
+      usuarioId: req.userId!,
+      accion: 'editar',
+      entidad: 'sistema',
+      entidadId: 'seguro_config',
+      descripcion: 'Configuracion de seguro de envios actualizada',
+      valorAnterior: previousValue !== null ? { value: previousValue } : null,
+      valorNuevo: { value: cfg },
+    });
+
+    res.json({
+      config: parseSeguroConfig(row.value),
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
+    });
+  })
+);
+
+/**
+ * PUT /:key: upsert a single config entry. Accepts string, number, boolean or object (JSONB).
  */
 router.put(
   '/:key',
   validate({ params: keyParamSchema, body: updateConfigSchema }),
   asyncHandler(async (req, res) => {
     const key = req.params['key'] as string;
-    const value = req.body.value as string;
+    const value = req.body.value as unknown;
+
+    // Hard guard: seguro_config must go through the typed /seguro endpoint so it is validated.
+    if (key === 'seguro_config') {
+      throw AppError.badRequest('Use PUT /admin/configuracion/seguro to update seguro_config');
+    }
 
     const { data: previous } = await supabase
       .from('configuracion')
@@ -58,7 +172,7 @@ router.put(
       .eq('key', key)
       .maybeSingle();
 
-    const previousValue = previous ? (previous as { value: string }).value : null;
+    const previousValue = previous ? (previous as { value: unknown }).value : null;
 
     const { data, error } = await supabase
       .from('configuracion')

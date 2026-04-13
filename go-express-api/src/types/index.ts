@@ -123,6 +123,8 @@ export interface EnvioRow {
   costo: number;
   monto_a_cobrar: number;
   tipo_pago: TipoPago;
+  seguro_adicional: boolean;
+  costo_seguro: number;
   repartidor_id: string | null;
   repartidor_asignado_en: string | null;
   problema_descripcion: string | null;
@@ -376,6 +378,8 @@ export interface Envio {
   costo: number;
   montoACobrar: number;
   tipoPago: TipoPago;
+  seguroAdicional: boolean;
+  costoSeguro: number;
   repartidorId: string | null;
   repartidorAsignadoEn: string | null;
   problemaDescripcion: string | null;

@@ -5,6 +5,8 @@ import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { emailService } from '../../services/email.service.js';
 import { sseService } from '../../services/sse.service.js';
+import { computeSeguroForEnvio } from '../../services/envio.service.js';
+import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
@@ -27,6 +29,7 @@ const ENVIO_COLUMNS = [
   'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
   'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
   'estado', 'costo', 'monto_a_cobrar', 'tipo_pago',
+  'seguro_adicional', 'costo_seguro',
   'repartidor_id', 'repartidor_asignado_en',
   'problema_descripcion', 'problema_fecha',
   'tags', 'tarifa_id', 'fecha',
@@ -70,6 +73,8 @@ function mapEnvioRow(row: EnvioRow): Envio {
     costo: row.costo,
     montoACobrar: row.monto_a_cobrar,
     tipoPago: row.tipo_pago,
+    seguroAdicional: row.seguro_adicional,
+    costoSeguro: row.costo_seguro,
     repartidorId: row.repartidor_id,
     repartidorAsignadoEn: row.repartidor_asignado_en,
     problemaDescripcion: row.problema_descripcion,
@@ -242,6 +247,12 @@ router.post(
 
     const trackingNumber = await generateTrackingNumber(supabase);
 
+    const valorDeclarado = input.valorDeclarado ?? 0;
+    const { seguroAdicional, costoSeguro } = await computeSeguroForEnvio(
+      valorDeclarado,
+      input.seguroAdicional
+    );
+
     const envioInsert = {
       tracking_number: trackingNumber,
       cliente_id: clienteId,
@@ -266,7 +277,7 @@ router.post(
       dimensiones_ancho: input.dimensiones?.ancho ?? null,
       dimensiones_alto: input.dimensiones?.alto ?? null,
       fragil: input.fragil,
-      valor_declarado: input.valorDeclarado ?? 0,
+      valor_declarado: valorDeclarado,
       instrucciones_entrega: input.instruccionesEntrega ?? null,
       horario_entrega: input.horarioEntrega ?? null,
       notas: input.notas ?? null,
@@ -274,6 +285,8 @@ router.post(
       costo: input.costo,
       monto_a_cobrar: input.montoACobrar,
       tipo_pago: input.tipoPago,
+      seguro_adicional: seguroAdicional,
+      costo_seguro: costoSeguro,
       tags: input.tags ?? [],
       tarifa_id: input.tarifaId ?? null,
       fecha: todayPY(),
@@ -338,43 +351,78 @@ router.post(
       envios.map(() => generateTrackingNumber(supabase))
     );
 
+    // Fetch seguro config ONCE for the whole batch to avoid N DB reads.
+    const { data: seguroConfigData, error: seguroConfigError } = await supabase
+      .from('configuracion')
+      .select('value')
+      .eq('key', 'seguro_config')
+      .maybeSingle();
+
+    if (seguroConfigError) {
+      logger.error({ error: seguroConfigError }, 'Bulk import: error fetching seguro config');
+      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+    }
+
+    const seguroConfig = parseSeguroConfig(
+      (seguroConfigData as { value: unknown } | null)?.value ?? null
+    );
+
     const today = todayPY();
-    const insertRows = envios.map((input, i) => ({
-      tracking_number: trackingNumbers[i]!,
-      cliente_id: clienteId,
-      cliente_nombre: clienteNombre,
-      codigo_referencia: input.codigoReferencia ?? null,
-      origen: input.origen,
-      destino: input.destino,
-      destinatario_nombre: input.destinatarioNombre,
-      destinatario_direccion: input.destinatarioDireccion,
-      destinatario_telefono: input.destinatarioTelefono,
-      destinatario_telefono2: input.destinatarioTelefono2 ?? null,
-      destinatario_cedula: input.destinatarioCedula ?? null,
-      destinatario_ciudad: input.destinatarioCiudad,
-      destinatario_departamento: input.destinatarioDepartamento ?? '',
-      destinatario_barrio: input.destinatarioBarrio ?? null,
-      destinatario_referencia: input.destinatarioReferencia ?? null,
-      destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-      cantidad: input.cantidad,
-      producto: input.producto ?? '',
-      peso: input.peso,
-      dimensiones_largo: input.dimensiones?.largo ?? null,
-      dimensiones_ancho: input.dimensiones?.ancho ?? null,
-      dimensiones_alto: input.dimensiones?.alto ?? null,
-      fragil: input.fragil,
-      valor_declarado: input.valorDeclarado ?? 0,
-      instrucciones_entrega: input.instruccionesEntrega ?? null,
-      horario_entrega: input.horarioEntrega ?? null,
-      notas: input.notas ?? null,
-      estado: 'pendiente' as const,
-      costo: input.costo,
-      monto_a_cobrar: input.montoACobrar,
-      tipo_pago: input.tipoPago,
-      tags: input.tags ?? [],
-      tarifa_id: input.tarifaId ?? null,
-      fecha: today,
-    }));
+    const insertRows = envios.map((input, i) => {
+      const valorDeclarado = input.valorDeclarado ?? 0;
+
+      if (valorDeclarado > seguroConfig.maximoAsegurable) {
+        throw AppError.badRequest(
+          `Envio #${i + 1}: valor declarado ${valorDeclarado} supera el maximo asegurable (${seguroConfig.maximoAsegurable} Gs)`
+        );
+      }
+
+      let seguroAdicionalFlag = false;
+      let costoSeguro = 0;
+      if (input.seguroAdicional && puedeAsegurar(valorDeclarado, seguroConfig)) {
+        seguroAdicionalFlag = true;
+        costoSeguro = calcularSeguroAdicional(valorDeclarado, seguroConfig);
+      }
+
+      return {
+        tracking_number: trackingNumbers[i]!,
+        cliente_id: clienteId,
+        cliente_nombre: clienteNombre,
+        codigo_referencia: input.codigoReferencia ?? null,
+        origen: input.origen,
+        destino: input.destino,
+        destinatario_nombre: input.destinatarioNombre,
+        destinatario_direccion: input.destinatarioDireccion,
+        destinatario_telefono: input.destinatarioTelefono,
+        destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+        destinatario_cedula: input.destinatarioCedula ?? null,
+        destinatario_ciudad: input.destinatarioCiudad,
+        destinatario_departamento: input.destinatarioDepartamento ?? '',
+        destinatario_barrio: input.destinatarioBarrio ?? null,
+        destinatario_referencia: input.destinatarioReferencia ?? null,
+        destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+        cantidad: input.cantidad,
+        producto: input.producto ?? '',
+        peso: input.peso,
+        dimensiones_largo: input.dimensiones?.largo ?? null,
+        dimensiones_ancho: input.dimensiones?.ancho ?? null,
+        dimensiones_alto: input.dimensiones?.alto ?? null,
+        fragil: input.fragil,
+        valor_declarado: valorDeclarado,
+        instrucciones_entrega: input.instruccionesEntrega ?? null,
+        horario_entrega: input.horarioEntrega ?? null,
+        notas: input.notas ?? null,
+        estado: 'pendiente' as const,
+        costo: input.costo,
+        monto_a_cobrar: input.montoACobrar,
+        tipo_pago: input.tipoPago,
+        seguro_adicional: seguroAdicionalFlag,
+        costo_seguro: costoSeguro,
+        tags: input.tags ?? [],
+        tarifa_id: input.tarifaId ?? null,
+        fecha: today,
+      };
+    });
 
     // Batch insert all envios in a single query
     const { data: insertedData, error: insertError } = await supabase

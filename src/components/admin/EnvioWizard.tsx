@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { departamentosPY } from '@/data/constants';
@@ -20,6 +21,8 @@ import {
   FileText,
   FloppyDisk,
   Scales,
+  ShieldCheck,
+  Warning,
   SpinnerGap,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -28,6 +31,14 @@ import { formatCurrency } from '@/lib/utils';
 import { PHONE_PLACEHOLDER, normalizePhone, isValidPhone } from '@/lib/phone';
 import { useClientes } from '@/hooks/api/use-clientes';
 import { useCreateEnvio } from '@/hooks/api/use-envios';
+import { useSeguroConfig } from '@/hooks/api/use-seguro-config';
+import {
+  calcularSeguroAdicional,
+  puedeAsegurar,
+  requiereRevisionManual,
+  seguroIncluido,
+  SEGURO_DEFAULTS,
+} from '@/lib/seguro';
 
 // Esquemas de validacion por paso
 const paso1Schema = z.object({
@@ -74,6 +85,8 @@ interface FormData {
   destino: string;
   peso: string;
   talla: TallaId | '';
+  valorDeclarado: string;
+  seguroAdicional: boolean;
   destinatarioNombre: string;
   destinatarioDireccion: string;
   destinatarioTelefono: string;
@@ -99,6 +112,8 @@ export function EnvioWizard() {
 
   const { data: apiClientes } = useClientes({ estado: 'activo' });
   const createEnvioMut = useCreateEnvio();
+  const { data: seguroData } = useSeguroConfig();
+  const seguroCfg = seguroData?.config ?? SEGURO_DEFAULTS;
 
   const CLIENTES = (apiClientes?.data ?? []).map(c => ({
         value: c.id,
@@ -115,6 +130,8 @@ export function EnvioWizard() {
     destino: '',
     peso: '',
     talla: '',
+    valorDeclarado: '',
+    seguroAdicional: false,
     destinatarioNombre: '',
     destinatarioDireccion: '',
     destinatarioTelefono: '',
@@ -161,6 +178,26 @@ export function EnvioWizard() {
   const esVolumetrico = pesoVolumetrico > pesoReal && pesoVolumetrico > 0;
   const precioSugerido = Math.ceil((pesoTarifado * 5000 + 15000) / 1000) * 1000; // Redondear a miles
 
+  // Seguro derivado del valor declarado + config admin
+  const valorDeclaradoNum = parseFloat(formData.valorDeclarado) || 0;
+  const valorIncluido = seguroIncluido(valorDeclaradoNum, seguroCfg);
+  const valorAsegurable = puedeAsegurar(valorDeclaradoNum, seguroCfg);
+  const valorExcedido = requiereRevisionManual(valorDeclaradoNum, seguroCfg);
+  const costoSeguroCalculado =
+    formData.seguroAdicional && valorAsegurable
+      ? calcularSeguroAdicional(valorDeclaradoNum, seguroCfg)
+      : 0;
+  const costoEnvioNum = parseFloat(formData.costo) || 0;
+  const totalConSeguro = costoEnvioNum + costoSeguroCalculado;
+
+  // Si el valor declarado cambia y deja de ser asegurable, limpiar el flag
+  useEffect(() => {
+    if (formData.seguroAdicional && !valorAsegurable) {
+      setFormData(prev => ({ ...prev, seguroAdicional: false }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valorAsegurable]);
+
   useEffect(() => {
     if (pasoActual === 5 && precioSugerido > 0 && !formData.costo) {
       handleChange('costo', precioSugerido.toString());
@@ -169,13 +206,13 @@ export function EnvioWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pasoActual, precioSugerido]);
 
-  const handleChange = (field: keyof FormData, value: string) => {
+  const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Limpiar error del campo
-    if (errors[field]) {
+    if (errors[field as string]) {
       setErrors(prev => {
         const newErrors = { ...prev };
-        delete newErrors[field];
+        delete newErrors[field as string];
         return newErrors;
       });
     }
@@ -258,6 +295,7 @@ export function EnvioWizard() {
     setIsSubmitting(true);
 
     const talla = TALLAS.find(t => t.id === formData.talla);
+    const valorDeclaradoPayload = Math.round(parseFloat(formData.valorDeclarado) || 0);
     createEnvioMut.mutate(
         {
           clienteId: formData.cliente,
@@ -271,6 +309,8 @@ export function EnvioWizard() {
           notas: formData.notas,
           costo: Math.round(parseFloat(formData.costo)),
           tipoPago: formData.tipoPago,
+          valorDeclarado: valorDeclaradoPayload,
+          seguroAdicional: formData.seguroAdicional,
         },
         {
           onSuccess: () => {
@@ -506,6 +546,77 @@ export function EnvioWizard() {
                 )}
               </div>
 
+              {/* Valor declarado + seguro */}
+              <div className="space-y-3 border-t pt-5">
+                <div>
+                  <Label className="text-[12px]" htmlFor="valorDeclarado">
+                    Valor declarado del paquete (Gs.)
+                  </Label>
+                  <Input
+                    id="valorDeclarado"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1000"
+                    placeholder="0"
+                    value={formData.valorDeclarado}
+                    onChange={(e) => handleChange('valorDeclarado', e.target.value)}
+                    className="font-data mt-1.5"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Opcional. Declara el valor para cobertura de seguro mayor al incluido por default.
+                  </p>
+                </div>
+
+                {valorIncluido && (
+                  <div className="rounded-lg border border-green-200 bg-green-50/60 p-3 flex items-start gap-2.5">
+                    <ShieldCheck size={16} weight="duotone" className="text-green-700 flex-shrink-0 mt-0.5" />
+                    <div className="text-[12px] text-green-900 leading-relaxed">
+                      <span className="font-semibold">Seguro incluido</span> hasta{' '}
+                      <span className="font-data">{formatCurrency(seguroCfg.umbralIncluido)}</span>{' '}
+                      sin costo adicional.
+                    </div>
+                  </div>
+                )}
+
+                {valorAsegurable && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <Checkbox
+                        id="seguroAdicional"
+                        checked={formData.seguroAdicional}
+                        onCheckedChange={(val) => handleChange('seguroAdicional', Boolean(val))}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <div className="text-[13px] font-semibold text-foreground">
+                          Agregar seguro adicional por{' '}
+                          <span className="font-data text-primary">
+                            {formatCurrency(calcularSeguroAdicional(valorDeclaradoNum, seguroCfg))}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                          Cobertura hasta el valor declarado en caso de perdida o dano comprobado.
+                          Se suma al costo total del envio.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {valorExcedido && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 flex items-start gap-2.5">
+                    <Warning size={16} weight="fill" className="text-amber-700 flex-shrink-0 mt-0.5" />
+                    <div className="text-[12px] text-amber-900 leading-relaxed">
+                      <span className="font-semibold">Valor alto detectado.</span> El seguro
+                      automatico cubre hasta{' '}
+                      <span className="font-data">{formatCurrency(seguroCfg.maximoAsegurable)}</span>.
+                      Contacta al equipo para asegurar envios de mayor valor.
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {tallaData && pesoReal > 0 && (
                 <Card className={`p-4 animate-scale-in border ${esVolumetrico ? 'border-amber-200 bg-amber-50/60' : 'border-green-200 bg-green-50/60'}`}>
                   <h4 className="font-medium mb-3 text-[13px] flex items-center gap-2">
@@ -713,10 +824,40 @@ export function EnvioWizard() {
                     <span className="text-muted-foreground">Destinatario:</span>
                     <span className="font-medium">{formData.destinatarioNombre || '-'}</span>
                   </div>
+                  {valorDeclaradoNum > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Valor declarado:</span>
+                      <span className="font-medium font-data">{formatCurrency(valorDeclaradoNum)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Costo envio:</span>
+                    <span className="font-medium font-data">
+                      {costoEnvioNum > 0 ? formatCurrency(costoEnvioNum) : '-'}
+                    </span>
+                  </div>
+                  {formData.seguroAdicional && costoSeguroCalculado > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <ShieldCheck size={12} weight="duotone" className="text-primary" />
+                        Seguro adicional:
+                      </span>
+                      <span className="font-medium font-data">{formatCurrency(costoSeguroCalculado)}</span>
+                    </div>
+                  )}
+                  {!formData.seguroAdicional && valorIncluido && valorDeclaradoNum > 0 && (
+                    <div className="flex justify-between text-[11px] text-green-700">
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck size={11} weight="duotone" />
+                        Seguro incluido
+                      </span>
+                      <span className="font-data">Sin costo</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t">
                     <span className="text-muted-foreground">Total:</span>
                     <span className="font-bold text-lg font-data">
-                      {formData.costo ? formatCurrency(parseFloat(formData.costo)) : '-'}
+                      {costoEnvioNum > 0 ? formatCurrency(totalConSeguro) : '-'}
                     </span>
                   </div>
                 </div>

@@ -1,20 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { departamentosPY } from '@/data/constants';
 import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
-import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, CircleNotch } from '@phosphor-icons/react';
+import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
+import { useClienteSeguroCotizar } from '@/hooks/api/use-seguro-config';
 import { useProductos } from '@/hooks/api/use-productos';
 import { useCiudadesDisponibles } from '@/hooks/api/use-cotizador';
+import type { SeguroCotizarResponse } from '@/lib/seguro';
 
 interface SizePreset {
   id: 'pequeno' | 'mediano' | 'grande' | 'muy_grande';
@@ -50,11 +53,40 @@ const ClienteNuevoPaquete = () => {
     alto: '',
     contenido: '',
     notas: '',
+    valorDeclarado: '',
   });
+  const [seguroAdicional, setSeguroAdicional] = useState(false);
+  const [seguroCotizacion, setSeguroCotizacion] = useState<SeguroCotizarResponse | null>(null);
 
   const createEnvioMutation = useClienteCreateEnvio();
+  const seguroCotizarMutation = useClienteSeguroCotizar();
   const { data: apiProductos } = useProductos();
   const { data: ciudadesDisponibles } = useCiudadesDisponibles();
+
+  // Debounced cotizacion de seguro cuando cambia valorDeclarado.
+  // Cliente NO tiene acceso a la config cruda: pregunta al backend por el resultado calculado.
+  useEffect(() => {
+    const valor = Math.round(parseFloat(form.valorDeclarado) || 0);
+    if (valor <= 0) {
+      setSeguroCotizacion(null);
+      setSeguroAdicional(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      seguroCotizarMutation.mutate(valor, {
+        onSuccess: (data) => {
+          setSeguroCotizacion(data);
+          // Si deja de ser asegurable, limpiar el opt-in
+          if (!data.asegurable) setSeguroAdicional(false);
+        },
+        onError: () => {
+          setSeguroCotizacion(null);
+        },
+      });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.valorDeclarado]);
 
   const productos: ProductoGuardado[] = apiProductos?.data ?? [];
 
@@ -132,6 +164,8 @@ const ClienteNuevoPaquete = () => {
     const ciudadTrimmed = form.ciudad.trim();
     const codigoTrimmed = form.codigoReferencia.trim();
 
+    const valorDeclaradoNum = Math.round(parseFloat(form.valorDeclarado) || 0);
+
     createEnvioMutation.mutate(
       {
         destinatarioNombre: form.destinatarioNombre,
@@ -149,6 +183,8 @@ const ClienteNuevoPaquete = () => {
         producto: form.contenido,
         notas: form.notas,
         etiquetas,
+        valorDeclarado: valorDeclaradoNum,
+        seguroAdicional,
       },
       {
         onSuccess: () => {
@@ -375,6 +411,80 @@ const ClienteNuevoPaquete = () => {
               <Label className="text-[11px]">Notas adicionales</Label>
               <Textarea value={form.notas} onChange={(e) => handleChange('notas', e.target.value)} className="mt-1.5" placeholder="Instrucciones especiales, horario de entrega, etc." />
             </div>
+          </div>
+        </div>
+
+        {/* Seguro de envio */}
+        <div className="surface-card p-5">
+          <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
+            <ShieldCheck size={16} weight="duotone" className="text-primary" />
+            Seguro del envio
+          </h3>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-[11px]">Valor declarado del paquete (Gs.)</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1000"
+                placeholder="0"
+                value={form.valorDeclarado}
+                onChange={(e) => handleChange('valorDeclarado', e.target.value)}
+                className="mt-1.5 font-data"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Opcional. Declara el valor para mayor cobertura de seguro.
+              </p>
+            </div>
+
+            {seguroCotizacion?.incluido && Number(form.valorDeclarado) > 0 && (
+              <div className="rounded-lg border border-green-200 bg-green-50/60 p-3 flex items-start gap-2.5">
+                <ShieldCheck size={14} weight="duotone" className="text-green-700 flex-shrink-0 mt-0.5" />
+                <div className="text-[11px] text-green-900 leading-relaxed">
+                  <span className="font-semibold">Seguro incluido</span> hasta{' '}
+                  <span className="font-data">{formatCurrency(seguroCotizacion.umbralIncluido)}</span>{' '}
+                  sin costo adicional.
+                </div>
+              </div>
+            )}
+
+            {seguroCotizacion?.asegurable && (
+              <label className="flex items-start gap-2.5 cursor-pointer rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
+                <Checkbox
+                  checked={seguroAdicional}
+                  onCheckedChange={(val) => setSeguroAdicional(Boolean(val))}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <div className="text-[12px] font-semibold text-foreground">
+                    Agregar seguro adicional por{' '}
+                    <span className="font-data text-primary">
+                      {formatCurrency(seguroCotizacion.costoAdicional)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                    Cobertura completa hasta el valor declarado en caso de perdida o dano comprobado.
+                  </p>
+                </div>
+              </label>
+            )}
+
+            {seguroCotizacion?.requiereRevisionManual && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 flex items-start gap-2.5">
+                <Warning size={14} weight="fill" className="text-amber-700 flex-shrink-0 mt-0.5" />
+                <div className="text-[11px] text-amber-900 leading-relaxed">
+                  <span className="font-semibold">Valor alto detectado.</span> El seguro automatico
+                  cubre hasta{' '}
+                  <span className="font-data">{formatCurrency(seguroCotizacion.maximoAsegurable)}</span>.
+                  Contacta al equipo de Go Express para asegurar envios de mayor valor.
+                </div>
+              </div>
+            )}
+
+            {!seguroCotizacion && Number(form.valorDeclarado) > 0 && (
+              <p className="text-[10px] text-muted-foreground">Calculando cobertura...</p>
+            )}
           </div>
         </div>
 

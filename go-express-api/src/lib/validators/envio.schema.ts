@@ -45,6 +45,10 @@ export const createEnvioSchema = z.object({
   montoACobrar: z.number().int().min(0).default(0),
   tipoPago: tipoPagoEnum,
 
+  // Seguro: opt-in. El costo se recalcula server-side en base a la config y valorDeclarado,
+  // no se confia en lo que mande el cliente (previene tampering).
+  seguroAdicional: z.boolean().default(false),
+
   // Tags
   tags: z.array(z.string().max(50)).max(10).optional(),
 

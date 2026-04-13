@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, ComponentType } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,33 +6,63 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
+
+// Stale-deploy recovery: if a dynamic import fails (chunk hash no longer exists
+// because a new deploy replaced the assets while the app was loaded), force a
+// single full reload to fetch the fresh index.html + new chunks. The session
+// flag prevents a reload loop if the failure is not deploy-related.
+const RELOAD_KEY = 'ge:chunk-reload-at';
+const RELOAD_WINDOW_MS = 10_000;
+
+function lazyWithReload<T extends ComponentType<unknown>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      const mod = await factory();
+      sessionStorage.removeItem(RELOAD_KEY);
+      return mod;
+    } catch (err) {
+      const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
+      const recentlyReloaded = last && Date.now() - last < RELOAD_WINDOW_MS;
+      if (!recentlyReloaded) {
+        sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+        window.location.reload();
+        // Never resolve: Suspense keeps the fallback until the page reloads.
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }
+  });
+}
+
 // Lazy-loaded route groups
-const Landing = lazy(() => import("./pages/Landing"));
-const Track = lazy(() => import("./pages/Track"));
-const Login = lazy(() => import("./pages/Login"));
-const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
-const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
-const EnviosList = lazy(() => import("./pages/admin/EnviosList"));
-const EnvioNew = lazy(() => import("./pages/admin/EnvioNew"));
-const EnvioDetail = lazy(() => import("./pages/admin/EnvioDetail"));
-const Clientes = lazy(() => import("./pages/admin/Clientes"));
-const Repartidores = lazy(() => import("./pages/admin/Repartidores"));
-const Configuracion = lazy(() => import("./pages/admin/Configuracion"));
-const Pagos = lazy(() => import("./pages/admin/Pagos"));
-const Warehouse = lazy(() => import("./pages/admin/Warehouse"));
-const Tarifas = lazy(() => import("./pages/admin/Tarifas"));
-const Auditoria = lazy(() => import("./pages/admin/Auditoria"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const ClienteLayout = lazy(() => import("./components/cliente/ClienteLayout").then(m => ({ default: m.ClienteLayout })));
-const ClienteDashboard = lazy(() => import("./pages/cliente/ClienteDashboard"));
-const ClienteEnvios = lazy(() => import("./pages/cliente/ClienteEnvios"));
-const ClienteNuevoPaquete = lazy(() => import("./pages/cliente/ClienteNuevoPaquete"));
-const ClienteEtiquetas = lazy(() => import("./pages/cliente/ClienteEtiquetas"));
-const ClienteCuenta = lazy(() => import("./pages/cliente/ClienteCuenta"));
-const ClienteImportar = lazy(() => import("./pages/cliente/ClienteImportar"));
-const ClienteCotizador = lazy(() => import("./pages/cliente/ClienteCotizador"));
-const ClienteProductos = lazy(() => import("./pages/cliente/ClienteProductos"));
-const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
+const Landing = lazyWithReload(() => import("./pages/Landing"));
+const Track = lazyWithReload(() => import("./pages/Track"));
+const Login = lazyWithReload(() => import("./pages/Login"));
+const AdminLayout = lazyWithReload(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
+const Dashboard = lazyWithReload(() => import("./pages/admin/Dashboard"));
+const EnviosList = lazyWithReload(() => import("./pages/admin/EnviosList"));
+const EnvioNew = lazyWithReload(() => import("./pages/admin/EnvioNew"));
+const EnvioDetail = lazyWithReload(() => import("./pages/admin/EnvioDetail"));
+const Clientes = lazyWithReload(() => import("./pages/admin/Clientes"));
+const Repartidores = lazyWithReload(() => import("./pages/admin/Repartidores"));
+const Configuracion = lazyWithReload(() => import("./pages/admin/Configuracion"));
+const Pagos = lazyWithReload(() => import("./pages/admin/Pagos"));
+const Warehouse = lazyWithReload(() => import("./pages/admin/Warehouse"));
+const Tarifas = lazyWithReload(() => import("./pages/admin/Tarifas"));
+const Auditoria = lazyWithReload(() => import("./pages/admin/Auditoria"));
+const NotFound = lazyWithReload(() => import("./pages/NotFound"));
+const ClienteLayout = lazyWithReload(() => import("./components/cliente/ClienteLayout").then(m => ({ default: m.ClienteLayout })));
+const ClienteDashboard = lazyWithReload(() => import("./pages/cliente/ClienteDashboard"));
+const ClienteEnvios = lazyWithReload(() => import("./pages/cliente/ClienteEnvios"));
+const ClienteNuevoPaquete = lazyWithReload(() => import("./pages/cliente/ClienteNuevoPaquete"));
+const ClienteEtiquetas = lazyWithReload(() => import("./pages/cliente/ClienteEtiquetas"));
+const ClienteCuenta = lazyWithReload(() => import("./pages/cliente/ClienteCuenta"));
+const ClienteImportar = lazyWithReload(() => import("./pages/cliente/ClienteImportar"));
+const ClienteCotizador = lazyWithReload(() => import("./pages/cliente/ClienteCotizador"));
+const ClienteProductos = lazyWithReload(() => import("./pages/cliente/ClienteProductos"));
+const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 
 const queryClient = new QueryClient({
   defaultOptions: {

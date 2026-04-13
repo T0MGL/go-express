@@ -408,6 +408,22 @@ const EnvioDetail = () => {
                 ) : 'No especificadas'}
               </p>
             </div>
+            {envio.valorDeclarado > 0 && (
+              <div>
+                <p className="section-label mb-1">Valor declarado</p>
+                <p className="font-medium text-[13px] font-data">{formatCurrency(envio.valorDeclarado)}</p>
+              </div>
+            )}
+            <div>
+              <p className="section-label mb-1">Seguro</p>
+              {envio.seguroAdicional ? (
+                <Badge variant="success" className="text-[11px]">
+                  Asegurado ({formatCurrency(envio.costoSeguro)})
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[11px]">Cobertura incluida</Badge>
+              )}
+            </div>
           </div>
 
           {envio.notas && (
@@ -465,6 +481,18 @@ const EnvioDetail = () => {
                 <div>
                   <p className="section-label mb-1">Costo del Envio</p>
                   <p className="text-xl font-semibold font-data">{formatCurrency(envio.costo)}</p>
+                  {envio.seguroAdicional && envio.costoSeguro > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
+                      <div className="flex justify-between items-center text-[12px]">
+                        <span className="text-muted-foreground">Seguro adicional</span>
+                        <span className="font-data font-medium">{formatCurrency(envio.costoSeguro)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[12px] font-semibold">
+                        <span>Total cobrado</span>
+                        <span className="font-data">{formatCurrency(envio.costo + envio.costoSeguro)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>

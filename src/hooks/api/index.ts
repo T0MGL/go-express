@@ -93,6 +93,11 @@ export {
   useConfiguracion,
   useUpdateConfiguracion,
 } from './use-configuracion';
+export {
+  useSeguroConfig,
+  useUpdateSeguroConfig,
+  useClienteSeguroCotizar,
+} from './use-seguro-config';
 
 // Client portal
 export { useTracking } from './use-tracking';

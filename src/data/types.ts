@@ -88,6 +88,8 @@ export interface Envio {
   costo: number;
   montoACobrar: number;
   tipoPago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+  seguroAdicional: boolean;
+  costoSeguro: number;
   pago: Pago | null;
   repartidorId: string | null;
   repartidorAsignadoEn: string | null;

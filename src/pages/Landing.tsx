@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'mot
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   MagnifyingGlass, MapPin, Phone, EnvelopeSimple, CheckCircle,
   Package, Truck, ShieldCheck, BuildingOffice, ArrowRight,
@@ -153,6 +154,7 @@ const Landing = () => {
   const [scrolled, setScrolled] = useState(false);
   const [heroCardPage, setHeroCardPage] = useState(0);
   const [contactForm, setContactForm] = useState({ nombre: '', empresa: '', email: '', tel: '' });
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
 
   const { scrollY } = useScroll();
   const bgParallax = useTransform(scrollY, [0, 600], [0, 60]);
@@ -392,18 +394,26 @@ const Landing = () => {
         <div className="max-w-3xl mx-auto px-6">
           <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
             {[
-              { icon: SealCheck, label: 'RUC Verificado', desc: 'Facturación legal E.A.S.' },
-              { icon: ShieldCheck, label: 'Seguro de Carga', desc: 'Cobertura total en tránsito' },
-              { icon: Handshake, label: 'Partner Certificado', desc: '10+ años de operación' },
-            ].map((badge) => (
-              <motion.div variants={fadeUpVariant} key={badge.label} className="flex flex-col items-center gap-2 py-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center mb-1">
-                  <badge.icon weight="duotone" className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-bold text-sm text-sidebar">{badge.label}</span>
-                <span className="text-xs text-sidebar/40 font-medium">{badge.desc}</span>
-              </motion.div>
-            ))}
+              { icon: SealCheck, label: 'RUC Verificado', desc: 'Facturación legal E.A.S.', onClick: undefined },
+              { icon: ShieldCheck, label: 'Seguro de Carga', desc: 'Hasta Gs. 200.000 incluido', onClick: () => setInsuranceOpen(true) },
+              { icon: Handshake, label: 'Partner Certificado', desc: '10+ años de operación', onClick: undefined },
+            ].map((badge) => {
+              const Wrapper: React.ElementType = badge.onClick ? 'button' : 'div';
+              return (
+                <motion.div variants={fadeUpVariant} key={badge.label}>
+                  <Wrapper
+                    {...(badge.onClick ? { onClick: badge.onClick, type: 'button' } : {})}
+                    className={`w-full flex flex-col items-center gap-2 py-4 ${badge.onClick ? 'group cursor-pointer transition-colors' : ''}`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center mb-1 ${badge.onClick ? 'group-hover:bg-primary/12 transition-colors' : ''}`}>
+                      <badge.icon weight="duotone" className="w-5 h-5 text-primary" />
+                    </div>
+                    <span className={`font-bold text-sm text-sidebar ${badge.onClick ? 'group-hover:text-primary transition-colors' : ''}`}>{badge.label}</span>
+                    <span className="text-xs text-sidebar/40 font-medium">{badge.desc}</span>
+                  </Wrapper>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </div>
       </section>
@@ -806,8 +816,18 @@ const Landing = () => {
             <div>
               <h4 className="text-sidebar font-bold text-sm mb-5">Servicios</h4>
               <div className="flex flex-col gap-3">
-                {['Distribución B2B', 'Seguro de Carga', 'Portal Corporativo', 'API de Integración'].map((item) => (
-                  <button key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit">{item}</button>
+                {[
+                  { label: 'Distribución B2B', onClick: undefined },
+                  { label: 'Seguro de Carga', onClick: () => setInsuranceOpen(true) },
+                  { label: 'Portal Corporativo', onClick: () => navigate('/cliente') },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.onClick}
+                    className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
+                  >
+                    {item.label}
+                  </button>
                 ))}
               </div>
             </div>
@@ -851,6 +871,77 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      {/* ═══ INSURANCE POLICY MODAL ════════════════════════════════════════ */}
+      <Dialog open={insuranceOpen} onOpenChange={setInsuranceOpen}>
+        <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
+          <div className="relative bg-gradient-to-br from-primary/8 via-primary/4 to-transparent px-7 pt-8 pb-6 border-b border-muted/60">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/12 flex items-center justify-center shrink-0">
+                <ShieldCheck weight="duotone" className="w-6 h-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-display font-extrabold text-[22px] text-sidebar leading-tight tracking-tight">
+                  Seguro de Carga
+                </h3>
+                <p className="text-[13px] text-sidebar/50 font-medium mt-1">
+                  Cobertura incluida en todos los envíos Go Express.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-7 py-6 space-y-5">
+            <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle weight="fill" className="w-4 h-4 text-primary" />
+                <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Incluido sin costo</span>
+              </div>
+              <p className="font-display font-extrabold text-[18px] text-sidebar leading-snug">
+                Hasta Gs. 200.000 por envío
+              </p>
+              <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">
+                Todos los paquetes enviados a través de Go Express cuentan con cobertura automática de hasta doscientos mil guaraníes en caso de pérdida o daño en tránsito. No requiere contratación adicional.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-muted/80 bg-muted/20 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Package weight="fill" className="w-4 h-4 text-sidebar/60" />
+                <span className="text-[11px] font-bold uppercase tracking-widest text-sidebar/60">Cobertura ampliada</span>
+              </div>
+              <p className="font-display font-extrabold text-[18px] text-sidebar leading-snug">
+                Sobre el valor declarado
+              </p>
+              <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">
+                Para mercaderías con valor superior a Gs. 200.000, se aplica un porcentaje sobre el valor declarado. El porcentaje varía según el tipo de producto, el riesgo de manipulación y el destino. Se calcula y se cotiza al crear el envío.
+              </p>
+            </div>
+
+            <div className="text-[12px] text-sidebar/45 leading-relaxed space-y-1.5 pt-1">
+              <p><span className="font-bold text-sidebar/70">Reclamos:</span> hasta 48 horas luego de la entrega, acompañando factura y fotografías del paquete.</p>
+              <p><span className="font-bold text-sidebar/70">Exclusiones:</span> dinero en efectivo, joyería sin declarar, productos perecederos no refrigerados y mercadería prohibida por ley.</p>
+            </div>
+          </div>
+
+          <div className="px-7 py-5 bg-muted/20 border-t border-muted/60 flex items-center justify-between gap-3">
+            <p className="text-[11px] text-sidebar/40 font-medium">
+              ¿Necesitás cobertura especial? Consultanos.
+            </p>
+            <Button
+              size="sm"
+              onClick={() => {
+                setInsuranceOpen(false);
+                scrollToSection('contacto');
+              }}
+              className="gap-1.5"
+            >
+              Contactar
+              <ArrowRight weight="bold" className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

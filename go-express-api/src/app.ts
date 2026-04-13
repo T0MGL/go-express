@@ -126,8 +126,8 @@ app.use('/api/admin', (req, res, next) => {
   next();
 }, adminRoutes);
 app.use('/api/cliente', clienteRoutes);
-app.use('/api/public', trackingRoutes);
 app.use('/api/public/tarifas', publicTarifaRoutes);
+app.use('/api/public', trackingRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({

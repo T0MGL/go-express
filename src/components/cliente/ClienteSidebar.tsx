@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const menuItems = [
   { icon: ChartBar, label: 'Dashboard', path: '/cliente', end: true },
-  { icon: Package, label: 'Mis Envios', path: '/cliente/envios', end: false },
+  { icon: Package, label: 'Mis Envíos', path: '/cliente/envios', end: false },
   { icon: PlusCircle, label: 'Nuevo Paquete', path: '/cliente/envios/nuevo', end: true },
   { icon: UploadSimple, label: 'Importar Masivo', path: '/cliente/importar', end: true },
   { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true },

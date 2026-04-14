@@ -59,7 +59,7 @@ router.get(
         .not('tags', 'eq', '{}');
 
       if (countError) {
-        logger.error({ error: countError, clienteId }, 'Error fetching envio tags for count');
+        logger.error({ error: countError, clienteId }, 'Error fetching envío tags for count');
       } else if (enviosWithTags) {
         const tagNameSet = new Set(tags.map((t) => t.nombre));
         for (const row of enviosWithTags as Array<{ tags: string[] }>) {

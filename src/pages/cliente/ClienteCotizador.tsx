@@ -117,9 +117,9 @@ const ClienteCotizador = () => {
     <div>
       <div className="page-header mb-6">
         <div>
-          <h1 className="page-header-title">Cotizador de Envios</h1>
+          <h1 className="page-header-title">Cotizador de Envíos</h1>
           <p className="page-header-subtitle">
-            Calcula el costo estimado de tu envio antes de crearlo
+            Calcula el costo estimado de tu envío antes de crearlo
           </p>
         </div>
       </div>
@@ -232,7 +232,7 @@ const ClienteCotizador = () => {
             ) : (
               <Calculator size={14} weight="duotone" />
             )}
-            {cotizarMutation.isPending ? 'Calculando...' : 'Calcular cotizacion'}
+            {cotizarMutation.isPending ? 'Calculando...' : 'Calcular cotización'}
             {!cotizarMutation.isPending && <ArrowRight size={14} weight="bold" />}
           </Button>
         </div>
@@ -243,7 +243,7 @@ const ClienteCotizador = () => {
             <div className="surface-card p-8 text-center text-muted-foreground h-full flex flex-col items-center justify-center">
               <Calculator size={32} weight="duotone" className="mb-3 opacity-30" />
               <p className="text-[13px] font-medium">Completa el formulario</p>
-              <p className="text-[12px] mt-1">Los resultados de cotizacion apareceran aqui</p>
+              <p className="text-[12px] mt-1">Los resultados de cotización apareceran aquí</p>
             </div>
           )}
 
@@ -275,7 +275,7 @@ const ClienteCotizador = () => {
                         </Badge>
                         {i === 0 && (
                           <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">
-                            Mas economico
+                            Más económico
                           </Badge>
                         )}
                       </div>
@@ -314,14 +314,14 @@ const ClienteCotizador = () => {
 
                     {i === 0 && (
                       <Button size="sm" className="w-full gap-1.5 mt-1" onClick={() => navigate('/cliente/envios/nuevo')}>
-                        <CheckCircle size={14} weight="duotone" /> Crear envio con esta tarifa
+                        <CheckCircle size={14} weight="duotone" /> Crear envío con esta tarifa
                       </Button>
                     )}
                   </div>
                 ))}
 
               <Button variant="ghost" size="sm" onClick={resetear} className="w-full text-muted-foreground mt-2">
-                Nueva cotizacion
+                Nueva cotización
               </Button>
             </div>
           )}

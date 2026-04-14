@@ -98,7 +98,7 @@ const Repartidores = () => {
     }
 
     if (!isValidPhone(telefonoRaw)) {
-      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
+      toast.error(`Formato de teléfono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
 
@@ -143,16 +143,18 @@ const Repartidores = () => {
         <div className="page-header">
           <div>
             <h1 className="page-header-title">Repartidores</h1>
-            <p className="page-header-subtitle">Gestion del equipo de reparto</p>
+            <p className="page-header-subtitle">
+              {totalCount > 0 ? `${totalCount} repartidor${totalCount === 1 ? '' : 'es'} en total` : 'Equipo que entrega los envíos'}
+            </p>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-1.5">
                 <Plus className="w-3.5 h-3.5" />
-                Nuevo Repartidor
+                Nuevo repartidor
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Registrar un nuevo repartidor en el sistema</TooltipContent>
+            <TooltipContent>Agregar un repartidor nuevo al equipo</TooltipContent>
           </Tooltip>
         </div>
 
@@ -162,7 +164,7 @@ const Repartidores = () => {
             <SearchInput
               value={busqueda}
               onChange={setBusqueda}
-              placeholder="Buscar por nombre, placa o telefono..."
+              placeholder="Buscar por nombre, placa o teléfono..."
               className="flex-1 min-w-48"
             />
             <Select value={filterEstado} onValueChange={setFilterEstado}>
@@ -197,12 +199,12 @@ const Repartidores = () => {
                 <table className="premium-table">
                   <thead>
                     <tr>
-                      <th>Nombre</th>
-                      <th>Telefono</th>
-                      <th>Vehiculo</th>
+                      <th>Repartidor</th>
+                      <th>Teléfono</th>
+                      <th>Vehículo</th>
                       <th>Placa</th>
                       <th>Estado</th>
-                      <th>Envios Hoy</th>
+                      <th>Entregas hoy</th>
                       <th className="text-right">Acciones</th>
                     </tr>
                   </thead>
@@ -219,7 +221,7 @@ const Repartidores = () => {
                             <span className="font-medium text-[13px]">{repartidor.nombre}</span>
                           </div>
                         </td>
-                        <td className="text-[13px] font-data text-muted-foreground">{repartidor.telefono || 'Ver detalle'}</td>
+                        <td className="text-[13px] font-data text-muted-foreground">{repartidor.telefono || 'Sin registrar'}</td>
                         <td className="text-[13px]">{repartidor.vehiculo}</td>
                         <td className="text-[13px] font-data">{repartidor.placa}</td>
                         <td>
@@ -228,7 +230,11 @@ const Repartidores = () => {
                           </Badge>
                         </td>
                         <td className="text-[13px]">
-                          {repartidor.enviosHoy} {repartidor.enviosHoy === 1 ? 'entrega' : 'entregas'}
+                          {repartidor.enviosHoy === 0 ? (
+                            <span className="text-muted-foreground">Sin asignaciones</span>
+                          ) : (
+                            <span>{repartidor.enviosHoy} {repartidor.enviosHoy === 1 ? 'envio' : 'envios'}</span>
+                          )}
                         </td>
                         <td>
                           <div className="flex gap-1 justify-end">
@@ -238,7 +244,7 @@ const Repartidores = () => {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 w-7 p-0"
-                                  aria-label={`Ver envios asignados a ${repartidor.nombre}`}
+                                  aria-label={`Ver envíos asignados a ${repartidor.nombre}`}
                                   onClick={() => {
                                     setSelectedRepartidor(repartidor.id);
                                     setShowEnviosModal(true);
@@ -247,7 +253,7 @@ const Repartidores = () => {
                                   <Eye size={14} weight="duotone" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Ver envios asignados</TooltipContent>
+                              <TooltipContent>Ver envíos asignados</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -279,7 +285,7 @@ const Repartidores = () => {
               {filteredRepartidores.length > 0 && (
                 <div className="px-5 py-3 border-t border-border/40">
                   <p className="text-[12px] text-muted-foreground">
-                    Mostrando {filteredRepartidores.length} de {totalCount} repartidores
+                    Viendo {filteredRepartidores.length} de {totalCount} repartidor{totalCount === 1 ? '' : 'es'}
                   </p>
                 </div>
               )}
@@ -289,10 +295,20 @@ const Repartidores = () => {
                   <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                     <UsersThree size={18} weight="duotone" className="text-muted-foreground/50" />
                   </div>
-                  <p className="text-[13px] font-medium text-foreground">No se encontraron repartidores</p>
-                  <p className="text-[12px] text-muted-foreground mt-1">
-                    Intenta con otro filtro de estado
+                  <p className="text-[13px] font-medium text-foreground">
+                    {busqueda || filterEstado !== 'todos' ? 'Ningún repartidor coincide con los filtros' : 'Aún no hay repartidores'}
                   </p>
+                  <p className="text-[12px] text-muted-foreground mt-1 mb-4">
+                    {busqueda || filterEstado !== 'todos'
+                      ? 'Proba borrando los filtros o buscando otro termino'
+                      : 'Agrega el primer repartidor para empezar a asignar envíos'}
+                  </p>
+                  {!busqueda && filterEstado === 'todos' && (
+                    <Button size="sm" className="gap-1.5" onClick={() => setIsModalOpen(true)}>
+                      <Plus className="w-3.5 h-3.5" />
+                      Agregar primer repartidor
+                    </Button>
+                  )}
                 </div>
               )}
             </>
@@ -303,7 +319,7 @@ const Repartidores = () => {
       <Dialog open={showEnviosModal} onOpenChange={setShowEnviosModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Envios Asignados Hoy</DialogTitle>
+            <DialogTitle>Envíos Asignados Hoy</DialogTitle>
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto">
             <table className="premium-table">
@@ -325,7 +341,7 @@ const Repartidores = () => {
               </tbody>
             </table>
             {enviosAsignados.length === 0 && (
-              <p className="text-center py-8 text-muted-foreground text-[13px]">No hay envios asignados</p>
+              <p className="text-center py-8 text-muted-foreground text-[13px]">No hay envíos asignados</p>
             )}
           </div>
         </DialogContent>
@@ -340,8 +356,8 @@ const Repartidores = () => {
           </DialogHeader>
           <p className="text-[13px] text-muted-foreground py-2">
             {confirmToggleRep?.estado === 'activo'
-              ? `Se desactivara a ${confirmToggleRep?.nombre ?? ''}. No podra recibir envios asignados.`
-              : `Se activara a ${confirmToggleRep?.nombre ?? ''}. Podra recibir envios nuevamente.`
+              ? `Se desactivara a ${confirmToggleRep?.nombre ?? ''}. No podra recibir envíos asignados.`
+              : `Se activara a ${confirmToggleRep?.nombre ?? ''}. Podra recibir envíos nuevamente.`
             }
           </p>
           <DialogFooter>
@@ -372,14 +388,14 @@ const Repartidores = () => {
                 <Input id="nombre" name="nombre" required className="mt-1.5" />
               </div>
               <div>
-                <Label htmlFor="telefono" className="text-[13px]">Telefono *</Label>
+                <Label htmlFor="telefono" className="text-[13px]">Teléfono *</Label>
                 <Input id="telefono" name="telefono" type="tel" placeholder={PHONE_PLACEHOLDER} required className="mt-1.5 font-data" />
               </div>
               <div>
-                <Label htmlFor="vehiculo" className="text-[13px]">Tipo de vehiculo *</Label>
+                <Label htmlFor="vehiculo" className="text-[13px]">Tipo de vehículo *</Label>
                 <Select name="vehiculo" required>
                   <SelectTrigger id="vehiculo" className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar vehiculo" />
+                    <SelectValue placeholder="Seleccionar vehículo" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Moto">Moto</SelectItem>

@@ -122,8 +122,8 @@ const fadeUp = {
 // Shipment journey stages in order
 const JOURNEY_STAGES = [
   { key: 'pendiente', label: 'Pendiente', icon: Package },
-  { key: 'recolectado', label: 'Recolectado', icon: Package },
-  { key: 'en_transito', label: 'En Transito', icon: Truck },
+  { key: 'recolectado', label: 'Retirado', icon: Package },
+  { key: 'en_transito', label: 'En tránsito', icon: Truck },
   { key: 'en_reparto', label: 'En Reparto', icon: Truck },
   { key: 'entregado', label: 'Entregado', icon: CheckCircle },
 ] as const;
@@ -141,7 +141,7 @@ const ShipmentJourney = ({ estado }: { estado: string }) => {
   const progressPercent = isFailed ? 0 : (currentIndex / (totalStages - 1)) * 100;
 
   return (
-    <div className="w-full" role="progressbar" aria-valuenow={currentIndex + 1} aria-valuemin={1} aria-valuemax={totalStages} aria-label="Progreso del envio">
+    <div className="w-full" role="progressbar" aria-valuenow={currentIndex + 1} aria-valuemin={1} aria-valuemax={totalStages} aria-label="Progreso del envío">
       {/* Progress track */}
       <div className="relative mb-8">
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -352,7 +352,7 @@ const Track = () => {
     if (searchQuery) {
       if (apiResult) {
         setSearched(true);
-        toast.success('Envio encontrado');
+        toast.success('Envío encontrado');
       } else if (!apiSearching && !apiError) {
         setSearched(true);
       }
@@ -367,7 +367,7 @@ const Track = () => {
 
   const handleSearch = useCallback(() => {
     if (!trackingNumber.trim()) {
-      toast.error('Ingresa un numero de seguimiento');
+      toast.error('Ingresa un número de seguimiento');
       return;
     }
 
@@ -455,18 +455,18 @@ const Track = () => {
               </motion.div>
 
               <motion.h1 variants={fadeUpVariant} className="font-display text-[2.25rem] md:text-[3.5rem] font-extrabold text-sidebar tracking-tight leading-[1.05] mb-5">
-                Rastrea tu envio
+                Rastrea tu envío
               </motion.h1>
 
               <motion.p variants={fadeUpVariant} className="text-sidebar/50 text-base md:text-lg font-medium leading-relaxed mb-10 max-w-lg mx-auto">
-                Ingresa tu numero de seguimiento para ver el estado actualizado de tu paquete en tiempo real.
+                Ingresa tu número de seguimiento para ver el estado actualizado de tu paquete en tiempo real.
               </motion.p>
 
               {/* Search form */}
               <motion.div variants={fadeUpVariant} className="p-5 md:p-6 bg-slate-50 rounded-2xl border border-muted/80">
                 <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="flex flex-col sm:flex-row gap-3">
                   <div className="relative flex-1 group">
-                    <label htmlFor="tracking-input" className="sr-only">Numero de seguimiento</label>
+                    <label htmlFor="tracking-input" className="sr-only">Número de seguimiento</label>
                     <div className="flex items-center gap-2 bg-white rounded-xl border border-muted/80 group-focus-within:border-primary/40 transition-all h-14 px-4">
                       <MagnifyingGlass weight="bold" className="w-5 h-5 text-sidebar/30 flex-shrink-0" />
                       <input
@@ -489,7 +489,7 @@ const Track = () => {
                   </Button>
                 </form>
                 <p className="text-[12px] text-sidebar/30 font-medium mt-3">
-                  El formato del numero de seguimiento es <span className="font-data text-sidebar/50">GE2026XXXXXX</span>
+                  El formato del número de seguimiento es <span className="font-data text-sidebar/50">GE2026XXXXXX</span>
                 </p>
               </motion.div>
             </motion.div>
@@ -523,7 +523,7 @@ const Track = () => {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 25 }}
                       >
-                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar/40 mb-2">Numero de seguimiento</p>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar/40 mb-2">Número de seguimiento</p>
                         <div className="relative inline-block">
                           <motion.p
                             className="font-data text-2xl md:text-3xl font-bold text-primary tracking-tight"
@@ -628,7 +628,7 @@ const Track = () => {
                     className="relative overflow-hidden bg-white rounded-2xl border border-muted/80 p-6 md:p-8 shadow-sm"
                   >
                     <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                    <h3 className="font-display text-lg font-bold text-sidebar mb-8">Progreso del envio</h3>
+                    <h3 className="font-display text-lg font-bold text-sidebar mb-8">Progreso del envío</h3>
                     <ShipmentJourney estado={envio.estado} />
                   </motion.div>
 
@@ -651,7 +651,7 @@ const Track = () => {
                       onClick={() => { setSearchQuery(''); setSearched(false); setTrackingNumber(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     >
                       <MagnifyingGlass weight="bold" className="w-4 h-4" />
-                      Buscar otro envio
+                      Buscar otro envío
                     </Button>
                   </motion.div>
                 </motion.div>
@@ -672,9 +672,9 @@ const Track = () => {
                   >
                     <Warning size={28} weight="duotone" className="text-amber-500" />
                   </motion.div>
-                  <h2 className="font-display text-xl font-bold text-sidebar mb-2">No encontramos tu envio</h2>
+                  <h2 className="font-display text-xl font-bold text-sidebar mb-2">No encontramos tu envío</h2>
                   <p className="text-sm text-sidebar/40 font-medium max-w-sm mx-auto mb-8 leading-relaxed">
-                    Verifica que el numero de seguimiento sea correcto. El formato es <span className="font-data text-sidebar/60">GE2026XXXXXX</span>.
+                    Verifica que el número de seguimiento sea correcto. El formato es <span className="font-data text-sidebar/60">GE2026XXXXXX</span>.
                   </p>
                   <Button
                     variant="outline"
@@ -696,8 +696,8 @@ const Track = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
                     {[
                       { icon: Package, title: 'Estado en vivo', desc: 'Segui tu paquete en cada etapa del proceso' },
-                      { icon: MapPin, title: 'Ubicacion', desc: 'Conoce la ubicacion actual de tu envio' },
-                      { icon: ShieldCheck, title: 'Seguro', desc: 'Todos los envios cuentan con seguro de carga' },
+                      { icon: MapPin, title: 'Ubicación', desc: 'Conoce la ubicación actual de tu envío' },
+                      { icon: ShieldCheck, title: 'Seguro', desc: 'Todos los envíos cuentan con seguro de carga' },
                     ].map((item, i) => (
                       <motion.div
                         key={item.title}
@@ -730,7 +730,7 @@ const Track = () => {
                 <img src="/logotipo.png" alt="Go Express" className="h-6" />
               </div>
               <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
-                Soluciones de logistica corporativa para el mercado paraguayo. E.A.S. con facturacion legal.
+                Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.
               </p>
               <div className="flex gap-2.5">
                 {[
@@ -767,7 +767,7 @@ const Track = () => {
             <div>
               <h4 className="text-sidebar font-bold text-sm mb-5">Legal</h4>
               <div className="flex flex-col gap-3">
-                {['Terminos de Servicio', 'Politica de Privacidad', 'Reclamos', 'Condiciones de Envio'].map((item) => (
+                {['Términos de Servicio', 'Política de Privacidad', 'Reclamos', 'Condiciones de Envío'].map((item) => (
                   <span key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors cursor-pointer w-fit">{item}</span>
                 ))}
               </div>

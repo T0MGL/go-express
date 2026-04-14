@@ -12,7 +12,7 @@ import {
 
 const mainNav = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin' },
-  { icon: Package, label: 'Envios', path: '/admin/envios' },
+  { icon: Package, label: 'Envíos', path: '/admin/envios' },
   { icon: WarehouseIcon, label: 'Warehouse', path: '/admin/warehouse' },
   { icon: Users, label: 'Clientes', path: '/admin/clientes' },
   { icon: Truck, label: 'Repartidores', path: '/admin/repartidores' },
@@ -21,8 +21,8 @@ const mainNav = [
 const secondaryNav = [
   { icon: CurrencyDollar, label: 'Pagos', path: '/admin/pagos' },
   { icon: Tag, label: 'Tarifas', path: '/admin/tarifas' },
-  { icon: ShieldCheck, label: 'Auditoria', path: '/admin/auditoria' },
-  { icon: GearSix, label: 'Configuracion', path: '/admin/configuracion' },
+  { icon: ShieldCheck, label: 'Auditoría', path: '/admin/auditoria' },
+  { icon: GearSix, label: 'Configuración', path: '/admin/configuracion' },
 ];
 
 export const Sidebar = () => {

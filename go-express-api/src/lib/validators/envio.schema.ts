@@ -85,7 +85,30 @@ export const bulkImportSchema = z.object({
   envios: z.array(createEnvioSchema).min(1).max(500),
 });
 
+// Bulk actions over existing envios (change estado or assign repartidor).
+// The frontend ticks rows in EnviosList and sends their IDs; the server
+// validates each one can take the action and applies per-id (all in a
+// transaction, with a per-id report so the user sees what failed).
+export const bulkActionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('cambiar_estado'),
+    ids: z.array(uuidSchema).min(1).max(200),
+    payload: z.object({
+      estado: z.enum(['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'entregado', 'fallido', 'problema']),
+      descripcion: z.string().min(1).max(500),
+    }),
+  }),
+  z.object({
+    action: z.literal('asignar_repartidor'),
+    ids: z.array(uuidSchema).min(1).max(200),
+    payload: z.object({
+      repartidorId: uuidSchema,
+    }),
+  }),
+]);
+
 export type CreateEnvioInput = z.infer<typeof createEnvioSchema>;
 export type UpdateEnvioEstadoInput = z.infer<typeof updateEnvioEstadoSchema>;
 export type EnvioQuery = z.infer<typeof envioQuerySchema>;
 export type BulkImportInput = z.infer<typeof bulkImportSchema>;
+export type BulkActionInput = z.infer<typeof bulkActionSchema>;

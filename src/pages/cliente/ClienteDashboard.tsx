@@ -20,8 +20,8 @@ import { useClienteEnvio } from '@/hooks/api/use-cliente-envios';
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
-  recolectado: { label: 'Recolectado', variant: 'outline' },
-  en_transito: { label: 'En Transito', variant: 'default' },
+  recolectado: { label: 'Retirado', variant: 'outline' },
+  en_transito: { label: 'En tránsito', variant: 'default' },
   en_reparto: { label: 'En Reparto', variant: 'warning' },
   entregado: { label: 'Entregado', variant: 'success' },
   fallido: { label: 'Fallido', variant: 'destructive' },
@@ -39,7 +39,7 @@ const fadeUp = {
 } as const;
 
 const quickActions = [
-  { icon: PlusCircle, label: 'Nuevo Envio', desc: 'Registrar paquete', path: '/cliente/envios/nuevo' },
+  { icon: PlusCircle, label: 'Nuevo envío', desc: 'Registrar paquete', path: '/cliente/envios/nuevo' },
   { icon: UploadSimple, label: 'Importar', desc: 'Carga masiva CSV', path: '/cliente/importar' },
   { icon: Calculator, label: 'Cotizador', desc: 'Calcular costos', path: '/cliente/cotizar' },
   { icon: Tag, label: 'Etiquetas', desc: 'Descargar e imprimir', path: '/cliente/etiquetas' },
@@ -79,7 +79,7 @@ const ClienteDashboard = () => {
         <Link to="/cliente/envios/nuevo">
           <Button size="sm" className="gap-1.5">
             <PlusCircle size={14} weight="bold" />
-            Nuevo Envio
+            Nuevo envío
           </Button>
         </Link>
       </motion.div>
@@ -113,7 +113,7 @@ const ClienteDashboard = () => {
 
       {/* Quick Actions */}
       <motion.div variants={fadeUp}>
-        <p className="section-label mb-2.5">Acciones rapidas</p>
+        <p className="section-label mb-2.5">Acciones rápidas</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {quickActions.map((action) => (
             <Link key={action.path} to={action.path}>
@@ -130,7 +130,7 @@ const ClienteDashboard = () => {
       {/* Recent Shipments */}
       <motion.div variants={fadeUp} className="surface-card">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="font-display text-[15px] font-semibold">Ultimos Envios</h2>
+          <h2 className="font-display text-[15px] font-semibold">Últimos Envíos</h2>
           <Link to="/cliente/envios">
             <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
               Ver todos
@@ -168,7 +168,7 @@ const ClienteDashboard = () => {
                 {clienteEnvios.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-12">
-                      <p className="text-[13px] text-muted-foreground">Sin envios recientes</p>
+                      <p className="text-[13px] text-muted-foreground">Sin envíos recientes</p>
                     </td>
                   </tr>
                 )}

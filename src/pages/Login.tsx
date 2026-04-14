@@ -47,7 +47,7 @@ const Login = () => {
   // While checking auth state, show nothing to prevent flash
   if (loading && !submitting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background" role="status" aria-label="Verificando sesion">
+      <div className="min-h-screen flex items-center justify-center bg-background" role="status" aria-label="Verificando sesión">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -123,9 +123,9 @@ const Login = () => {
 
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? (
-              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" aria-label="Iniciando sesion" />
+              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" aria-label="Iniciando sesión" />
             ) : (
-              'Iniciar sesion'
+              'Iniciar sesión'
             )}
           </Button>
         </form>

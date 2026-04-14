@@ -50,25 +50,25 @@ export const ProblemaModal = ({ isOpen, onClose, envioId: _envioId, onProblemReg
             <DialogTitle className="text-[15px]">Registrar Problema/Incidencia</DialogTitle>
           </div>
           <DialogDescription className="text-[12px]">
-            Describe el problema encontrado con este envio
+            Describe el problema encontrado con este envío
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <Label className="text-[12px]" htmlFor="problema-descripcion">Descripcion del problema *</Label>
+              <Label className="text-[12px]" htmlFor="problema-descripcion">Descripción del problema *</Label>
               <Textarea
                 id="problema-descripcion"
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Ej: Direccion incorrecta, destinatario no disponible, paquete danado..."
+                placeholder="Ej: Dirección incorrecta, destinatario no disponible, paquete danado..."
                 rows={5}
                 className="mt-1 text-[13px]"
                 aria-required="true"
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Se especifico para facilitar la resolucion
+                Se específico para facilitar la resolucion
               </p>
             </div>
           </div>

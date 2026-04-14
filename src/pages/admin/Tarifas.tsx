@@ -28,22 +28,22 @@ import {
 import { toast as sonnerToast } from 'sonner';
 
 const ciudadesPY = [
-  'Asuncion',
+  'Asunción',
   'Ciudad del Este',
-  'Encarnacion',
+  'Encarnación',
   'Luque',
   'San Lorenzo',
-  'Lambare',
+  'Lambaré',
   'Fernando de la Mora',
-  'Capiata',
+  'Capiatá',
   'Limpio',
-  'Nemby',
+  'Ñemby',
   'Villarrica',
   'Pedro Juan Caballero',
-  'Concepcion',
+  'Concepción',
   'Coronel Oviedo',
-  'Caaguazu',
-  'Itaugua',
+  'Caaguazú',
+  'Itauguá',
   ...departamentosPY,
 ];
 
@@ -156,7 +156,7 @@ const Tarifas = () => {
 
   const confirmarEliminar = () => {
     if (!deleteModal.tarifa || !motivoEliminacion.trim()) {
-      toast({ title: 'Indica el motivo de desactivacion', variant: 'destructive' });
+      toast({ title: 'Indicá el motivo de desactivación', variant: 'destructive' });
       return;
     }
 
@@ -187,13 +187,15 @@ const Tarifas = () => {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Gestion de Tarifas</h1>
+          <h1 className="page-header-title">Tarifas</h1>
           <p className="page-header-subtitle">
-            {activas} tarifas activas · {desactivadas} desactivadas
+            {activas > 0
+              ? `${activas} tarifa${activas === 1 ? '' : 's'} activa${activas === 1 ? '' : 's'}${desactivadas > 0 ? `, ${desactivadas} desactivada${desactivadas === 1 ? '' : 's'}` : ''}`
+              : 'Precios por ruta y tipo de servicio'}
           </p>
         </div>
         <Button size="sm" onClick={abrirNueva} className="gap-1.5">
-          <Plus className="w-3.5 h-3.5" /> Nueva Tarifa
+          <Plus className="w-3.5 h-3.5" /> Nueva tarifa
         </Button>
       </div>
 
@@ -201,10 +203,9 @@ const Tarifas = () => {
       <div className="surface-card p-4 bg-primary/5 border-primary/20 flex items-start gap-3">
         <Calculator size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
         <div className="text-[13px]">
-          <span className="font-medium">Motor Volumetrico: </span>
+          <span className="font-medium">Como se calcula el precio: </span>
           <span className="text-muted-foreground">
-            Peso volumetrico = (Largo x Ancho x Alto) / Factor Dimensional. Se cobra el mayor entre peso real y volumetrico.
-            El factor estandar es <strong>5.000 cm3/kg</strong>.
+            Se compara el peso real con el peso volumetrico (largo x ancho x alto dividido el factor dimensional). Se cobra el mayor de los dos. El factor por defecto es <strong>5.000 cm3 por kg</strong>.
           </span>
         </div>
       </div>
@@ -214,7 +215,7 @@ const Tarifas = () => {
         <SearchInput
           value={busqueda}
           onChange={setBusqueda}
-          placeholder="Buscar por origen, destino o tipo..."
+          placeholder="Buscar por ciudad de origen, destino o tipo..."
           className="flex-1 max-w-sm"
         />
         <Button
@@ -227,7 +228,7 @@ const Tarifas = () => {
           )}
         >
           <Warning size={14} weight="duotone" />
-          {mostrarEliminadas ? 'Ocultar desactivadas' : 'Ver desactivadas'}
+          {mostrarEliminadas ? 'Ocultar desactivadas' : 'Ver también desactivadas'}
         </Button>
       </div>
 
@@ -251,13 +252,12 @@ const Tarifas = () => {
             <table className="premium-table">
               <thead>
                 <tr>
-                  <th>Origen</th>
-                  <th>Destino</th>
+                  <th>Desde</th>
+                  <th>Hasta</th>
                   <th>Tipo</th>
                   <th className="text-right">Precio base</th>
-                  <th className="text-right">Peso base</th>
-                  <th className="text-right">Kg extra</th>
-                  <th className="text-right">Factor dim.</th>
+                  <th className="text-right">Kg incluidos</th>
+                  <th className="text-right">Precio kg extra</th>
                   <th className="text-center">Estado</th>
                   <th className="text-right">Acciones</th>
                 </tr>
@@ -265,8 +265,10 @@ const Tarifas = () => {
               <tbody>
                 {tarifasFiltradas.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
-                      No se encontraron tarifas
+                    <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
+                      {busqueda
+                        ? 'Ninguna tarifa coincide con la búsqueda'
+                        : 'Aún no hay tarifas cargadas. Crea la primera con el botón de arriba'}
                     </td>
                   </tr>
                 )}
@@ -285,7 +287,6 @@ const Tarifas = () => {
                     <td className="text-right font-data text-[13px]">{formatCurrency(t.precioBase)}</td>
                     <td className="text-right text-[13px]">{t.pesoBase} kg</td>
                     <td className="text-right font-data text-[13px]">{formatCurrency(t.precioPorKgExtra)}</td>
-                    <td className="text-right text-[13px]">{t.factorDimensional?.toLocaleString() ?? '0'}</td>
                     <td className="text-center">
                       {t.eliminado ? (
                         <Badge
@@ -378,9 +379,9 @@ const Tarifas = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="estandar">Estandar</SelectItem>
+                  <SelectItem value="estandar">Estándar</SelectItem>
                   <SelectItem value="express">Express</SelectItem>
-                  <SelectItem value="economico">Economico</SelectItem>
+                  <SelectItem value="economico">Económico</SelectItem>
                 </SelectContent>
               </Select>
             </div>

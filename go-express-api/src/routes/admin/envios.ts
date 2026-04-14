@@ -13,8 +13,10 @@ import {
   agregarNotaSchema,
   envioQuerySchema,
   bulkImportSchema,
+  bulkActionSchema,
 } from '../../lib/validators/envio.schema.js';
 import { idParamSchema, softDeleteSchema } from '../../lib/validators/common.schema.js';
+import { createIntentoContactoSchema } from '../../lib/validators/intentos-contacto.schema.js';
 
 const router = Router();
 
@@ -143,6 +145,47 @@ router.post(
   asyncHandler(async (req, res) => {
     const nota = await envioService.agregarNota(req.params['id'] as string, req.body.texto, req.userId!, req.userName!);
     res.status(201).json(nota);
+  })
+);
+
+router.post(
+  '/bulk',
+  bulkLimiter,
+  validate({ body: bulkActionSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await envioService.bulkAction(
+      req.body,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined
+    );
+    sseService.broadcast({ entity: ['envios', 'list'], action: 'bulk_updated' });
+    sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
+    res.json(result);
+  })
+);
+
+router.get(
+  '/:id/intentos',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const intentos = await envioService.listIntentosContacto(req.params['id'] as string);
+    res.json(intentos);
+  })
+);
+
+router.post(
+  '/:id/intentos',
+  validate({ params: idParamSchema, body: createIntentoContactoSchema }),
+  asyncHandler(async (req, res) => {
+    const intento = await envioService.createIntentoContacto(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress'
+    );
+    res.status(201).json(intento);
   })
 );
 

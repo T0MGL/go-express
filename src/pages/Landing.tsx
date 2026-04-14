@@ -103,9 +103,9 @@ function computePricingSummary(ciudades: PublicCiudad[]) {
   let minInterior = Infinity;
 
   const granAsuncionNames = new Set([
-    'Asuncion', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambare',
-    'Capiata', 'Limpio', 'Nemby', 'Mariano Roque Alonso', 'Villa Elisa',
-    'San Antonio', 'Itaugua', 'Ypane',
+    'Asunción', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambaré',
+    'Capiatá', 'Limpio', 'Ñemby', 'Mariano Roque Alonso', 'Villa Elisa',
+    'San Antonio', 'Itauguá', 'Ypané',
   ]);
 
   for (const c of ciudades) {
@@ -204,7 +204,7 @@ const Landing = () => {
       `Nombre del encargado: ${nombre}`,
       empresa ? `Razon social: ${empresa}` : null,
       `Correo corporativo: ${email}`,
-      tel ? `Telefono directo: ${tel}` : null,
+      tel ? `Teléfono directo: ${tel}` : null,
     ].filter(Boolean);
     const mensaje = encodeURIComponent(lineas.join('\n'));
     window.open(`https://wa.me/595991600777?text=${mensaje}`, '_blank', 'noopener,noreferrer');
@@ -519,7 +519,7 @@ const Landing = () => {
           >
             <div className="text-center mb-10">
               <span className="text-slate-400 font-bold tracking-widest text-[11px] uppercase mb-2 block">Portal de Clientes</span>
-              <p className="text-slate-500 text-[15px] font-medium">Así se ve el panel donde gestionás todos tus envíos.</p>
+              <p className="text-slate-500 text-[15px] font-medium">Así se ve el panel donde gestiónás todos tus envíos.</p>
             </div>
             {/* MacBook-style browser mockup */}
             <div className="relative mx-auto max-w-5xl" style={{ perspective: '1200px' }}>
@@ -544,7 +544,7 @@ const Landing = () => {
                 {/* Screenshot */}
                 <img
                   src="/dashboardclientes.png"
-                  alt="Portal de clientes GO Express, dashboard de envios"
+                  alt="Portal de clientes GO Express, dashboard de envíos"
                   className="w-full h-auto block"
                   loading="lazy"
                 />
@@ -578,10 +578,10 @@ const Landing = () => {
               <div className="space-y-3 mb-10">
                 {pricing.granAsuncionEstandar !== null && (
                   <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Gran Asuncion</div>
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Gran Asunción</div>
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-display text-2xl font-extrabold text-sidebar">Gs. {formatGs(pricing.granAsuncionEstandar)}</span>
-                      <span className="text-sm text-sidebar/40 font-medium">estandar</span>
+                      <span className="text-sm text-sidebar/40 font-medium">estándar</span>
                     </div>
                     {pricing.granAsuncionExpress !== null && (
                       <div className="flex items-center gap-2 mt-1.5">
@@ -605,7 +605,7 @@ const Landing = () => {
               <div className="grid grid-cols-3 gap-8">
                 {[
                   { value: ciudades.length > 0 ? String(ciudades.length) : '...', label: 'Ciudades activas' },
-                  { value: '24h', label: 'Tiempo maximo' },
+                  { value: '24h', label: 'Tiempo máximo' },
                   { value: ciudades.length > 0 ? String(ciudades.filter(c => c.express !== null).length) : '...', label: 'Con Express' },
                 ].map((stat) => (
                   <div key={stat.label}>
@@ -628,7 +628,7 @@ const Landing = () => {
                 </div>
               ) : ciudades.length === 0 ? (
                 <div className="flex items-center justify-center h-48 rounded-xl border border-muted bg-slate-50">
-                  <p className="text-sm text-sidebar/40 font-medium">Cobertura en expansion. Contactanos para mas info.</p>
+                  <p className="text-sm text-sidebar/40 font-medium">Cobertura en expansion. Contactanos para más info.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">

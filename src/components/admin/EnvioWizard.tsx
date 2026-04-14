@@ -42,19 +42,19 @@ import {
 
 // Esquemas de validacion por paso
 const paso1Schema = z.object({
-  cliente: z.string().min(1, 'Selecciona un cliente'),
+  cliente: z.string().min(1, 'Seleccioná un cliente'),
 });
 
 const paso2Schema = z.object({
-  origen: z.string().min(1, 'Selecciona el origen'),
-  destino: z.string().min(1, 'Selecciona el destino'),
+  origen: z.string().min(1, 'Seleccioná el origen'),
+  destino: z.string().min(1, 'Seleccioná el destino'),
 });
 
 const TALLAS = [
-  { id: 'pequeno',    label: 'Pequeno',     desc: 'Hasta 30x20x15 cm',  largo: 30,  ancho: 20, alto: 15  },
-  { id: 'mediano',    label: 'Mediano',     desc: 'Hasta 50x40x30 cm',  largo: 50,  ancho: 40, alto: 30  },
-  { id: 'grande',     label: 'Grande',      desc: 'Hasta 80x60x50 cm',  largo: 80,  ancho: 60, alto: 50  },
-  { id: 'extra',      label: 'Extra Grande', desc: 'Hasta 120x80x70 cm', largo: 120, ancho: 80, alto: 70  },
+  { id: 'pequeno',    label: 'Pequeño',      desc: 'Hasta 30x20x15 cm',  largo: 30,  ancho: 20, alto: 15  },
+  { id: 'mediano',    label: 'Mediano',      desc: 'Hasta 50x40x30 cm',  largo: 50,  ancho: 40, alto: 30  },
+  { id: 'grande',     label: 'Grande',       desc: 'Hasta 80x60x50 cm',  largo: 80,  ancho: 60, alto: 50  },
+  { id: 'extra',      label: 'Extra grande', desc: 'Hasta 120x80x70 cm', largo: 120, ancho: 80, alto: 70  },
 ] as const;
 
 type TallaId = typeof TALLAS[number]['id'];
@@ -66,7 +66,7 @@ const paso3Schema = z.object({
 
 const paso4Schema = z.object({
   destinatarioNombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
-  destinatarioDireccion: z.string().min(5, 'La direccion debe tener al menos 5 caracteres'),
+  destinatarioDireccion: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
   destinatarioTelefono: z.string().refine((v) => isValidPhone(v), {
     message: `Formato: ${PHONE_PLACEHOLDER}`,
   }),
@@ -97,11 +97,11 @@ interface FormData {
 }
 
 const PASOS = [
-  { numero: 1, titulo: 'Cliente', icon: UserCircle, descripcion: 'Informacion del cliente' },
+  { numero: 1, titulo: 'Cliente', icon: UserCircle, descripcion: 'Información del cliente' },
   { numero: 2, titulo: 'Ruta', icon: MapPin, descripcion: 'Origen y destino' },
   { numero: 3, titulo: 'Paquete', icon: Package, descripcion: 'Dimensiones y peso' },
   { numero: 4, titulo: 'Destinatario', icon: FileText, descripcion: 'Datos de entrega' },
-  { numero: 5, titulo: 'Pago', icon: CreditCard, descripcion: 'Informacion de pago' },
+  { numero: 5, titulo: 'Pago', icon: CreditCard, descripcion: 'Información de pago' },
 ];
 
 export function EnvioWizard() {
@@ -315,8 +315,8 @@ export function EnvioWizard() {
         {
           onSuccess: () => {
             const mensaje = formData.tipoPago === 'anticipado'
-              ? 'Envio creado con pago anticipado'
-              : 'Envio creado exitosamente';
+              ? 'Envío creado con pago anticipado'
+              : 'Envío creado exitosamente';
             toast.success(mensaje);
             localStorage.removeItem('envio-borrador');
             setIsSubmitting(false);
@@ -329,7 +329,7 @@ export function EnvioWizard() {
             const firstIssue = apiErr?.data?.details?.[0]?.issues?.[0];
             const msg = firstIssue
               ? `${firstIssue.field}: ${firstIssue.message}`
-              : (apiErr?.data?.error ?? 'Error al crear el envio');
+              : (apiErr?.data?.error ?? 'Error al crear el envío');
             toast.error(msg);
             setIsSubmitting(false);
           },
@@ -346,7 +346,7 @@ export function EnvioWizard() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold">Nuevo Envio</h2>
+            <h2 className="text-xl font-bold">Nuevo envío</h2>
             <p className="text-[12px] text-muted-foreground">
               Paso {pasoActual} de 5: {PASOS[pasoActual - 1].descripcion}
             </p>
@@ -362,8 +362,8 @@ export function EnvioWizard() {
         {/* Indicadores de pasos */}
         <div className="flex justify-between mt-6">
           {PASOS.map((paso) => {
-            const completado = pasoActual > paso.numero;
-            const actual = pasoActual === paso.numero;
+            const completado = pasoActual > paso.número;
+            const actual = pasoActual === paso.número;
             const Icon = paso.icon;
 
             return (
@@ -395,7 +395,7 @@ export function EnvioWizard() {
           {pasoActual === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-[15px] font-semibold mb-4">Informacion del Cliente</h3>
+                <h3 className="text-[15px] font-semibold mb-4">Información del Cliente</h3>
                 <Label className="text-[12px]" htmlFor="cliente">Cliente *</Label>
                 <Select value={formData.cliente} onValueChange={(v) => {
                   handleChange('cliente', v);
@@ -430,7 +430,7 @@ export function EnvioWizard() {
                   <h4 className="section-label mb-2">Detalles del Cliente</h4>
                   <div className="space-y-1 text-[13px]">
                     <p><span className="text-muted-foreground">Contacto:</span> {clienteSeleccionado.contacto}</p>
-                    <p><span className="text-muted-foreground">Telefono:</span> <span className="font-data">{clienteSeleccionado.telefono}</span></p>
+                    <p><span className="text-muted-foreground">Teléfono:</span> <span className="font-data">{clienteSeleccionado.telefono}</span></p>
                     {clienteSeleccionado.email && (
                       <p><span className="text-muted-foreground">Email:</span> {clienteSeleccionado.email}</p>
                     )}
@@ -445,7 +445,7 @@ export function EnvioWizard() {
 
           {pasoActual === 2 && (
             <div className="space-y-6">
-              <h3 className="text-[15px] font-semibold mb-4">Ruta de Envio</h3>
+              <h3 className="text-[15px] font-semibold mb-4">Ruta de Envío</h3>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -491,8 +491,8 @@ export function EnvioWizard() {
                       <p className="font-medium text-[13px]">{formData.origen} → {formData.destino}</p>
                       <p className="text-[12px] text-muted-foreground">
                         {formData.origen === formData.destino
-                          ? 'Envio local (mismo departamento)'
-                          : 'Envio interdepartamental'}
+                          ? 'Envío local (mismo departamento)'
+                          : 'Envío interdepartamental'}
                       </p>
                     </div>
                   </div>
@@ -597,7 +597,7 @@ export function EnvioWizard() {
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                           Cobertura hasta el valor declarado en caso de perdida o dano comprobado.
-                          Se suma al costo total del envio.
+                          Se suma al costo total del envío.
                         </p>
                       </div>
                     </label>
@@ -609,9 +609,9 @@ export function EnvioWizard() {
                     <Warning size={16} weight="fill" className="text-amber-700 flex-shrink-0 mt-0.5" />
                     <div className="text-[12px] text-amber-900 leading-relaxed">
                       <span className="font-semibold">Valor alto detectado.</span> El seguro
-                      automatico cubre hasta{' '}
+                      automático cubre hasta{' '}
                       <span className="font-data">{formatCurrency(seguroCfg.maximoAsegurable)}</span>.
-                      Contacta al equipo para asegurar envios de mayor valor.
+                      Contacta al equipo para asegurar envíos de mayor valor.
                     </div>
                   </div>
                 )}
@@ -673,10 +673,10 @@ export function EnvioWizard() {
               </div>
 
               <div>
-                <Label className="text-[12px]" htmlFor="destinatarioDireccion">Direccion de entrega *</Label>
+                <Label className="text-[12px]" htmlFor="destinatarioDireccion">Dirección de entrega *</Label>
                 <Textarea
                   id="destinatarioDireccion"
-                  placeholder="Calle, numero, barrio, referencias..."
+                  placeholder="Calle, número, barrio, referencias..."
                   value={formData.destinatarioDireccion}
                   onChange={(e) => handleChange('destinatarioDireccion', e.target.value)}
                   className={cn("text-[13px]", errors.destinatarioDireccion && 'border-destructive')}
@@ -688,7 +688,7 @@ export function EnvioWizard() {
               </div>
 
               <div>
-                <Label className="text-[12px]" htmlFor="destinatarioTelefono">Telefono *</Label>
+                <Label className="text-[12px]" htmlFor="destinatarioTelefono">Teléfono *</Label>
                 <Input
                   id="destinatarioTelefono"
                   placeholder={PHONE_PLACEHOLDER}
@@ -714,7 +714,7 @@ export function EnvioWizard() {
                   onChange={(e) => handleChange('destinatarioEmail', e.target.value)}
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Se enviaran las actualizaciones de estado del envio a este correo
+                  Se enviaran las actualizaciones de estado del envío a este correo
                 </p>
               </div>
 
@@ -734,7 +734,7 @@ export function EnvioWizard() {
 
           {pasoActual === 5 && (
             <div className="space-y-6">
-              <h3 className="text-[15px] font-semibold mb-4">Informacion de Pago</h3>
+              <h3 className="text-[15px] font-semibold mb-4">Información de Pago</h3>
 
               {precioSugerido > 0 && (
                 <div className="surface-card p-4 border-primary/20 animate-scale-in">
@@ -756,7 +756,7 @@ export function EnvioWizard() {
               )}
 
               <div>
-                <Label className="text-[12px]" htmlFor="costo">Costo del envio (Gs.) *</Label>
+                <Label className="text-[12px]" htmlFor="costo">Costo del envío (Gs.) *</Label>
                 <Input
                   id="costo"
                   type="number"
@@ -780,7 +780,7 @@ export function EnvioWizard() {
                     <SelectItem value="anticipado">
                       <div className="flex flex-col">
                         <span className="text-[13px]">Pago Anticipado</span>
-                        <span className="text-[11px] text-muted-foreground">Cliente paga antes del envio</span>
+                        <span className="text-[11px] text-muted-foreground">Cliente paga antes del envío</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="contra_entrega">
@@ -792,7 +792,7 @@ export function EnvioWizard() {
                     <SelectItem value="cuenta_corriente">
                       <div className="flex flex-col">
                         <span className="text-[13px]">Cuenta Corriente</span>
-                        <span className="text-[11px] text-muted-foreground">Facturacion mensual</span>
+                        <span className="text-[11px] text-muted-foreground">Facturación mensual</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -804,7 +804,7 @@ export function EnvioWizard() {
 
               {/* Resumen final */}
               <div className="surface-card p-4">
-                <h4 className="section-label mb-3">Resumen del Envio</h4>
+                <h4 className="section-label mb-3">Resumen del Envío</h4>
                 <div className="space-y-2 text-[13px]">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cliente:</span>
@@ -831,7 +831,7 @@ export function EnvioWizard() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Costo envio:</span>
+                    <span className="text-muted-foreground">Costo envío:</span>
                     <span className="font-medium font-data">
                       {costoEnvioNum > 0 ? formatCurrency(costoEnvioNum) : '-'}
                     </span>
@@ -894,7 +894,7 @@ export function EnvioWizard() {
             ) : (
               <>
                 <CheckCircle size={14} weight="duotone" className="mr-1.5" />
-                Crear Envio
+                Crear Envío
               </>
             )}
           </Button>

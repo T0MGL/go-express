@@ -2,10 +2,12 @@ import { Suspense, lazy, ComponentType } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 
 // Stale-deploy recovery: if a dynamic import fails (chunk hash no longer exists
 // because a new deploy replaced the assets while the app was loaded), force a
@@ -64,17 +66,88 @@ const ClienteCotizador = lazyWithReload(() => import("./pages/cliente/ClienteCot
 const ClienteProductos = lazyWithReload(() => import("./pages/cliente/ClienteProductos"));
 const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 
+// Pull the server-provided message when available, fall back to a generic one
+// per HTTP code so the operator gets something actionable instead of silence.
+function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const data = error.data as { error?: { message?: string }; message?: string } | null;
+    const serverMessage = data?.error?.message ?? data?.message;
+    if (serverMessage && typeof serverMessage === 'string') return serverMessage;
+    switch (error.status) {
+      case 400:
+      case 422:
+        return 'Los datos enviados no son válidos. Revisalos e intentá de nuevo.';
+      case 403:
+        return 'No tenés permiso para hacer esa acción.';
+      case 404:
+        return 'No encontramos lo que buscabas. Puede que se haya eliminado.';
+      case 409:
+        return 'La información cambió mientras trabajabas. Recargá e intentá de nuevo.';
+      case 429:
+        return 'Demasiadas solicitudes seguidas. Esperá un momento y reintentá.';
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return 'El servidor tuvo un problema. Reintentá en unos segundos.';
+    }
+    return 'Algo salió mal. Intentá de nuevo.';
+  }
+  if (error instanceof Error && error.message) {
+    if (error.message.toLowerCase().includes('failed to fetch')) {
+      return 'No pudimos conectar con el servidor. Revisá tu internet.';
+    }
+    return error.message;
+  }
+  return 'Ocurrió un error inesperado.';
+}
+
+function shouldSuppressQueryError(error: unknown): boolean {
+  // 401 on initial session bootstrap is expected before the auth layer resolves;
+  // surfacing it as a toast would confuse the operator on every page reload.
+  if (error instanceof ApiError) {
+    if (error.status === 401) return true;
+    if (error.status === 404) return true;
+  }
+  return false;
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (shouldSuppressQueryError(error)) return;
+      toast.error(describeError(error));
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // A mutation that wires its own onError handles the message itself
+      // (PaymentModal, ProblemaModal etc). We only fire the default when no
+      // handler is wired, otherwise the operator sees two toasts.
+      if (mutation.options.onError) return;
+      toast.error(describeError(error));
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
-      retry: 2,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          return false;
+        }
+        return failureCount < 2;
+      },
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
     },
     mutations: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          return false;
+        }
+        return failureCount < 1;
+      },
     },
   },
 });

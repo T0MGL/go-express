@@ -68,7 +68,7 @@ router.post(
       if (error.code === 'PGRST116') {
         throw AppError.notFound('No tarifa found for this route');
       }
-      logger.error({ error, input }, 'Error fetching tarifa for cotizacion');
+      logger.error({ error, input }, 'Error fetching tarifa for cotización');
       throw new AppError(`Error fetching tarifa: ${error.message}`, 500, 'DB_ERROR');
     }
 

@@ -242,3 +242,61 @@ export function useAgregarNota() {
     },
   });
 }
+
+export type BulkActionPayload =
+  | { action: 'cambiar_estado'; ids: string[]; payload: { estado: string; descripcion: string } }
+  | { action: 'asignar_repartidor'; ids: string[]; payload: { repartidorId: string } };
+
+export interface BulkActionResult {
+  total: number;
+  exitosos: number;
+  fallidos: Array<{ id: string; trackingNumber?: string; motivo: string }>;
+}
+
+export function useBulkEnvioAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkActionPayload) =>
+      api.post<BulkActionResult>('/admin/envios/bulk', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: envioKeys.all });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
+    },
+  });
+}
+
+export interface IntentoContacto {
+  id: string;
+  envioId: string;
+  tipo: 'llamada' | 'whatsapp' | 'visita_fallida';
+  descripcion: string | null;
+  registradoPor: string | null;
+  registradoPorNombre: string;
+  creadoEn: string;
+}
+
+export const intentoContactoKeys = {
+  byEnvio: (envioId: string) => [...envioKeys.detail(envioId), 'intentos'] as const,
+};
+
+export function useIntentosContacto(envioId: string | undefined) {
+  return useQuery({
+    queryKey: intentoContactoKeys.byEnvio(envioId ?? ''),
+    queryFn: () => api.get<IntentoContacto[]>(`/admin/envios/${envioId}/intentos`),
+    enabled: !!envioId,
+  });
+}
+
+export function useRegistrarIntentoContacto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ envioId, tipo, descripcion }: {
+      envioId: string;
+      tipo: 'llamada' | 'whatsapp' | 'visita_fallida';
+      descripcion?: string;
+    }) => api.post<IntentoContacto>(`/admin/envios/${envioId}/intentos`, { tipo, descripcion }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: intentoContactoKeys.byEnvio(vars.envioId) });
+    },
+  });
+}

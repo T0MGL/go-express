@@ -32,7 +32,8 @@ import {
   estadoAlmacenColors,
   type BadgeVariant,
 } from '@/data/constants';
-import { format } from 'date-fns';
+import { formatDateSmart } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/admin/BarcodeScanner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -45,6 +46,18 @@ import {
   useDevolucion,
 } from '@/hooks/api/use-warehouse';
 
+type WarehouseTab = 'hoy' | 'deposito' | 'todos';
+
+function isTodayDate(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+}
+
 export default function Warehouse() {
   const [searchTerm, setSearchTerm] = useState('');
   const [entryOpen, setEntryOpen] = useState(false);
@@ -52,6 +65,7 @@ export default function Warehouse() {
   const [pickingOpen, setPickingOpen] = useState(false);
   const [returnsOpen, setReturnsOpen] = useState(false);
   const [packingSummaryOpen, setPackingSummaryOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<WarehouseTab>('hoy');
 
   const [entryForm, setEntryForm] = useState({
     tracking: '',
@@ -84,7 +98,29 @@ export default function Warehouse() {
   // Resolve data
   const inventario = apiInventario?.data ?? [];
 
-  const filteredInventario = inventario;
+  const tabCounts = useMemo(() => {
+    const hoy = inventario.filter((i) =>
+      (i.estadoAlmacen === 'recibido' || i.estadoAlmacen === 'listo_despacho') &&
+      (isTodayDate(i.fechaIngreso) || i.prioridad === 'urgente'),
+    ).length;
+    const deposito = inventario.filter((i) =>
+      i.estadoAlmacen === 'recibido' || i.estadoAlmacen === 'en_almacen',
+    ).length;
+    return { hoy, deposito, todos: inventario.length };
+  }, [inventario]);
+
+  const filteredInventario = useMemo(() => {
+    if (activeTab === 'todos') return inventario;
+    if (activeTab === 'hoy') {
+      return inventario.filter((i) =>
+        (i.estadoAlmacen === 'recibido' || i.estadoAlmacen === 'listo_despacho') &&
+        (isTodayDate(i.fechaIngreso) || i.prioridad === 'urgente'),
+      );
+    }
+    return inventario.filter((i) =>
+      i.estadoAlmacen === 'recibido' || i.estadoAlmacen === 'en_almacen',
+    );
+  }, [inventario, activeTab]);
 
   // Picking list with checked status (lazy: built on demand, not from stale initial state)
   const [pickingList, setPickingList] = useState<Array<typeof inventario[number] & { picked: boolean }>>([]);
@@ -110,7 +146,7 @@ export default function Warehouse() {
         },
         {
           onSuccess: () => {
-            toast.success('Paquete ingresado al almacen');
+            toast.success('Paquete ingresado al almacén');
             setEntryOpen(false);
             setEntryForm({ tracking: '', cliente: '', peso: '' });
           },
@@ -139,12 +175,12 @@ export default function Warehouse() {
 
   const handleScanEntry = (code: string) => {
     setEntryForm({ ...entryForm, tracking: code });
-    toast.success(`Codigo escaneado: ${code}`);
+    toast.success(`Código escaneado: ${code}`);
   };
 
   const handleScanExit = (code: string) => {
     setExitTracking(code);
-    toast.success(`Codigo escaneado: ${code}`);
+    toast.success(`Código escaneado: ${code}`);
   };
 
   const handlePickingToggle = (itemId: string | number) => {
@@ -200,8 +236,8 @@ export default function Warehouse() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-header-title">Warehouse</h1>
-            <p className="page-header-subtitle">Control de inventario simplificado</p>
+            <h1 className="page-header-title">Almacén</h1>
+            <p className="page-header-subtitle">Paquetes que están físicamente en depósito</p>
           </div>
 
           <div className="flex gap-2">
@@ -215,10 +251,10 @@ export default function Warehouse() {
                   className="gap-1.5"
                 >
                   <ClipboardText size={14} weight="duotone" />
-                  Picking List
+                  Armar picking
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Genera lista de paquetes listos con ruta sugerida</TooltipContent>
+              <TooltipContent>Lista ordenada por ubicación para ir a buscar los paquetes</TooltipContent>
             </Tooltip>
 
             {/* Packing Summary Button */}
@@ -231,10 +267,10 @@ export default function Warehouse() {
                   className="gap-1.5"
                 >
                   <CheckSquare size={14} weight="duotone" />
-                  Resumen Despacho
+                  Resumen del día
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Ver resumen de lo que se despacha hoy</TooltipContent>
+              <TooltipContent>Qué se va a despachar hoy, cuánto pesa, a qué destinos</TooltipContent>
             </Tooltip>
 
             {/* Returns Dialog */}
@@ -244,17 +280,17 @@ export default function Warehouse() {
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" className="gap-1.5">
                       <ArrowCounterClockwise size={14} weight="duotone" />
-                      Devoluciones
+                      Devolución
                     </Button>
                   </DialogTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Reingresar paquetes devueltos al inventario</TooltipContent>
+                <TooltipContent>Reingresar un paquete que volvió al depósito</TooltipContent>
               </Tooltip>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Reingresar Devolucion</DialogTitle>
+                  <DialogTitle>Reingresar devolución</DialogTitle>
                   <DialogDescription>
-                    Registra un paquete devuelto y actualiza su estado
+                    Registrá un paquete devuelto y actualizá su estado
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -269,11 +305,11 @@ export default function Warehouse() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-[13px]">Motivo de Devolucion</Label>
+                    <Label className="text-[13px]">Motivo de devolución</Label>
                     <Input
                       value={returnsForm.motivo}
                       onChange={(e) => setReturnsForm({...returnsForm, motivo: e.target.value})}
-                      placeholder="Cliente ausente, direccion incorrecta..."
+                      placeholder="Cliente ausente, dirección incorrecta"
                     />
                   </div>
                 </div>
@@ -296,17 +332,17 @@ export default function Warehouse() {
                   <DialogTrigger asChild>
                     <Button size="sm" className="gap-1.5">
                       <ArrowLineDown size={14} weight="duotone" />
-                      Ingresar Paquete
+                      Ingresar paquete
                     </Button>
                   </DialogTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Registrar un paquete que entra al almacen</TooltipContent>
+                <TooltipContent>Un paquete llegó al depósito</TooltipContent>
               </Tooltip>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Ingresar Paquete</DialogTitle>
+                <DialogTitle>Ingresar paquete</DialogTitle>
                 <DialogDescription>
-                  Registra un nuevo paquete en el almacen
+                  Registrá un nuevo paquete en el almacén
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -366,13 +402,13 @@ export default function Warehouse() {
                     </Button>
                   </DialogTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Registrar la salida de un paquete del almacen</TooltipContent>
+                <TooltipContent>Un paquete sale del depósito al repartidor</TooltipContent>
               </Tooltip>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Despachar Paquete</DialogTitle>
+                <DialogTitle>Despachar paquete</DialogTitle>
                 <DialogDescription>
-                  Registra la salida de un paquete del almacen
+                  Registrá la salida de un paquete del almacén
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -407,36 +443,12 @@ export default function Warehouse() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-              <WarehouseIcon size={16} weight="duotone" className="text-muted-foreground" />
-            </div>
-            <div>
-              <p className="stat-card-value text-xl">{stats.total}</p>
-              <p className="stat-card-label">Total</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">
-              <TrendUp size={16} weight="duotone" className="text-success" />
-            </div>
-            <div>
-              <p className="stat-card-value text-xl">{stats.ingresosHoy}</p>
-              <p className="stat-card-label">Ingresos Hoy</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/6 flex items-center justify-center">
               <Package size={16} weight="duotone" className="text-primary" />
             </div>
             <div>
               <p className="stat-card-value text-xl">{stats.enAlmacen}</p>
-              <p className="stat-card-label">En Almacen</p>
+              <p className="stat-card-label">Paquetes en depósito</p>
             </div>
           </div>
         </div>
@@ -448,7 +460,31 @@ export default function Warehouse() {
             </div>
             <div>
               <p className="stat-card-value text-xl">{stats.listos}</p>
-              <p className="stat-card-label">Listos</p>
+              <p className="stat-card-label">Listos para salir</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">
+              <TrendUp size={16} weight="duotone" className="text-success" />
+            </div>
+            <div>
+              <p className="stat-card-value text-xl">{stats.ingresosHoy}</p>
+              <p className="stat-card-label">Entraron hoy</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <WarehouseIcon size={16} weight="duotone" className="text-muted-foreground" />
+            </div>
+            <div>
+              <p className="stat-card-value text-xl">{stats.total}</p>
+              <p className="stat-card-label">Movimiento total</p>
             </div>
           </div>
         </div>
@@ -456,14 +492,52 @@ export default function Warehouse() {
 
       {/* Main Table */}
       <div className="surface-card">
-        <div className="p-5 pb-4 flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold">Inventario</h3>
+        <div className="p-5 pb-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-[14px] font-semibold">Paquetes en el depósito</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Cambiá la pestaña para ver solo los de hoy o todo el depósito.
+            </p>
+          </div>
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Buscar por tracking o cliente..."
+            placeholder="Buscar por número de seguimiento o cliente..."
             className="w-80"
           />
+        </div>
+
+        <div className="px-5 flex items-center gap-1 border-b border-border/40" role="tablist" aria-label="Filtro de inventario">
+          {([
+            { id: 'hoy' as const, label: 'Para despachar hoy', count: tabCounts.hoy },
+            { id: 'deposito' as const, label: 'En depósito', count: tabCounts.deposito },
+            { id: 'todos' as const, label: 'Todos', count: tabCounts.todos },
+          ]).map((tab) => {
+            const selected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'relative px-3 py-2.5 text-[13px] font-medium transition-colors',
+                  selected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <span>{tab.label}</span>
+                <span className={cn(
+                  'ml-1.5 text-[11px] tabular-nums',
+                  selected ? 'text-primary' : 'text-muted-foreground/70',
+                )}>
+                  ({tab.count})
+                </span>
+                {selected && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
+                )}
+              </button>
+            );
+          })}
         </div>
         {isLoading ? (
           <div className="p-4 space-y-3">
@@ -483,12 +557,12 @@ export default function Warehouse() {
             <table className="premium-table">
               <thead>
                 <tr>
-                  <th>Tracking</th>
+                  <th>Seguimiento</th>
                   <th>Cliente</th>
-                  <th>Ubicacion</th>
+                  <th>Lugar en depósito</th>
                   <th>Estado</th>
                   <th>Peso</th>
-                  <th>Ingreso</th>
+                  <th>Entró</th>
                 </tr>
               </thead>
               <tbody>
@@ -498,10 +572,28 @@ export default function Warehouse() {
                       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                         <Package size={18} weight="duotone" className="text-muted-foreground/50" />
                       </div>
-                      <p className="text-[13px] font-medium">No se encontraron paquetes</p>
-                      <p className="text-[12px] text-muted-foreground mt-1">
-                        {searchTerm ? 'Proba con otros terminos de busqueda' : 'El inventario esta vacio'}
+                      <p className="text-[13px] font-medium">
+                        {searchTerm
+                          ? 'Ningún paquete coincide con la búsqueda'
+                          : activeTab === 'hoy'
+                            ? 'No hay nada marcado para despachar hoy'
+                            : activeTab === 'deposito'
+                              ? 'No hay paquetes guardados en el depósito'
+                              : 'El depósito está vacío'}
                       </p>
+                      <p className="text-[12px] text-muted-foreground mt-1 mb-4">
+                        {searchTerm
+                          ? 'Probá con otro número o nombre'
+                          : activeTab === 'hoy'
+                            ? 'Cuando haya paquetes listos, aparecerán acá.'
+                            : 'Registrá el primer ingreso con el botón de arriba'}
+                      </p>
+                      {!searchTerm && activeTab !== 'hoy' && (
+                        <Button size="sm" className="gap-1.5" onClick={() => setEntryOpen(true)}>
+                          <ArrowLineDown size={14} weight="duotone" />
+                          Ingresar primer paquete
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -524,7 +616,7 @@ export default function Warehouse() {
                     </td>
                     <td className="text-[13px] font-data">{item.peso} kg</td>
                     <td className="text-[12px] text-muted-foreground">
-                      {format(new Date(item.fechaIngreso), 'dd/MM/yyyy')}
+                      {formatDateSmart(item.fechaIngreso)}
                     </td>
                   </tr>
                 ))}
@@ -558,7 +650,7 @@ export default function Warehouse() {
                         <th>Tracking</th>
                         <th>Cliente</th>
                         <th>Zona</th>
-                        <th>Ubicacion</th>
+                        <th>Ubicación</th>
                         <th>Peso</th>
                       </tr>
                     </thead>
@@ -634,7 +726,7 @@ export default function Warehouse() {
                   </div>
                   <div>
                     <p className="stat-card-value text-xl">{packingSummary.totalEnvios}</p>
-                    <p className="stat-card-label">Total Envios</p>
+                    <p className="stat-card-label">Total Envíos</p>
                   </div>
                 </div>
               </div>

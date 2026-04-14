@@ -41,9 +41,9 @@ const parsearCSV = (text: string): FilaImportada[] => {
     const [nombre = '', telefono = '', direccion = '', destino = '', peso = '', contenido = '', notas = ''] = cols;
     const errores: string[] = [];
     if (!nombre) errores.push('Falta nombre del destinatario');
-    if (!telefono) errores.push('Falta telefono');
-    else if (!isValidPhone(telefono)) errores.push('Telefono invalido');
-    if (!direccion) errores.push('Falta direccion');
+    if (!telefono) errores.push('Falta teléfono');
+    else if (!isValidPhone(telefono)) errores.push('Teléfono invalido');
+    if (!direccion) errores.push('Falta dirección');
     if (!destino) errores.push('Falta ciudad de destino');
     if (!peso || isNaN(Number(peso))) errores.push('Peso invalido');
     return {
@@ -63,7 +63,7 @@ const parsearCSV = (text: string): FilaImportada[] => {
 const descargarTemplate = () => {
   const header = COLUMNAS_TEMPLATE.join(',');
   const ejemplo1 = 'Juan Perez Garcia,+595983123456,"Av. San Blas 1234, Centro",Ciudad del Este,2.5,Ropa y accesorios,Fragil';
-  const ejemplo2 = 'Maria Lopez Hernandez,+595984987654,"Calle Padre Bolik 567, Centro",Encarnacion,1.2,Electronico,';
+  const ejemplo2 = 'Maria Lopez Hernandez,+595984987654,"Calle Padre Bolik 567, Centro",Encarnación,1.2,Electronico,';
   const csv = [header, ejemplo1, ejemplo2].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -130,7 +130,7 @@ const ClienteImportar = () => {
 
     const envios: BulkImportEnvio[] = filasValidas.map((f) => ({
       clienteId,
-      origen: 'Asuncion',
+      origen: 'Asunción',
       destino: f.destino,
       destinatarioNombre: f.destinatarioNombre,
       destinatarioDireccion: f.destinatarioDireccion,
@@ -148,12 +148,12 @@ const ClienteImportar = () => {
       onSuccess: (res) => {
         setImportado(true);
         toast({
-          title: `${res.imported} envios importados correctamente`,
-          description: 'Los envios quedaron registrados y estan pendientes de procesamiento por Go Express.',
+          title: `${res.imported} envíos importados correctamente`,
+          description: 'Los envíos quedaron registrados y están pendientes de procesamiento por Go Express.',
         });
       },
       onError: () => {
-        toast({ title: 'Error al importar los envios. Intenta nuevamente.', variant: 'destructive' });
+        toast({ title: 'Error al importar los envíos. Intenta nuevamente.', variant: 'destructive' });
       },
     });
   };
@@ -169,7 +169,7 @@ const ClienteImportar = () => {
     <div>
       <div className="page-header mb-6">
         <div>
-          <h1 className="page-header-title">Importacion Masiva</h1>
+          <h1 className="page-header-title">Importación Masiva</h1>
           <p className="page-header-subtitle">
             Carga multiples pedidos de una sola vez usando un archivo CSV
           </p>
@@ -186,13 +186,13 @@ const ClienteImportar = () => {
           <div className="text-[12px] text-muted-foreground space-y-1">
             <p><strong className="text-foreground">Como usar:</strong></p>
             <ol className="list-decimal list-inside space-y-0.5 ml-1">
-              <li>Descarga la plantilla CSV con el boton de arriba</li>
+              <li>Descarga la plantilla CSV con el botón de arriba</li>
               <li>Completa los datos de tus pedidos en el archivo (una fila por pedido)</li>
               <li>Subi el archivo completado usando el area de carga</li>
-              <li>Revisa la vista previa y confirma la importacion</li>
+              <li>Revisa la vista previa y confirma la importación</li>
             </ol>
             <p className="mt-1">
-              <strong className="text-foreground">Columnas obligatorias:</strong> nombre, telefono, direccion, ciudad destino, peso (kg).
+              <strong className="text-foreground">Columnas obligatorias:</strong> nombre, teléfono, dirección, ciudad destino, peso (kg).
             </p>
           </div>
         </div>
@@ -221,7 +221,7 @@ const ClienteImportar = () => {
           />
           <FileText size={32} weight="duotone" className="text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-[13px] font-medium mb-1">
-            {dragging ? 'Solta el archivo aqui' : 'Arrastra tu archivo CSV aqui'}
+            {dragging ? 'Solta el archivo aquí' : 'Arrastra tu archivo CSV aquí'}
           </p>
           <p className="text-[12px] text-muted-foreground mb-3">o hace clic para seleccionarlo</p>
           <Button variant="outline" size="sm" className="gap-1.5" type="button">
@@ -237,7 +237,7 @@ const ClienteImportar = () => {
       {importado && (
         <div className="surface-card p-6 mb-5 bg-green-50 border-green-200 text-center">
           <CheckCircle size={32} weight="duotone" className="text-green-500 mx-auto mb-3" />
-          <h3 className="font-semibold text-[15px] mb-1">Importacion exitosa!</h3>
+          <h3 className="font-semibold text-[15px] mb-1">Importación exitosa!</h3>
           <p className="text-[12px] text-muted-foreground mb-4">
             Se importaron <strong>{filasValidas.length} envios</strong> correctamente. Go Express procesara los pedidos en las proximas horas.
           </p>
@@ -278,7 +278,7 @@ const ClienteImportar = () => {
                 {bulkImportMutation.isPending ? (
                   <CircleNotch size={14} weight="bold" className="animate-spin" />
                 ) : null}
-                {bulkImportMutation.isPending ? 'Importando...' : `Importar ${filasValidas.length} envios`}
+                {bulkImportMutation.isPending ? 'Importando...' : `Importar ${filasValidas.length} envíos`}
                 {!bulkImportMutation.isPending && <ArrowRight size={14} weight="bold" />}
               </Button>
             </div>
@@ -296,8 +296,8 @@ const ClienteImportar = () => {
                     <th className="pl-4">Fila</th>
                     <th>Estado</th>
                     <th>Destinatario</th>
-                    <th>Telefono</th>
-                    <th>Direccion</th>
+                    <th>Teléfono</th>
+                    <th>Dirección</th>
                     <th>Destino</th>
                     <th className="text-right">Peso</th>
                     <th>Contenido</th>

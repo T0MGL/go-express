@@ -28,7 +28,7 @@ interface ClienteProfile {
 
 const navItems = [
   { icon: ChartBar, label: 'Dashboard', path: '/cliente', end: true },
-  { icon: Package, label: 'Mis Envios', path: '/cliente/envios', end: false },
+  { icon: Package, label: 'Mis Envíos', path: '/cliente/envios', end: false },
   { icon: PlusCircle, label: 'Nuevo', path: '/cliente/envios/nuevo', end: true },
   { icon: UploadSimple, label: 'Importar', path: '/cliente/importar', end: true },
   { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true },
@@ -219,7 +219,7 @@ export const ClienteLayout = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
                   <SignOut size={16} weight="duotone" className="mr-2" />
-                  Cerrar Sesion
+                  Cerrar Sesión
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

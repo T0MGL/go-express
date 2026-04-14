@@ -52,7 +52,7 @@ const ClienteCuenta = () => {
       return;
     }
     if (form.telefono && !isValidPhone(form.telefono)) {
-      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
+      toast.error(`Formato de teléfono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
 
@@ -97,7 +97,7 @@ const ClienteCuenta = () => {
       <div className="page-header">
         <div>
           <h1 className="page-header-title">Mi Cuenta</h1>
-          <p className="page-header-subtitle">Informacion de tu empresa y datos de contacto</p>
+          <p className="page-header-subtitle">Información de tu empresa y datos de contacto</p>
         </div>
       </div>
 
@@ -119,12 +119,12 @@ const ClienteCuenta = () => {
               </div>
             </div>
             <div>
-              <Label className="text-[11px]">Direccion</Label>
+              <Label className="text-[11px]">Dirección</Label>
               <Input value={form.direccion} onChange={(e) => handleChange('direccion', e.target.value)} className="mt-1.5" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-[11px]">Telefono</Label>
+                <Label className="text-[11px]">Teléfono</Label>
                 <Input value={form.telefono} onChange={(e) => handleChange('telefono', e.target.value)} placeholder={PHONE_PLACEHOLDER} className="mt-1.5 font-data" />
               </div>
               <div>

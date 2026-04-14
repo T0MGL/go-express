@@ -90,12 +90,12 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate('/admin/configuracion')}>
               <GearSix size={16} weight="duotone" className="mr-2" />
-              Configuracion
+              Configuración
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
               <SignOut size={16} weight="duotone" className="mr-2" />
-              Cerrar Sesion
+              Cerrar Sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

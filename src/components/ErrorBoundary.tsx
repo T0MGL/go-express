@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <h1 className="font-display text-xl font-bold mb-2">Algo salio mal</h1>
             <p className="text-sm text-muted-foreground mb-6">
-              Ocurrio un error inesperado. Podes intentar de nuevo o recargar la pagina.
+              Ocurrio un error inesperado. Podés intentar de nuevo o recargar la página.
             </p>
             <div className="flex gap-3 justify-center" role="group" aria-label="Opciones de recuperacion">
               <button
@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={() => window.location.reload()}
                 className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Recargar pagina
+                Recargar página
               </button>
             </div>
           </div>

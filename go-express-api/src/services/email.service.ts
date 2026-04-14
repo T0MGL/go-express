@@ -22,12 +22,12 @@ function escapeHtml(value: string): string {
 function statusLabel(estado: string): string {
   const labels: Record<string, string> = {
     pendiente: 'Pendiente',
-    recolectado: 'Recolectado',
-    en_transito: 'En Transito',
-    en_reparto: 'En Reparto',
+    recolectado: 'Retirado del cliente',
+    en_transito: 'En tránsito',
+    en_reparto: 'En reparto',
     entregado: 'Entregado',
-    fallido: 'Fallido',
-    problema: 'Problema',
+    fallido: 'Entrega fallida',
+    problema: 'Con problema',
   };
   return labels[estado] ?? estado;
 }
@@ -50,7 +50,7 @@ function badge(text: string, bg: string, color: string): string {
 function trackingBox(tn: string, accent: string, bgColor = '#F0F4FF', borderColor = '#DDE4F7', labelColor = '#7B8AB5'): string {
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px">
 <tr><td style="text-align:center;background-color:${bgColor};border:1px solid ${borderColor};border-radius:12px;padding:24px">
-<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:${labelColor};margin:0 0 8px">Numero de tracking</p>
+<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:${labelColor};margin:0 0 8px">Número de tracking</p>
 <p style="font-family:'JetBrains Mono',SFMono-Regular,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:${accent};margin:0">${tn}</p>
 </td></tr></table>`;
 }
@@ -66,7 +66,7 @@ interface TemplateOptions {
 
 function baseTemplate({ title, body, tracking, accent = '#0643F7', ctaText, ctaUrl }: TemplateOptions): string {
   const btnUrl = ctaUrl ?? (tracking ? trackingUrl(tracking) : '');
-  const btnText = ctaText ?? 'Rastrear envio';
+  const btnText = ctaText ?? 'Rastrear envío';
   const showBtn = !!btnUrl;
 
   return `<!DOCTYPE html>
@@ -149,12 +149,12 @@ class EmailService {
     const estado = statusLabel(envio.estado);
 
     const html = baseTemplate({
-      title: 'Envio Registrado',
+      title: 'Envío Registrado',
       accent: '#0643F7',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envio fue registrado</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Estamos preparando tu paquete. Podes seguir el estado en tiempo real.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envío fue registrado</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Estamos preparando tu paquete. Podés seguir el estado en tiempo real.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Destino', dest)}
 ${row('Destinatario', nombre)}
@@ -163,7 +163,7 @@ ${row('Estado', badge(estado, '#EEF2FF', '#0643F7'), true)}`,
 
     const recipientEmail = await this.resolveRecipientEmail(envio);
     if (recipientEmail) {
-      await this.send(recipientEmail, `Envio ${envio.trackingNumber} registrado`, html);
+      await this.send(recipientEmail, `Envío ${envio.trackingNumber} registrado`, html);
     }
   }
 
@@ -178,8 +178,8 @@ ${row('Estado', badge(estado, '#EEF2FF', '#0643F7'), true)}`,
       accent: '#0643F7',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envio cambio de estado</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hay una actualizacion sobre tu paquete.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envío cambio de estado</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hay una actualización sobre tu paquete.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Estado anterior', prevLabel)}
 ${row('Nuevo estado', badge(newLabel, '#EEF2FF', '#0643F7'))}
@@ -188,7 +188,7 @@ ${row('Destino', dest, true)}`,
 
     const recipientEmail = await this.resolveRecipientEmail(envio);
     if (recipientEmail) {
-      await this.send(recipientEmail, `Envio ${envio.trackingNumber}: ${statusLabel(envio.estado)}`, html);
+      await this.send(recipientEmail, `Envío ${envio.trackingNumber}: ${statusLabel(envio.estado)}`, html);
     }
   }
 
@@ -198,11 +198,11 @@ ${row('Destino', dest, true)}`,
     const nombre = escapeHtml(envio.destinatarioNombre);
 
     const html = baseTemplate({
-      title: 'Envio Entregado',
+      title: 'Envío Entregado',
       accent: '#10B981',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envio fue entregado</h1>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envío fue entregado</h1>
 <p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El paquete llego a destino exitosamente.</p>
 ${trackingBox(tn, '#10B981', '#ECFDF5', '#D1FAE5', '#6EE7B7')}
 ${row('Destino', dest)}
@@ -212,20 +212,20 @@ ${row('Estado', badge('Entregado', '#ECFDF5', '#059669'), true)}`,
 
     const recipientEmail = await this.resolveRecipientEmail(envio);
     if (recipientEmail) {
-      await this.send(recipientEmail, `Envio ${envio.trackingNumber} entregado`, html);
+      await this.send(recipientEmail, `Envío ${envio.trackingNumber} entregado`, html);
     }
   }
 
   async sendProblema(envio: Envio): Promise<void> {
     const tn = escapeHtml(envio.trackingNumber);
-    const desc = escapeHtml(envio.problemaDescripcion ?? 'Sin descripcion');
+    const desc = escapeHtml(envio.problemaDescripcion ?? 'Sin descripción');
 
     const html = baseTemplate({
-      title: 'Inconveniente con tu envio',
+      title: 'Inconveniente con tu envío',
       accent: '#F59E0B',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hay un inconveniente con tu envio</h1>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hay un inconveniente con tu envío</h1>
 <p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Nuestro equipo esta trabajando para resolverlo.</p>
 ${trackingBox(tn, '#F59E0B', '#FFFBEB', '#FDE68A', '#FBBF24')}
 ${row('Detalle', desc)}
@@ -235,7 +235,7 @@ ${row('Estado', badge('Problema', '#FFFBEB', '#D97706'), true)}
 
     const recipientEmail = await this.resolveRecipientEmail(envio);
     if (recipientEmail) {
-      await this.send(recipientEmail, `Problema con envio ${envio.trackingNumber}`, html);
+      await this.send(recipientEmail, `Problema con envío ${envio.trackingNumber}`, html);
     }
   }
 
@@ -252,13 +252,13 @@ ${row('Estado', badge('Problema', '#FFFBEB', '#D97706'), true)}
       ctaUrl: 'https://goexpressparaguay.com/portal/login',
       body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Bienvenido al Portal de Clientes</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Tu cuenta fue activada. Desde el portal podes crear envios, ver el estado y descargar reportes.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Tu cuenta fue activada. Desde el portal podés crear envíos, ver el estado y descargar reportes.</p>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
 ${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
-<p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesion por primera vez.</p>`,
+<p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesión por primera vez.</p>`,
     });
 
     await this.send(email, 'Bienvenido al Portal GO EXPRESS', html);

@@ -11,19 +11,19 @@ import {
 
 const navigation = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin', group: 'Navegacion' },
-  { icon: Package, label: 'Envios', path: '/admin/envios', group: 'Navegacion' },
+  { icon: Package, label: 'Envíos', path: '/admin/envios', group: 'Navegacion' },
   { icon: Warehouse, label: 'Warehouse', path: '/admin/warehouse', group: 'Navegacion' },
   { icon: Users, label: 'Clientes', path: '/admin/clientes', group: 'Navegacion' },
   { icon: Truck, label: 'Repartidores', path: '/admin/repartidores', group: 'Navegacion' },
   { icon: CurrencyDollar, label: 'Pagos', path: '/admin/pagos', group: 'Sistema' },
   { icon: Tag, label: 'Tarifas', path: '/admin/tarifas', group: 'Sistema' },
-  { icon: ShieldCheck, label: 'Auditoria', path: '/admin/auditoria', group: 'Sistema' },
-  { icon: GearSix, label: 'Configuracion', path: '/admin/configuracion', group: 'Sistema' },
+  { icon: ShieldCheck, label: 'Auditoría', path: '/admin/auditoria', group: 'Sistema' },
+  { icon: GearSix, label: 'Configuración', path: '/admin/configuracion', group: 'Sistema' },
 ];
 
 const actions = [
-  { icon: PlusCircle, label: 'Nuevo Envio', path: '/admin/envios/nuevo', group: 'Acciones' },
-  { icon: MagnifyingGlass, label: 'Buscar envio por tracking...', path: '/admin/envios', group: 'Acciones' },
+  { icon: PlusCircle, label: 'Nuevo envío', path: '/admin/envios/nuevo', group: 'Acciones' },
+  { icon: MagnifyingGlass, label: 'Buscar envío por tracking...', path: '/admin/envios', group: 'Acciones' },
 ];
 
 export function CommandPalette() {
@@ -55,7 +55,7 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Buscar pagina, accion o envio..." />
+      <CommandInput placeholder="Buscar página, acción o envío..." />
       <CommandList>
         <CommandEmpty>
           <div className="flex flex-col items-center gap-1 py-2">

@@ -133,7 +133,7 @@ const ClienteProductos = () => {
       <div className="page-header">
         <div>
           <h1 className="page-header-title">Mis Productos</h1>
-          <p className="page-header-subtitle">Productos guardados para agilizar la creacion de envios</p>
+          <p className="page-header-subtitle">Productos guardados para agilizar la creación de envíos</p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
           <Plus className="w-3.5 h-3.5" />
@@ -145,9 +145,9 @@ const ClienteProductos = () => {
       <div className="surface-card p-4 flex items-start gap-3 border-l-2 border-l-primary">
         <Cube size={18} weight="duotone" className="text-primary mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-[13px] font-medium">Ahorra tiempo en cada envio</p>
+          <p className="text-[13px] font-medium">Ahorra tiempo en cada envío</p>
           <p className="text-[12px] text-muted-foreground mt-0.5">
-            Guarda los productos que envias frecuentemente. Al crear un nuevo paquete, podras seleccionar un producto guardado y los datos de peso y dimensiones se completaran automaticamente.
+            Guardá los productos que enviás frecuentemente. Al crear un nuevo paquete, podés seleccionar un producto guardado y los datos de peso y dimensiones se completarán automáticamente.
           </p>
         </div>
       </div>
@@ -253,10 +253,10 @@ const ClienteProductos = () => {
             <Cube size={18} weight="duotone" className="text-muted-foreground/50" />
           </div>
           <p className="text-[13px] font-medium">
-            {searchTerm ? 'No se encontraron productos' : 'Aun no tenes productos guardados'}
+            {searchTerm ? 'No se encontraron productos' : 'Aún no tenés productos guardados'}
           </p>
           <p className="text-[12px] text-muted-foreground mt-1">
-            {searchTerm ? 'Proba con otros terminos' : 'Crea tu primer producto para agilizar tus envios'}
+            {searchTerm ? 'Probá con otros términos' : 'Creá tu primer producto para agilizar tus envíos'}
           </p>
           {!searchTerm && (
             <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
@@ -273,7 +273,7 @@ const ClienteProductos = () => {
           <DialogHeader>
             <DialogTitle className="text-base">Eliminar producto</DialogTitle>
             <DialogDescription className="text-[13px]">
-              Esta accion no se puede deshacer. El producto se eliminara permanentemente.
+              Esta acción no se puede deshacer. El producto se eliminara permanentemente.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
@@ -308,7 +308,7 @@ const ClienteProductos = () => {
                 />
               </div>
               <div>
-                <Label className="text-[12px]">Descripcion</Label>
+                <Label className="text-[12px]">Descripción</Label>
                 <Input
                   value={form.descripcion}
                   onChange={(e) => setForm({ ...form, descripcion: e.target.value })}

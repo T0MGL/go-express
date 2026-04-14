@@ -8,7 +8,11 @@ interface DashboardStats {
   entregados: number;
   tasaEntrega: number;
   porCobrar: number;
+  enviosPendientesCobro?: number;
   problemasHoy: number;
+  problemasAbiertos: number;
+  pendientesRecoleccionHoy: number;
+  enRutaSinActualizar: number;
   enviosRecientes: Array<{
     id: string;
     trackingNumber: string;

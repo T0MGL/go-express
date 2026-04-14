@@ -123,8 +123,8 @@ router.get(
     const { data, count, error } = await q;
 
     if (error) {
-      logger.error({ error, clienteId }, 'Error fetching client envios');
-      throw new AppError(`Error fetching envios: ${error.message}`, 500, 'DB_ERROR');
+      logger.error({ error, clienteId }, 'Error fetching client envíos');
+      throw new AppError(`Error fetching envíos: ${error.message}`, 500, 'DB_ERROR');
     }
 
     const rows = (data ?? []) as unknown as EnvioRow[];
@@ -162,9 +162,9 @@ router.get(
 
     if (envioError) {
       if (envioError.code === 'PGRST116') {
-        throw AppError.notFound('Envio', id);
+        throw AppError.notFound('Envío', id);
       }
-      throw new AppError(`Error fetching envio: ${envioError.message}`, 500, 'DB_ERROR');
+      throw new AppError(`Error fetching envío: ${envioError.message}`, 500, 'DB_ERROR');
     }
 
     const envio = mapEnvioRow(envioData as unknown as EnvioRow);
@@ -299,8 +299,8 @@ router.post(
       .single();
 
     if (insertError) {
-      logger.error({ error: insertError, clienteId }, 'Error creating envio');
-      throw new AppError(`Error creating envio: ${insertError.message}`, 500, 'DB_ERROR');
+      logger.error({ error: insertError, clienteId }, 'Error creating envío');
+      throw new AppError(`Error creating envío: ${insertError.message}`, 500, 'DB_ERROR');
     }
 
     const envio = mapEnvioRow(insertedData as unknown as EnvioRow);
@@ -308,7 +308,7 @@ router.post(
     await supabase.from('eventos_envio').insert({
       envio_id: envio.id,
       estado: 'pendiente',
-      descripcion: 'Envio creado desde portal cliente',
+      descripcion: 'Envío creado desde portal cliente',
     });
 
     emailService.sendEnvioCreado(envio);
@@ -373,7 +373,7 @@ router.post(
 
       if (valorDeclarado > seguroConfig.maximoAsegurable) {
         throw AppError.badRequest(
-          `Envio #${i + 1}: valor declarado ${valorDeclarado} supera el maximo asegurable (${seguroConfig.maximoAsegurable} Gs)`
+          `Envío #${i + 1}: valor declarado ${valorDeclarado} supera el máximo asegurable (${seguroConfig.maximoAsegurable} Gs)`
         );
       }
 
@@ -436,7 +436,7 @@ router.post(
     if (insertError) {
       // If batch fails, entire batch is rejected
       logger.error({ error: insertError, clienteId }, 'Bulk import batch insert failed');
-      throw new AppError(`Error importing envios: ${insertError.message}`, 500, 'DB_ERROR');
+      throw new AppError(`Error importing envíos: ${insertError.message}`, 500, 'DB_ERROR');
     }
 
     const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;
@@ -446,7 +446,7 @@ router.post(
       const eventRows = inserted.map((row) => ({
         envio_id: row.id,
         estado: 'pendiente' as const,
-        descripcion: 'Envio creado por importacion masiva',
+        descripcion: 'Envío creado por importación masiva',
       }));
 
       await supabase.from('eventos_envio').insert(eventRows);

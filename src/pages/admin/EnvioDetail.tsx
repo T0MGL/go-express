@@ -21,7 +21,7 @@ import {
   MapPin,
   UserCircle,
 } from '@phosphor-icons/react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateSmart } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -39,6 +39,7 @@ import {
   useAgregarNota,
 } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
+import { IntentosContactoCard } from '@/components/admin/IntentosContactoCard';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   pendiente: ['recolectado', 'problema'],
@@ -124,7 +125,7 @@ const EnvioDetail = () => {
   const handleSaveEdit = () => {
     if (!id) return;
     if (editForm.destinatarioTelefono && !isValidPhone(editForm.destinatarioTelefono)) {
-      toast.error(`Telefono debe tener formato ${PHONE_PLACEHOLDER}`);
+      toast.error(`Teléfono debe tener formato ${PHONE_PLACEHOLDER}`);
       return;
     }
     const body: Record<string, unknown> = {
@@ -144,10 +145,10 @@ const EnvioDetail = () => {
       { id, body },
       {
         onSuccess: () => {
-          toast.success('Envio actualizado');
+          toast.success('Envío actualizado');
           setShowEditModal(false);
         },
-        onError: () => toast.error('Error al actualizar envio'),
+        onError: () => toast.error('Error al actualizar envío'),
       },
     );
   };
@@ -213,18 +214,18 @@ const EnvioDetail = () => {
       <div className="max-w-md mx-auto">
         <Button variant="ghost" size="sm" onClick={() => navigate('/admin/envios')} className="gap-1.5 mb-8">
           <CaretLeft size={14} weight="duotone" />
-          Volver a envios
+          Volver a envíos
         </Button>
         <div className="surface-card p-8 text-center">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
             <Warning size={20} weight="duotone" className="text-muted-foreground/50" />
           </div>
-          <h3 className="text-[15px] font-semibold mb-1">Envio no encontrado</h3>
+          <h3 className="text-[15px] font-semibold mb-1">Envío no encontrado</h3>
           <p className="text-[13px] text-muted-foreground mb-4">
-            El envio que buscas no existe o fue eliminado del sistema.
+            El envío que buscas no existe o fue eliminado del sistema.
           </p>
           <Button size="sm" onClick={() => navigate('/admin/envios')}>
-            Ver todos los envios
+            Ver todos los envíos
           </Button>
         </div>
       </div>
@@ -318,13 +319,15 @@ const EnvioDetail = () => {
             Volver
           </Button>
           <div>
-            <h1 className="page-header-title">Detalle del Envio</h1>
-            <p className="page-header-subtitle">Informacion completa y acciones del envio</p>
+            <h1 className="page-header-title">Envío {envio.trackingNumber}</h1>
+            <p className="page-header-subtitle">
+              Creado {formatDateSmart(envio.fecha).toLowerCase()} para {envio.clienteNombre}
+            </p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={openEditModal} aria-label="Editar envio">
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={openEditModal} aria-label="Editar envío">
             <PencilSimple size={14} weight="duotone" />
             <span className="hidden sm:inline">Editar</span>
           </Button>
@@ -334,24 +337,24 @@ const EnvioDetail = () => {
             className="gap-1.5"
             onClick={() => setShowEstadoModal(true)}
             disabled={(VALID_TRANSITIONS[envio.estado] ?? []).length === 0}
-            aria-label="Actualizar estado del envio"
+            aria-label="Cambiar estado del envío"
           >
             <ArrowsClockwise size={14} weight="duotone" />
-            <span className="hidden sm:inline">Actualizar Estado</span>
+            <span className="hidden sm:inline">Cambiar estado</span>
           </Button>
           <Button
             variant="destructive"
             size="sm"
             className="gap-1.5"
             onClick={() => setIsProblemaModalOpen(true)}
-            aria-label="Reportar problema con el envio"
+            aria-label="Reportar problema con el envío"
           >
             <Warning size={14} weight="duotone" />
-            <span className="hidden sm:inline">Reportar Problema</span>
+            <span className="hidden sm:inline">Reportar problema</span>
           </Button>
-          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrintLabel} aria-label="Imprimir etiqueta de envio">
+          <Button variant="secondary" size="sm" className="gap-1.5" onClick={handlePrintLabel} aria-label="Imprimir etiqueta del envío">
             <Barcode size={14} weight="duotone" />
-            <span className="hidden sm:inline">Imprimir Etiqueta</span>
+            <span className="hidden sm:inline">Imprimir etiqueta</span>
           </Button>
         </div>
       </div>
@@ -359,9 +362,11 @@ const EnvioDetail = () => {
       {envio.estado === 'problema' && (
         <Alert variant="destructive">
           <Warning size={16} weight="duotone" />
-          <AlertTitle>Problema Reportado</AlertTitle>
+          <AlertTitle>Este envío tiene un problema</AlertTitle>
           <AlertDescription>
-            <p className="font-medium mb-1 text-[13px]">Fecha: {envio.problemaFecha}</p>
+            {envio.problemaFecha && (
+              <p className="font-medium mb-1 text-[13px]">Reportado {formatDateSmart(envio.problemaFecha).toLowerCase()}</p>
+            )}
             <p className="text-[13px]">{envio.problemaDescripcion}</p>
           </AlertDescription>
         </Alert>
@@ -371,7 +376,7 @@ const EnvioDetail = () => {
         <div className="surface-card p-6">
           <div className="flex items-start justify-between mb-6">
             <div>
-              <p className="section-label mb-1">Numero de seguimiento</p>
+              <p className="section-label mb-1">Número de seguimiento</p>
               <p className="text-xl font-semibold font-data">{envio.trackingNumber}</p>
             </div>
             <Badge variant={estadoColors[envio.estado]} className="text-[12px]">
@@ -393,7 +398,7 @@ const EnvioDetail = () => {
               <p className="font-medium text-[13px]">{envio.destino}</p>
             </div>
             <div>
-              <p className="section-label mb-1">Fecha de envio</p>
+              <p className="section-label mb-1">Fecha de creación</p>
               <p className="font-medium text-[13px]">{formatDate(envio.fecha)}</p>
             </div>
             <div>
@@ -405,7 +410,7 @@ const EnvioDetail = () => {
               <p className="font-medium text-[13px] font-data">
                 {envio.dimensiones?.largo ? (
                   `${envio.dimensiones.largo} x ${envio.dimensiones.ancho} x ${envio.dimensiones.alto} cm`
-                ) : 'No especificadas'}
+                ) : 'Sin registrar'}
               </p>
             </div>
             {envio.valorDeclarado > 0 && (
@@ -421,7 +426,7 @@ const EnvioDetail = () => {
                   Asegurado ({formatCurrency(envio.costoSeguro)})
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[11px]">Cobertura incluida</Badge>
+                <Badge variant="outline" className="text-[11px]">Cobertura basica incluida</Badge>
               )}
             </div>
           </div>
@@ -435,7 +440,7 @@ const EnvioDetail = () => {
         </div>
 
         <div className="surface-card p-6">
-          <h3 className="section-label mb-4">Repartidor Asignado</h3>
+          <h3 className="section-label mb-4">Repartidor asignado</h3>
 
           {repartidor ? (
             <div className="flex items-center justify-between">
@@ -459,7 +464,7 @@ const EnvioDetail = () => {
             </div>
           ) : (
             <div className="text-center py-6">
-              <p className="text-muted-foreground mb-4 text-[13px]">Sin repartidor asignado</p>
+              <p className="text-muted-foreground mb-4 text-[13px]">Todavia no se asigno un repartidor</p>
               <Button
                 size="sm"
                 onClick={() => setShowRepartidorModal(true)}
@@ -467,19 +472,19 @@ const EnvioDetail = () => {
                 className="gap-1.5"
               >
                 <UserCheck size={14} weight="duotone" />
-                {loadingRepartidores ? 'Cargando...' : 'Asignar Repartidor'}
+                {loadingRepartidores ? 'Cargando...' : 'Asignar repartidor'}
               </Button>
             </div>
           )}
         </div>
 
         <div className="surface-card p-6">
-          <h3 className="section-label mb-5">Informacion de Pago</h3>
+          <h3 className="section-label mb-5">Cobro</h3>
           <div className="space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-4 flex-1">
                 <div>
-                  <p className="section-label mb-1">Costo del Envio</p>
+                  <p className="section-label mb-1">Precio del envío</p>
                   <p className="text-xl font-semibold font-data">{formatCurrency(envio.costo)}</p>
                   {envio.seguroAdicional && envio.costoSeguro > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
@@ -488,7 +493,7 @@ const EnvioDetail = () => {
                         <span className="font-data font-medium">{formatCurrency(envio.costoSeguro)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[12px] font-semibold">
-                        <span>Total cobrado</span>
+                        <span>Total a cobrar</span>
                         <span className="font-data">{formatCurrency(envio.costo + envio.costoSeguro)}</span>
                       </div>
                     </div>
@@ -496,38 +501,38 @@ const EnvioDetail = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <p className="section-label mb-1">Estado de Pago</p>
+                    <p className="section-label mb-1">Estado</p>
                     <Badge
                       variant={estadosPagoColors[envio.pago?.estadoPago || 'pendiente']}
                       className="text-[12px]"
                     >
-                      {envio.pago?.estadoPago === 'pagado' ? 'Pagado'
-                        : envio.pago?.estadoPago === 'pago_parcial' ? 'Pago Parcial'
-                        : 'Pendiente'}
+                      {envio.pago?.estadoPago === 'pagado' ? 'Cobrado'
+                        : envio.pago?.estadoPago === 'pago_parcial' ? 'Cobro parcial'
+                        : 'Sin cobrar'}
                     </Badge>
                   </div>
                   <div>
-                    <p className="section-label mb-1">Metodo de Pago</p>
+                    <p className="section-label mb-1">Método de cobro</p>
                     <p className="font-medium text-[13px]">
                       {envio.pago?.metodoPago
                         ? metodosPagoLabels[envio.pago.metodoPago]
-                        : '-'}
+                        : 'Sin definir'}
                     </p>
                   </div>
                   <div>
-                    <p className="section-label mb-1">Fecha de Pago</p>
-                    <p className="font-medium text-[13px]">{envio.pago?.fechaPago || '-'}</p>
+                    <p className="section-label mb-1">Cobrado el</p>
+                    <p className="font-medium text-[13px]">{envio.pago?.fechaPago ? formatDate(envio.pago.fechaPago) : 'Sin cobrar'}</p>
                   </div>
                 </div>
                 {envio.pago?.referencia && (
                   <div>
-                    <p className="section-label mb-1">Referencia</p>
+                    <p className="section-label mb-1">Referencia del pago</p>
                     <p className="text-[13px] font-data">{envio.pago.referencia}</p>
                   </div>
                 )}
                 {envio.pago?.notas && (
                   <div>
-                    <p className="section-label mb-1">Notas de pago</p>
+                    <p className="section-label mb-1">Notas del cobro</p>
                     <p className="text-[13px]">{envio.pago.notas}</p>
                   </div>
                 )}
@@ -537,11 +542,11 @@ const EnvioDetail = () => {
             {envio.pago?.estadoPago === 'pagado' ? (
               <div className="flex items-center gap-2 text-success">
                 <CheckCircle size={18} weight="duotone" />
-                <span className="font-medium text-[13px]">Pago completado</span>
+                <span className="font-medium text-[13px]">Cobro completado</span>
               </div>
             ) : (
               <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="w-full">
-                {envio.pago?.estadoPago === 'pago_parcial' ? 'Completar Pago' : 'Registrar Pago'}
+                {envio.pago?.estadoPago === 'pago_parcial' ? 'Completar cobro' : 'Registrar cobro'}
               </Button>
             )}
           </div>
@@ -549,12 +554,12 @@ const EnvioDetail = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="surface-card p-6">
-            <h3 className="section-label mb-5">Historial de eventos</h3>
+            <h3 className="section-label mb-5">Historial del envío</h3>
             <Timeline eventos={envio.eventos} />
           </div>
 
           <div className="surface-card p-6">
-            <h3 className="section-label mb-5">Informacion del destinatario</h3>
+            <h3 className="section-label mb-5">Quien recibe el paquete</h3>
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <UserCircle size={14} weight="duotone" className="text-muted-foreground/60" />
@@ -566,20 +571,22 @@ const EnvioDetail = () => {
               <div className="flex items-center gap-2">
                 <MapPin size={14} weight="duotone" className="text-muted-foreground/60" />
                 <div>
-                  <p className="section-label mb-0.5">Direccion</p>
+                  <p className="section-label mb-0.5">Dirección</p>
                   <p className="font-medium text-[13px]">{envio.destinatarioDireccion}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Phone size={14} weight="duotone" className="text-muted-foreground/60" />
                 <div>
-                  <p className="section-label mb-0.5">Telefono</p>
+                  <p className="section-label mb-0.5">Teléfono</p>
                   <p className="font-medium text-[13px] font-data">{envio.destinatarioTelefono}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        <IntentosContactoCard envioId={envio.id} />
 
         <NotasInternas
           envioId={envio.id}
@@ -636,7 +643,7 @@ const EnvioDetail = () => {
       <Dialog open={showEstadoModal} onOpenChange={(open) => { setShowEstadoModal(open); if (!open) { setNuevoEstado(''); setEstadoDescripcion(''); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Actualizar Estado del Envio</DialogTitle>
+            <DialogTitle>Actualizar Estado del Envío</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -655,7 +662,7 @@ const EnvioDetail = () => {
               </Select>
             </div>
             <div>
-              <label className="text-[12px] font-medium mb-1.5 block">Descripcion (opcional)</label>
+              <label className="text-[12px] font-medium mb-1.5 block">Descripción (opcional)</label>
               <textarea
                 value={estadoDescripcion}
                 onChange={(e) => setEstadoDescripcion(e.target.value)}
@@ -679,7 +686,7 @@ const EnvioDetail = () => {
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Envio</DialogTitle>
+            <DialogTitle>Editar Envío</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-2">
             <div>
@@ -726,7 +733,7 @@ const EnvioDetail = () => {
                   />
                 </div>
                 <div>
-                  <Label className="text-[12px]">Direccion</Label>
+                  <Label className="text-[12px]">Dirección</Label>
                   <Textarea
                     value={editForm.destinatarioDireccion}
                     onChange={(e) => handleEditChange('destinatarioDireccion', e.target.value)}
@@ -736,7 +743,7 @@ const EnvioDetail = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-[12px]">Telefono</Label>
+                    <Label className="text-[12px]">Teléfono</Label>
                     <Input
                       value={editForm.destinatarioTelefono}
                       onChange={(e) => handleEditChange('destinatarioTelefono', e.target.value)}
@@ -804,7 +811,7 @@ const EnvioDetail = () => {
                     onChange={(e) => handleEditChange('notas', e.target.value)}
                     className="mt-1 text-[13px]"
                     rows={2}
-                    placeholder="Notas sobre el envio..."
+                    placeholder="Notas sobre el envío..."
                   />
                 </div>
                 <div>

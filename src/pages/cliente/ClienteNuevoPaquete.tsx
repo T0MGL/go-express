@@ -140,12 +140,12 @@ const ClienteNuevoPaquete = () => {
       return;
     }
     if (!telefonoRaw || !isValidPhone(telefonoRaw)) {
-      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
+      toast.error(`Formato de teléfono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
     const telefono = normalizePhone(telefonoRaw);
     if (!direccion || direccion.length < 5) {
-      toast.error('La direccion debe tener al menos 5 caracteres');
+      toast.error('La dirección debe tener al menos 5 caracteres');
       return;
     }
     if (!form.departamento) {
@@ -188,7 +188,7 @@ const ClienteNuevoPaquete = () => {
       },
       {
         onSuccess: () => {
-          toast.success('Paquete registrado exitosamente. Se generara tu numero de tracking.');
+          toast.success('Paquete registrado exitosamente. Se generara tu número de tracking.');
           navigate('/cliente/envios');
         },
         onError: () => {
@@ -203,7 +203,7 @@ const ClienteNuevoPaquete = () => {
       <div className="page-header">
         <div>
           <h1 className="page-header-title">Registrar Nuevo Paquete</h1>
-          <p className="page-header-subtitle">Completa los datos del paquete para solicitar el envio</p>
+          <p className="page-header-subtitle">Completa los datos del paquete para solicitar el envío</p>
         </div>
       </div>
 
@@ -220,12 +220,12 @@ const ClienteNuevoPaquete = () => {
                 <Input required value={form.destinatarioNombre} onChange={(e) => handleChange('destinatarioNombre', e.target.value)} className="mt-1.5" />
               </div>
               <div>
-                <Label className="text-[11px]">Telefono *</Label>
+                <Label className="text-[11px]">Teléfono *</Label>
                 <Input required type="tel" placeholder={PHONE_PLACEHOLDER} value={form.destinatarioTelefono} onChange={(e) => handleChange('destinatarioTelefono', e.target.value)} className="mt-1.5 font-data" />
               </div>
             </div>
             <div>
-              <Label className="text-[11px]">Direccion de entrega *</Label>
+              <Label className="text-[11px]">Dirección de entrega *</Label>
               <Input required value={form.destinatarioDireccion} onChange={(e) => handleChange('destinatarioDireccion', e.target.value)} className="mt-1.5" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -260,7 +260,7 @@ const ClienteNuevoPaquete = () => {
               </div>
             </div>
             <div>
-              <Label className="text-[11px]">Numero de pedido (opcional)</Label>
+              <Label className="text-[11px]">Número de pedido (opcional)</Label>
               <Input
                 value={form.codigoReferencia}
                 onChange={(e) => handleChange('codigoReferencia', e.target.value)}
@@ -404,7 +404,7 @@ const ClienteNuevoPaquete = () => {
             )}
 
             <div>
-              <Label className="text-[11px]">Contenido / Descripcion *</Label>
+              <Label className="text-[11px]">Contenido / Descripción *</Label>
               <Input required value={form.contenido} onChange={(e) => handleChange('contenido', e.target.value)} className="mt-1.5" placeholder="Ej: Electronicos, documentos, ropa..." />
             </div>
             <div>
@@ -418,7 +418,7 @@ const ClienteNuevoPaquete = () => {
         <div className="surface-card p-5">
           <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
             <ShieldCheck size={16} weight="duotone" className="text-primary" />
-            Seguro del envio
+            Seguro del envío
           </h3>
           <div className="space-y-3">
             <div>
@@ -477,7 +477,7 @@ const ClienteNuevoPaquete = () => {
                   <span className="font-semibold">Valor alto detectado.</span> El seguro automatico
                   cubre hasta{' '}
                   <span className="font-data">{formatCurrency(seguroCotizacion.maximoAsegurable)}</span>.
-                  Contacta al equipo de Go Express para asegurar envios de mayor valor.
+                  Contacta al equipo de Go Express para asegurar envíos de mayor valor.
                 </div>
               </div>
             )}

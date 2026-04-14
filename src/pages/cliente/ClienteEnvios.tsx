@@ -20,7 +20,7 @@ import { useClienteEnvios, useClienteEnvio } from '@/hooks/api/use-cliente-envio
 const estadoList = [
   { value: 'todos', label: 'Todos' },
   { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_transito', label: 'En Transito' },
+  { value: 'en_transito', label: 'En tránsito' },
   { value: 'en_reparto', label: 'En Reparto' },
   { value: 'entregado', label: 'Entregado' },
   { value: 'fallido', label: 'Fallido' },
@@ -29,8 +29,8 @@ const estadoList = [
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
-  recolectado: { label: 'Recolectado', variant: 'outline' },
-  en_transito: { label: 'En Transito', variant: 'default' },
+  recolectado: { label: 'Retirado', variant: 'outline' },
+  en_transito: { label: 'En tránsito', variant: 'default' },
   en_reparto: { label: 'En Reparto', variant: 'warning' },
   entregado: { label: 'Entregado', variant: 'success' },
   fallido: { label: 'Fallido', variant: 'destructive' },
@@ -69,7 +69,7 @@ const ClienteEnvios = () => {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Mis Envios</h1>
+          <h1 className="page-header-title">Mis Envíos</h1>
           <p className="page-header-subtitle">Segui el estado de todos tus paquetes</p>
         </div>
         <Button onClick={() => navigate('/cliente/envios/nuevo')} size="sm" className="gap-1.5">
@@ -147,7 +147,7 @@ const ClienteEnvios = () => {
                         </td>
                         <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
                         <td className="text-right pr-4">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)} aria-label={`Ver detalle del envio ${envio.trackingNumber}`}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)} aria-label={`Ver detalle del envío ${envio.trackingNumber}`}>
                             <Eye size={14} weight="duotone" />
                           </Button>
                         </td>
@@ -163,14 +163,14 @@ const ClienteEnvios = () => {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <Package size={18} weight="duotone" className="text-muted-foreground/50" />
                 </div>
-                <p className="text-[13px] font-medium">No se encontraron envios</p>
+                <p className="text-[13px] font-medium">No se encontraron envíos</p>
                 <p className="text-[12px] text-muted-foreground mt-1">
-                  {searchTerm ? 'Proba con otros terminos' : 'Aun no tenes envios en este estado'}
+                  {searchTerm ? 'Probá con otros términos' : 'Aún no tenés envíos en este estado'}
                 </p>
                 {!searchTerm && filterEstado === 'todos' && (
                   <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate('/cliente/envios/nuevo')}>
                     <Plus className="w-3.5 h-3.5" />
-                    Crear tu primer envio
+                    Crear tu primer envío
                   </Button>
                 )}
               </div>
@@ -224,7 +224,7 @@ const ClienteEnvios = () => {
                   <p className="text-[13px] font-medium">{selectedEnvio.destinatarioNombre}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Direccion</p>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Dirección</p>
                   <p className="text-[13px] font-medium">{selectedEnvio.destinatarioDireccion}</p>
                 </div>
                 <div>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { SearchInput } from '@/components/ui/search-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDateSmart } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { exportToCSV } from '@/lib/exportCSV';
 import { Link } from 'react-router-dom';
@@ -83,7 +83,7 @@ const Pagos = () => {
       { label: 'Monto Total', accessor: (p: PagoListItem) => p.montoTotal },
       { label: 'Monto Recibido', accessor: (p: PagoListItem) => p.montoRecibido },
       { label: 'Estado Pago', accessor: (p: PagoListItem) => p.estadoPago },
-      { label: 'Metodo', accessor: (p: PagoListItem) => p.metodoPago || '-' },
+      { label: 'Método', accessor: (p: PagoListItem) => p.metodoPago || '-' },
       { label: 'Fecha Pago', accessor: (p: PagoListItem) => p.fechaPago || '-' },
     ];
 
@@ -108,8 +108,8 @@ const Pagos = () => {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Gestion de Pagos</h1>
-          <p className="page-header-subtitle">Control de cobros y estados de pago</p>
+          <h1 className="page-header-title">Cobros</h1>
+          <p className="page-header-subtitle">Que envíos fueron pagados y cuales quedan por cobrar</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleExportPagosCSV} className="gap-1.5">
           <DownloadSimple size={14} weight="duotone" />
@@ -127,7 +127,7 @@ const Pagos = () => {
               <p className="stat-card-value text-xl font-data text-success">
                 {formatCurrency(totalCobrado)}
               </p>
-              <p className="stat-card-label">Total Cobrado</p>
+              <p className="stat-card-label">Cobrado hasta ahora</p>
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ const Pagos = () => {
               <p className="stat-card-value text-xl font-data text-warning">
                 {formatCurrency(totalPendiente)}
               </p>
-              <p className="stat-card-label">Pendiente de Cobro</p>
+              <p className="stat-card-label">Pendiente de cobrar</p>
             </div>
           </div>
         </div>
@@ -153,7 +153,7 @@ const Pagos = () => {
               <p className="stat-card-value text-xl font-data">
                 {formatCurrency(cobradoHoy)}
               </p>
-              <p className="stat-card-label">Cobrado Hoy</p>
+              <p className="stat-card-label">Cobrado hoy</p>
             </div>
           </div>
         </div>
@@ -165,7 +165,7 @@ const Pagos = () => {
             <SearchInput
               value={busqueda}
               onChange={(v) => { setBusqueda(v); resetPage(); }}
-              placeholder="Buscar por tracking o cliente..."
+              placeholder="Buscar por número de seguimiento o cliente..."
               className="flex-1 min-w-48"
             />
             <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); resetPage(); }}>
@@ -173,19 +173,19 @@ const Pagos = () => {
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pagado">Pagado</SelectItem>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="pago_parcial">Pago Parcial</SelectItem>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="pagado">Cobrado</SelectItem>
+                <SelectItem value="pendiente">Sin cobrar</SelectItem>
+                <SelectItem value="pago_parcial">Cobro parcial</SelectItem>
               </SelectContent>
             </Select>
 
             <Select value={filtroMetodo} onValueChange={(v) => { setFiltroMetodo(v); resetPage(); }}>
               <SelectTrigger className={cn('w-48', filtroMetodo !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
-                <SelectValue placeholder="Metodo de pago" />
+                <SelectValue placeholder="Método de cobro" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="todos">Todos los métodos</SelectItem>
                 <SelectItem value="efectivo">Efectivo</SelectItem>
                 <SelectItem value="transferencia">Transferencia</SelectItem>
                 <SelectItem value="tarjeta">Tarjeta</SelectItem>
@@ -213,13 +213,13 @@ const Pagos = () => {
                 <table className="premium-table">
                   <thead>
                     <tr>
-                      <th>Tracking #</th>
+                      <th>Seguimiento</th>
                       <th>Cliente</th>
-                      <th>Monto</th>
+                      <th className="text-right">Precio</th>
                       <th>Estado</th>
-                      <th>Metodo</th>
-                      <th>Fecha Pago</th>
-                      <th className="text-right">Acciones</th>
+                      <th>Como pago</th>
+                      <th>Cobrado el</th>
+                      <th className="text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -230,11 +230,11 @@ const Pagos = () => {
                             to={`/admin/envios/${pago.envioId}`}
                             className="text-primary hover:underline font-medium font-data text-[13px]"
                           >
-                            {pago.trackingNumber ?? '-'}
+                            {pago.trackingNumber ?? 'Sin asignar'}
                           </Link>
                         </td>
-                        <td className="text-[13px]">{pago.clienteNombre ?? '-'}</td>
-                        <td className="text-[13px] font-medium font-data">
+                        <td className="text-[13px]">{pago.clienteNombre ?? 'Sin cliente'}</td>
+                        <td className="text-[13px] font-medium font-data text-right">
                           {formatCurrency(pago.montoTotal)}
                         </td>
                         <td>
@@ -242,18 +242,18 @@ const Pagos = () => {
                             variant={estadoPagoColors[pago.estadoPago || 'pendiente'] as "muted" | "default" | "destructive" | "success" | "warning" | "outline" | "secondary"}
                             className="text-[11px]"
                           >
-                            {pago.estadoPago === 'pagado' ? 'Pagado'
-                              : pago.estadoPago === 'pago_parcial' ? 'Parcial'
-                              : 'Pendiente'}
+                            {pago.estadoPago === 'pagado' ? 'Cobrado'
+                              : pago.estadoPago === 'pago_parcial' ? 'Cobro parcial'
+                              : 'Sin cobrar'}
                           </Badge>
                         </td>
                         <td className="text-[13px]">
                           {pago.metodoPago
                             ? metodosPagoLabels[pago.metodoPago]
-                            : '-'}
+                            : <span className="text-muted-foreground/60">Sin definir</span>}
                         </td>
                         <td className="text-[12px] text-muted-foreground">
-                          {pago.fechaPago ? formatDate(pago.fechaPago) : '-'}
+                          {pago.fechaPago ? formatDateSmart(pago.fechaPago) : 'Sin cobrar'}
                         </td>
                         <td className="text-right">
                           {pago.estadoPago === 'pendiente' || pago.estadoPago === 'pago_parcial' ? (
@@ -262,13 +262,13 @@ const Pagos = () => {
                               size="sm"
                               onClick={() => handleCobrar(pago)}
                             >
-                              Cobrar
+                              Registrar cobro
                             </Button>
                           ) : (
                             <Link to={`/admin/envios/${pago.envioId}`}>
                               <Button variant="ghost" size="sm" className="gap-1.5">
                                 <Eye size={14} weight="duotone" />
-                                Ver
+                                Ver envío
                               </Button>
                             </Link>
                           )}
@@ -282,7 +282,7 @@ const Pagos = () => {
               {pagosFiltrados.length > 0 && (
                 <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between">
                   <p className="text-[12px] text-muted-foreground">
-                    Mostrando {pagosFiltrados.length} de {totalCount} registros
+                    Viendo {pagosFiltrados.length} de {totalCount} cobro{totalCount === 1 ? '' : 's'}
                   </p>
                   {(apiPagos?.pagination?.totalPages ?? 1) > 1 && (
                     <div className="flex items-center gap-1.5">
@@ -317,9 +317,15 @@ const Pagos = () => {
                   <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                     <MagnifyingGlass size={18} weight="duotone" className="text-muted-foreground/50" />
                   </div>
-                  <p className="text-[13px] font-medium text-foreground">No se encontraron pagos</p>
+                  <p className="text-[13px] font-medium text-foreground">
+                    {busqueda || filtroEstado !== 'todos' || filtroMetodo !== 'todos'
+                      ? 'Ningún cobro coincide con los filtros'
+                      : 'Aún no hay cobros registrados'}
+                  </p>
                   <p className="text-[12px] text-muted-foreground mt-1">
-                    Intenta ajustar los filtros de busqueda
+                    {busqueda || filtroEstado !== 'todos' || filtroMetodo !== 'todos'
+                      ? 'Proba borrando los filtros o buscando otro termino'
+                      : 'Los cobros apareceran aquí cuando registres un envío'}
                   </p>
                 </div>
               )}

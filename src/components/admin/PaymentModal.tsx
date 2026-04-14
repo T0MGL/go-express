@@ -46,7 +46,7 @@ export const PaymentModal = ({
     }
 
     if (!metodoPago) {
-      toast.error('Debe seleccionar un metodo de pago');
+      toast.error('Seleccioná un método de pago');
       return;
     }
 
@@ -113,10 +113,10 @@ export const PaymentModal = ({
             </div>
 
             <div>
-              <Label className="text-[12px]" htmlFor="metodoPago">Metodo de Pago *</Label>
+              <Label className="text-[12px]" htmlFor="metodoPago">Método de Pago *</Label>
               <Select value={metodoPago} onValueChange={setMetodoPago} required>
                 <SelectTrigger id="metodoPago" className="mt-1.5">
-                  <SelectValue placeholder="Seleccionar metodo" />
+                  <SelectValue placeholder="Seleccionar método" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="efectivo">Efectivo</SelectItem>

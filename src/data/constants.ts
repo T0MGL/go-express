@@ -2,12 +2,22 @@ export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'success' |
 
 export const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
-  recolectado: 'Recolectado',
-  en_transito: 'En Transito',
-  en_reparto: 'En Reparto',
+  recolectado: 'Retirado del cliente',
+  en_transito: 'En tránsito',
+  en_reparto: 'En reparto',
   entregado: 'Entregado',
-  fallido: 'Fallido',
-  problema: 'Problema/Incidencia',
+  fallido: 'Entrega fallida',
+  problema: 'Con problema',
+};
+
+export const estadoDescripciones: Record<string, string> = {
+  pendiente: 'Esperando retiro del cliente',
+  recolectado: 'Retirado del cliente, en nuestro almacén',
+  en_transito: 'En camino al destino',
+  en_reparto: 'En manos del repartidor para entregar',
+  entregado: 'Entregado al destinatario',
+  fallido: 'Intento de entrega sin éxito',
+  problema: 'Requiere atención del equipo',
 };
 
 export const estadoColors: Record<string, BadgeVariant> = {
@@ -21,10 +31,10 @@ export const estadoColors: Record<string, BadgeVariant> = {
 };
 
 export const estadoAlmacenLabels: Record<string, string> = {
-  recibido: 'Recibido',
-  en_almacen: 'En Almacen',
-  listo_despacho: 'Listo para Despacho',
-  despachado: 'Despachado',
+  recibido: 'Recién ingresado',
+  en_almacen: 'En almacén',
+  listo_despacho: 'Listo para salir',
+  despachado: 'Ya despachado',
   devuelto: 'Devuelto',
 };
 
@@ -61,22 +71,22 @@ export const estadoClienteColors: Record<string, BadgeVariant> = {
 };
 
 export const departamentosPY = [
-  'Asuncion (Capital)',
+  'Asunción (Capital)',
   'Alto Paraguay',
-  'Alto Parana',
+  'Alto Paraná',
   'Amambay',
-  'Boqueron',
-  'Caaguazu',
-  'Caazapa',
-  'Canindeyu',
+  'Boquerón',
+  'Caaguazú',
+  'Caazapá',
+  'Canindeyú',
   'Central',
-  'Concepcion',
+  'Concepción',
   'Cordillera',
-  'Guaira',
-  'Itapua',
+  'Guairá',
+  'Itapúa',
   'Misiones',
-  'Neembucu',
-  'Paraguari',
+  'Ñeembucú',
+  'Paraguarí',
   'Presidente Hayes',
   'San Pedro',
 ];
@@ -97,9 +107,9 @@ export const estadosPagoColors: Record<string, BadgeVariant> = {
 };
 
 export const tipoServicioLabels: Record<string, string> = {
-  estandar: 'Estandar',
+  estandar: 'Estándar',
   express: 'Express',
-  economico: 'Economico',
+  economico: 'Económico',
 };
 
 export const tipoServicioColors: Record<string, string> = {
@@ -109,17 +119,17 @@ export const tipoServicioColors: Record<string, string> = {
 };
 
 export const accionLabels: Record<string, string> = {
-  crear: 'Crear',
-  editar: 'Editar',
-  eliminar: 'Eliminar',
-  exportar: 'Exportar',
-  cambio_estado: 'Cambio de Estado',
-  pago: 'Pago',
-  nota: 'Nota',
-  asignar: 'Asignar',
-  importar: 'Importar',
-  login: 'Login',
-  logout: 'Logout',
+  crear: 'Creó',
+  editar: 'Modificó',
+  eliminar: 'Eliminó',
+  exportar: 'Exportó',
+  cambio_estado: 'Cambió estado',
+  pago: 'Registró pago',
+  nota: 'Agregó nota',
+  asignar: 'Asignó',
+  importar: 'Importó',
+  login: 'Inició sesión',
+  logout: 'Cerró sesión',
 };
 
 export const accionColors: Record<string, string> = {

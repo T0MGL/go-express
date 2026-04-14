@@ -42,16 +42,16 @@ function formToSeguro(form: SeguroFormState): SeguroConfig | { error: string } {
   const maximoAsegurable = Number(form.maximoAsegurable);
 
   if (!Number.isFinite(umbralIncluido) || umbralIncluido < 0) {
-    return { error: 'Umbral incluido debe ser un numero positivo' };
+    return { error: 'Umbral incluido debe ser un número positivo' };
   }
   if (!Number.isFinite(tasaAdicional) || tasaAdicional < 0 || tasaAdicional > 1) {
     return { error: 'Tasa debe estar entre 0% y 100%' };
   }
   if (!Number.isFinite(minimoAdicional) || minimoAdicional < 0) {
-    return { error: 'Monto minimo debe ser positivo' };
+    return { error: 'Monto mínimo debe ser positivo' };
   }
   if (!Number.isFinite(maximoAsegurable) || maximoAsegurable < umbralIncluido) {
-    return { error: 'Maximo asegurable debe ser mayor o igual al umbral incluido' };
+    return { error: 'Máximo asegurable debe ser mayor o igual al umbral incluido' };
   }
 
   return {
@@ -89,9 +89,9 @@ const SeguroTab = () => {
       return;
     }
     updateSeguroMut.mutate(result, {
-      onSuccess: () => toast.success('Configuracion de seguro actualizada'),
+      onSuccess: () => toast.success('Configuración de seguro actualizada'),
       onError: (err: unknown) => {
-        const msg = (err as { data?: { error?: string } })?.data?.error ?? 'Error al guardar la configuracion';
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? 'Error al guardar la configuración';
         toast.error(msg);
       },
     });
@@ -103,7 +103,7 @@ const SeguroTab = () => {
         <div className="flex items-start gap-2.5">
           <ShieldCheck size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
           <div className="text-[12px] text-muted-foreground leading-relaxed">
-            Estos parametros controlan el seguro de envio. Todos los envios tienen cobertura
+            Estos parametros controlan el seguro de envío. Todos los envíos tienen cobertura
             incluida por debajo del umbral. Arriba del umbral, el cliente puede optar por agregar
             seguro adicional (checkbox opt-in en el wizard). El costo se recalcula server-side
             siempre, el cliente nunca puede forzar un monto distinto.
@@ -127,7 +127,7 @@ const SeguroTab = () => {
               disabled={isLoading}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Valor declarado maximo con seguro incluido (sin cargo)
+              Valor declarado máximo con seguro incluido (sin cargo)
             </p>
           </div>
 
@@ -151,7 +151,7 @@ const SeguroTab = () => {
           </div>
 
           <div>
-            <Label htmlFor="seguro-minimo" className="text-[12px]">Monto minimo adicional (Gs)</Label>
+            <Label htmlFor="seguro-minimo" className="text-[12px]">Monto mínimo adicional (Gs)</Label>
             <Input
               id="seguro-minimo"
               type="number"
@@ -164,12 +164,12 @@ const SeguroTab = () => {
               disabled={isLoading}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Monto minimo cobrado cuando el seguro adicional aplica
+              Monto mínimo cobrado cuando el seguro adicional aplica
             </p>
           </div>
 
           <div>
-            <Label htmlFor="seguro-maximo" className="text-[12px]">Maximo asegurable (Gs)</Label>
+            <Label htmlFor="seguro-maximo" className="text-[12px]">Máximo asegurable (Gs)</Label>
             <Input
               id="seguro-maximo"
               type="number"
@@ -182,7 +182,7 @@ const SeguroTab = () => {
               disabled={isLoading}
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Techo para seguro automatico. Arriba de esto requiere revision manual
+              Techo para seguro automático. Arriba de esto requiere revisión manual
             </p>
           </div>
         </div>
@@ -213,7 +213,7 @@ const SeguroTab = () => {
                         {excede ? (
                           <span className="inline-flex items-center gap-1 text-[12px] text-warning">
                             <Warning size={12} weight="fill" />
-                            Requiere revision manual
+                            Requiere revisión manual
                           </span>
                         ) : incluido ? (
                           <Badge variant="success" className="text-[11px]">Incluida</Badge>
@@ -234,7 +234,7 @@ const SeguroTab = () => {
 
         <div className="flex justify-end pt-2">
           <Button type="submit" size="sm" disabled={updateSeguroMut.isPending || isLoading}>
-            Guardar configuracion
+            Guardar configuración
           </Button>
         </div>
       </form>
@@ -245,7 +245,7 @@ const SeguroTab = () => {
 const Configuracion = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [emailTemplate, setEmailTemplate] = useState(
-    'Hola {customer_name},\n\nTu envio con numero de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
+    'Hola {customer_name},\n\nTu envío con número de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
   );
   const [notifCreate, setNotifCreate] = useState(true);
   const [notifReparto, setNotifReparto] = useState(true);
@@ -286,8 +286,8 @@ const Configuracion = () => {
       updateConfigMut.mutateAsync({ key: 'notif_entrega', value: String(notifEntrega) }),
       updateConfigMut.mutateAsync({ key: 'email_template', value: emailTemplate }),
     ])
-      .then(() => toast.success('Configuracion guardada'))
-      .catch(() => toast.error('Error al guardar configuracion'));
+      .then(() => toast.success('Configuración guardada'))
+      .catch(() => toast.error('Error al guardar configuración'));
   };
 
   const handleSaveConfig = (e: React.FormEvent) => {
@@ -302,23 +302,23 @@ const Configuracion = () => {
       updateConfigMut.mutateAsync({ key: 'email', value: email }),
       updateConfigMut.mutateAsync({ key: 'direccion', value: direccion }),
     ])
-      .then(() => toast.success('Configuracion guardada'))
-      .catch(() => toast.error('Error al guardar configuracion'));
+      .then(() => toast.success('Configuración guardada'))
+      .catch(() => toast.error('Error al guardar configuración'));
   };
 
   return (
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Configuracion</h1>
-          <p className="page-header-subtitle">Ajustes generales del sistema</p>
+          <h1 className="page-header-title">Configuración</h1>
+          <p className="page-header-subtitle">Datos de la empresa, seguros, notificaciones y usuarios</p>
         </div>
       </div>
 
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="mb-6">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="estados">Estados de Envio</TabsTrigger>
+          <TabsTrigger value="general">Empresa</TabsTrigger>
+          <TabsTrigger value="estados">Estados de envío</TabsTrigger>
           <TabsTrigger value="seguro">Seguro</TabsTrigger>
           <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
@@ -328,25 +328,26 @@ const Configuracion = () => {
           <div className="surface-card p-6">
             <form className="space-y-6" onSubmit={handleSaveConfig}>
               <div>
-                <Label htmlFor="telefono" className="text-[13px]">Telefono de contacto</Label>
+                <Label htmlFor="telefono" className="text-[13px]">Teléfono de contacto</Label>
                 <Input id="telefono" name="telefono" type="tel" defaultValue="+595211234567" className="mt-1.5 font-data" />
+                <p className="text-[11px] text-muted-foreground mt-1">El número que los clientes ven en recibos y emails</p>
               </div>
               <div>
                 <Label htmlFor="email-config" className="text-[13px]">Email de contacto</Label>
                 <Input id="email-config" name="email" type="email" defaultValue="contacto@goexpress.py" className="mt-1.5" />
               </div>
               <div>
-                <Label htmlFor="direccion" className="text-[13px]">Direccion oficina principal</Label>
+                <Label htmlFor="direccion" className="text-[13px]">Dirección de la oficina principal</Label>
                 <Textarea
                   id="direccion"
                   name="direccion"
-                  defaultValue="Av. Espana 1234, Asuncion, Paraguay"
+                  defaultValue="Av. Espana 1234, Asunción, Paraguay"
                   className="mt-1.5"
                   rows={3}
                 />
               </div>
               <div className="flex justify-end pt-4">
-                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar Cambios</Button>
+                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar cambios</Button>
               </div>
             </form>
           </div>
@@ -356,7 +357,7 @@ const Configuracion = () => {
           <div className="space-y-3">
             <div className="surface-card p-4 bg-muted/30 border-border/60 flex items-start gap-2.5 mb-2">
               <p className="text-[12px] text-muted-foreground">
-                Los estados del sistema son fijos y garantizan la trazabilidad de los envios. La personalizacion de estados estara disponible en una futura actualizacion.
+                Los estados por los que pasa un envío son fijos. Más adelante se podran personalizar.
               </p>
             </div>
             {Object.entries(estadoLabels).map(([key, label]) => (
@@ -380,7 +381,7 @@ const Configuracion = () => {
           <div className="surface-card p-6">
             <form className="space-y-6" onSubmit={handleSaveNotificaciones}>
               <div>
-                <h3 className="section-label mb-4">Notificaciones por Email</h3>
+                <h3 className="section-label mb-4">Cuando enviar emails al destinatario</h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -389,7 +390,7 @@ const Configuracion = () => {
                       onCheckedChange={(val) => setNotifCreate(Boolean(val))}
                     />
                     <Label htmlFor="email-create" className="font-normal text-[13px]">
-                      Enviar email cuando se crea envio
+                      Cuando se crea el envío
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -399,7 +400,7 @@ const Configuracion = () => {
                       onCheckedChange={(val) => setNotifReparto(Boolean(val))}
                     />
                     <Label htmlFor="email-reparto" className="font-normal text-[13px]">
-                      Enviar email cuando cambia a "En Reparto"
+                      Cuando el repartidor sale a entregar
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -409,34 +410,34 @@ const Configuracion = () => {
                       onCheckedChange={(val) => setNotifEntrega(Boolean(val))}
                     />
                     <Label htmlFor="email-entrega" className="font-normal text-[13px]">
-                      Enviar email cuando se entrega
+                      Cuando el paquete es entregado
                     </Label>
                   </div>
                 </div>
               </div>
 
               <div className="border-t pt-6">
-                <h3 className="section-label mb-4">Otras Notificaciones</h3>
+                <h3 className="section-label mb-4">Otros canales</h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Checkbox id="sms" disabled />
                     <Label htmlFor="sms" className="font-normal text-[13px] text-muted-foreground">
-                      Enviar SMS (proximamente)
+                      Notificar por SMS (disponible proximamente)
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox id="whatsapp" disabled />
                     <Label htmlFor="whatsapp" className="font-normal text-[13px] text-muted-foreground">
-                      Notificar al repartidor por WhatsApp (proximamente)
+                      Avisar al repartidor por WhatsApp (disponible proximamente)
                     </Label>
                   </div>
                 </div>
               </div>
 
               <div className="border-t pt-6">
-                <Label htmlFor="template" className="text-[13px]">Template de Email</Label>
+                <Label htmlFor="template" className="text-[13px]">Texto del email</Label>
                 <p className="text-[12px] text-muted-foreground mt-1 mb-3">
-                  Variables disponibles: {'{tracking_number}'}, {'{customer_name}'}, {'{status}'}
+                  Podés usar estas variables que se reemplazan solas: {'{tracking_number}'} (número de seguimiento), {'{customer_name}'} (nombre del cliente), {'{status}'} (estado actual).
                 </p>
                 <Textarea
                   id="template"
@@ -448,7 +449,7 @@ const Configuracion = () => {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar Configuracion</Button>
+                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar configuración</Button>
               </div>
             </form>
           </div>
@@ -457,10 +458,10 @@ const Configuracion = () => {
         <TabsContent value="usuarios">
           <div className="surface-card p-6">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="section-label">Usuarios del Sistema</h3>
+              <h3 className="section-label">Usuarios que pueden usar el sistema</h3>
               <Button size="sm" onClick={() => setIsInviteModalOpen(true)} className="gap-1.5">
                 <UserPlus size={14} weight="duotone" />
-                Invitar Usuario
+                Invitar usuario
               </Button>
             </div>
 

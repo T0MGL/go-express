@@ -20,8 +20,21 @@ import type {
   PaginatedResponse,
   NotificationEvent,
 } from '../types/index.js';
-import type { CreateEnvioInput, UpdateEnvioEstadoInput, EnvioQuery } from '../lib/validators/envio.schema.js';
+import type { CreateEnvioInput, UpdateEnvioEstadoInput, EnvioQuery, BulkActionInput } from '../lib/validators/envio.schema.js';
+import type { CreateIntentoContactoInput } from '../lib/validators/intentos-contacto.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
+
+export type IntentoContactoTipo = 'llamada' | 'whatsapp' | 'visita_fallida';
+
+export interface IntentoContacto {
+  id: string;
+  envioId: string;
+  tipo: IntentoContactoTipo;
+  descripcion: string | null;
+  registradoPor: string | null;
+  registradoPorNombre: string;
+  creadoEn: string;
+}
 
 // State machine: valid transitions
 
@@ -274,10 +287,23 @@ class EnvioService {
     if (fechaDesde) q = q.gte('fecha', fechaDesde);
     if (fechaHasta) q = q.lte('fecha', fechaHasta);
     if (search) {
-      const s = escapeLikePattern(search);
-      q = q.or(
-        `tracking_number.ilike.%${s}%,cliente_nombre.ilike.%${s}%,destinatario_nombre.ilike.%${s}%`
-      );
+      const raw = escapeLikePattern(search);
+      // Strip separators to match normalized phones stored as +595XXXXXXXXX
+      // against whatever the operator typed ("0971 123456", "0971-123456", etc).
+      const digits = search.replace(/\D+/g, '');
+      const phoneTail = digits.length >= 4 ? digits.slice(-9) : null;
+      const clauses = [
+        `tracking_number.ilike.%${raw}%`,
+        `cliente_nombre.ilike.%${raw}%`,
+        `destinatario_nombre.ilike.%${raw}%`,
+        `codigo_referencia.ilike.%${raw}%`,
+      ];
+      if (phoneTail) {
+        const pt = escapeLikePattern(phoneTail);
+        clauses.push(`destinatario_telefono.ilike.%${pt}%`);
+        clauses.push(`destinatario_telefono2.ilike.%${pt}%`);
+      }
+      q = q.or(clauses.join(','));
     }
 
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -923,6 +949,189 @@ class EnvioService {
       entidadId: id,
       descripcion: `Envio ${trackingNumber} eliminado. Motivo: ${motivo}`,
     });
+  }
+
+  /**
+   * Apply an action (change estado or assign a repartidor) to many envios at once.
+   * The loop is sequential on purpose: each update needs its own transition
+   * check and audit entry, and any failure must not block the others.
+   * Returns per-id success/failure so the UI can show the operator exactly
+   * which envios were rejected and why.
+   */
+  async bulkAction(
+    input: BulkActionInput,
+    userId: string,
+    userName: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{
+    total: number;
+    exitosos: number;
+    fallidos: Array<{ id: string; trackingNumber?: string; motivo: string }>;
+  }> {
+    const fallidos: Array<{ id: string; trackingNumber?: string; motivo: string }> = [];
+    let exitosos = 0;
+
+    if (input.action === 'asignar_repartidor') {
+      const { data: repartidor } = await supabase
+        .from('repartidores')
+        .select('nombre, estado')
+        .eq('id', input.payload.repartidorId)
+        .eq('eliminado', false)
+        .single();
+
+      if (!repartidor) {
+        throw AppError.notFound('Repartidor', input.payload.repartidorId);
+      }
+      if ((repartidor as { estado: string }).estado !== 'activo') {
+        throw AppError.badRequest('No se puede asignar un repartidor inactivo');
+      }
+    }
+
+    for (const id of input.ids) {
+      try {
+        if (input.action === 'cambiar_estado') {
+          await this.updateEstado(
+            id,
+            { estado: input.payload.estado, descripcion: input.payload.descripcion },
+            userId,
+            userName,
+            ipAddress,
+            userAgent
+          );
+        } else {
+          await this.asignarRepartidor(
+            id,
+            input.payload.repartidorId,
+            userId,
+            userName,
+            ipAddress,
+            userAgent
+          );
+        }
+        exitosos += 1;
+      } catch (err) {
+        const motivo = err instanceof AppError ? err.message : 'Error desconocido';
+        fallidos.push({ id, motivo });
+      }
+    }
+
+    return {
+      total: input.ids.length,
+      exitosos,
+      fallidos,
+    };
+  }
+
+  async listIntentosContacto(envioId: string): Promise<IntentoContacto[]> {
+    const { data: exists, error: checkErr } = await supabase
+      .from('envios')
+      .select('id')
+      .eq('id', envioId)
+      .eq('eliminado', false)
+      .single();
+
+    if (checkErr || !exists) {
+      throw AppError.notFound('Envio', envioId);
+    }
+
+    const { data, error } = await supabase
+      .from('intentos_contacto')
+      .select('id, envio_id, tipo, descripcion, registrado_por, registrado_por_nombre, created_at')
+      .eq('envio_id', envioId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error({ error, envioId }, 'Error fetching intentos contacto');
+      throw new AppError('Error fetching intentos contacto', 500, 'DB_ERROR');
+    }
+
+    return ((data ?? []) as Array<{
+      id: string;
+      envio_id: string;
+      tipo: IntentoContactoTipo;
+      descripcion: string | null;
+      registrado_por: string | null;
+      registrado_por_nombre: string;
+      created_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      envioId: row.envio_id,
+      tipo: row.tipo,
+      descripcion: row.descripcion,
+      registradoPor: row.registrado_por,
+      registradoPorNombre: row.registrado_por_nombre,
+      creadoEn: row.created_at,
+    }));
+  }
+
+  async createIntentoContacto(
+    envioId: string,
+    input: CreateIntentoContactoInput,
+    userId: string,
+    userName: string
+  ): Promise<IntentoContacto> {
+    const { data: envioCheck, error: checkErr } = await supabase
+      .from('envios')
+      .select('id, tracking_number')
+      .eq('id', envioId)
+      .eq('eliminado', false)
+      .single();
+
+    if (checkErr || !envioCheck) {
+      throw AppError.notFound('Envio', envioId);
+    }
+
+    const { data, error } = await supabase
+      .from('intentos_contacto')
+      .insert({
+        envio_id: envioId,
+        tipo: input.tipo,
+        descripcion: input.descripcion ?? null,
+        registrado_por: userId,
+        registrado_por_nombre: userName,
+      })
+      .select('id, envio_id, tipo, descripcion, registrado_por, registrado_por_nombre, created_at')
+      .single();
+
+    if (error || !data) {
+      logger.error({ error, envioId }, 'Error creating intento contacto');
+      throw new AppError('Error creating intento contacto', 500, 'DB_ERROR');
+    }
+
+    const row = data as {
+      id: string;
+      envio_id: string;
+      tipo: IntentoContactoTipo;
+      descripcion: string | null;
+      registrado_por: string | null;
+      registrado_por_nombre: string;
+      created_at: string;
+    };
+
+    const trackingNumber = (envioCheck as { tracking_number: string }).tracking_number;
+    const tipoLabel = input.tipo === 'llamada' ? 'llamada'
+      : input.tipo === 'whatsapp' ? 'WhatsApp'
+      : 'visita fallida';
+
+    await auditoriaService.log({
+      usuario: userName,
+      usuarioId: userId,
+      accion: 'nota',
+      entidad: 'envio',
+      entidadId: envioId,
+      descripcion: `Intento de contacto (${tipoLabel}) en envio ${trackingNumber}${input.descripcion ? `: ${input.descripcion}` : ''}`,
+    });
+
+    return {
+      id: row.id,
+      envioId: row.envio_id,
+      tipo: row.tipo,
+      descripcion: row.descripcion,
+      registradoPor: row.registrado_por,
+      registradoPorNombre: row.registrado_por_nombre,
+      creadoEn: row.created_at,
+    };
   }
 }
 

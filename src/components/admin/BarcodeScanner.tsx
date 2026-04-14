@@ -67,7 +67,7 @@ export function BarcodeScanner({ onScan, onClose, className }: BarcodeScannerPro
         className={className}
       >
         <Camera size={14} weight="duotone" className="mr-1.5" />
-        Escanear Codigo
+        Escanear Código
       </Button>
     );
   }
@@ -91,7 +91,7 @@ export function BarcodeScanner({ onScan, onClose, className }: BarcodeScannerPro
         </div>
         <div id={scannerId} className="w-full" />
         <p className="text-[11px] text-muted-foreground mt-2 text-center">
-          Apunta la camara al codigo QR o codigo de barras
+          Apunta la camara al código QR o código de barras
         </p>
       </CardContent>
     </Card>

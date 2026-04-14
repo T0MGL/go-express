@@ -14,7 +14,10 @@ router.get(
     const today = todayPY();
     const sevenDaysAgoDate = new Date();
     sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7);
-    const sevenDaysAgo = sevenDaysAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+    const sevenDaysAgo = sevenDaysAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Asunción' });
+
+    const staleDeliveryCutoff = new Date();
+    staleDeliveryCutoff.setHours(staleDeliveryCutoff.getHours() - 48);
 
     const [
       enviosHoyResult,
@@ -23,6 +26,9 @@ router.get(
       totalEnviosResult,
       porCobrarResult,
       problemasHoyResult,
+      problemasAbiertosResult,
+      pendientesRecoleccionHoyResult,
+      enRutaSinActualizarResult,
       recientesResult,
     ] = await Promise.all([
       // Envios created today
@@ -61,6 +67,27 @@ router.get(
         .eq('eliminado', false)
         .eq('estado', 'problema')
         .gte('problema_fecha', `${today}T00:00:00`),
+      // Open problems (not filtered by date: anything still in estado=problema)
+      supabase
+        .from('envios')
+        .select('id', { count: 'exact', head: true })
+        .eq('eliminado', false)
+        .eq('estado', 'problema'),
+      // Shipments pending pickup today
+      supabase
+        .from('envios')
+        .select('id', { count: 'exact', head: true })
+        .eq('eliminado', false)
+        .eq('estado', 'pendiente')
+        .eq('fecha', today),
+      // In-route shipments with no status update for >48h: use updated_at
+      // (bumped on any estado change) to approximate staleness.
+      supabase
+        .from('envios')
+        .select('id', { count: 'exact', head: true })
+        .eq('eliminado', false)
+        .in('estado', ['en_transito', 'en_reparto'])
+        .lte('updated_at', staleDeliveryCutoff.toISOString()),
       // Recent envios (last 7 days)
       supabase
         .from('envios')
@@ -95,6 +122,9 @@ router.get(
       tasaEntrega,
       porCobrar,
       problemasHoy: problemasHoyResult.count ?? 0,
+      problemasAbiertos: problemasAbiertosResult.count ?? 0,
+      pendientesRecoleccionHoy: pendientesRecoleccionHoyResult.count ?? 0,
+      enRutaSinActualizar: enRutaSinActualizarResult.count ?? 0,
       enviosRecientes: rawRecientes.map(r => ({
         id: r.id,
         trackingNumber: r.tracking_number,

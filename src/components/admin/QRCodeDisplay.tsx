@@ -54,7 +54,7 @@ export function QRCodeDisplay({
       link.href = url;
       link.click();
       URL.revokeObjectURL(url);
-      toast.success('Codigo QR descargado');
+      toast.success('Código QR descargado');
     });
   };
 
@@ -62,7 +62,7 @@ export function QRCodeDisplay({
     return (
       <div className="flex flex-col items-center justify-center p-4 border border-destructive/20 rounded-lg bg-destructive/5">
         <QrCode size={24} weight="duotone" className="text-destructive mb-2" />
-        <p className="text-[12px] text-destructive">Error generando codigo QR</p>
+        <p className="text-[12px] text-destructive">Error generando código QR</p>
       </div>
     );
   }

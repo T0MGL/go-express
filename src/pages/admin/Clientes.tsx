@@ -77,11 +77,11 @@ const Clientes = () => {
         { label: 'Razon Social', accessor: (c: Cliente) => c.razonSocial },
         { label: 'RUC', accessor: (c: Cliente) => c.ruc },
         { label: 'Contacto', accessor: (c: Cliente) => c.contactoNombre },
-        { label: 'Telefono', accessor: (c: Cliente) => c.telefono },
+        { label: 'Teléfono', accessor: (c: Cliente) => c.telefono },
         { label: 'Email', accessor: (c: Cliente) => c.email },
         { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad },
         { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
-        { label: 'Total Envios', accessor: (c: Cliente) => c.totalEnvios },
+        { label: 'Total Envíos', accessor: (c: Cliente) => c.totalEnvios },
         { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
       ];
       exportToCSV(exportData, 'clientes', columns);
@@ -111,7 +111,7 @@ const Clientes = () => {
     }
 
     if (!isValidPhone(telefonoRaw)) {
-      toast.error(`Formato de telefono invalido. Ej: ${PHONE_PLACEHOLDER}`);
+      toast.error(`Formato de teléfono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
     }
 
@@ -200,7 +200,9 @@ const Clientes = () => {
         <div className="page-header">
           <div>
             <h1 className="page-header-title">Clientes</h1>
-            <p className="page-header-subtitle">Empresas con acceso al servicio de logistica</p>
+            <p className="page-header-subtitle">
+              {totales.activos > 0 ? `${totales.activos} empresa${totales.activos === 1 ? '' : 's'} activa${totales.activos === 1 ? '' : 's'}` : 'Empresas que usan Go Express'}
+            </p>
           </div>
           <div className="flex gap-2">
             <Tooltip>
@@ -210,11 +212,11 @@ const Clientes = () => {
                   Exportar
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Descargar base de clientes en CSV</TooltipContent>
+              <TooltipContent>Descargar la lista de clientes en CSV</TooltipContent>
             </Tooltip>
             <Button size="sm" onClick={() => { setSelectedCliente(null); setIsModalOpen(true); }} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" />
-              Nuevo Cliente
+              Nuevo cliente
             </Button>
           </div>
         </div>
@@ -228,7 +230,7 @@ const Clientes = () => {
               </div>
               <div>
                 <p className="stat-card-value text-xl">{totales.activos}</p>
-                <p className="stat-card-label">Empresas activas</p>
+                <p className="stat-card-label">Clientes activos</p>
               </div>
             </div>
           </div>
@@ -239,7 +241,7 @@ const Clientes = () => {
               </div>
               <div>
                 <p className="stat-card-value text-xl">{totales.totalEnvios}</p>
-                <p className="stat-card-label">Envios totales</p>
+                <p className="stat-card-label">Envíos hechos en total</p>
               </div>
             </div>
           </div>
@@ -250,7 +252,7 @@ const Clientes = () => {
               </div>
               <div>
                 <p className="stat-card-value text-xl">{formatCurrency(totales.deudaTotal)}</p>
-                <p className="stat-card-label">Deuda pendiente</p>
+                <p className="stat-card-label">Deuda total de clientes</p>
               </div>
             </div>
           </div>
@@ -261,7 +263,7 @@ const Clientes = () => {
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Buscar por empresa, RUC, contacto o email..."
+            placeholder="Buscar por nombre de empresa, RUC, contacto o email..."
             className="flex-1"
           />
           <Select value={filterEstado} onValueChange={setFilterEstado}>
@@ -357,7 +359,9 @@ const Clientes = () => {
 
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="text-right hidden md:block">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Saldo Cta.</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        {cliente.saldoCuentaCorriente < 0 ? 'Debe' : cliente.saldoCuentaCorriente > 0 ? 'A favor' : 'Saldo'}
+                      </p>
                       <p className={`font-semibold text-sm font-data ${
                         cliente.saldoCuentaCorriente < 0
                           ? 'text-destructive'
@@ -365,8 +369,9 @@ const Clientes = () => {
                           ? 'text-success'
                           : 'text-muted-foreground'
                       }`}>
-                        {cliente.saldoCuentaCorriente < 0 ? '-' : ''}
-                        {formatCurrency(Math.abs(cliente.saldoCuentaCorriente))}
+                        {cliente.saldoCuentaCorriente === 0
+                          ? 'Sin deuda'
+                          : formatCurrency(Math.abs(cliente.saldoCuentaCorriente))}
                       </p>
                     </div>
                     <div className="flex gap-0.5">
@@ -377,7 +382,7 @@ const Clientes = () => {
                             size="sm"
                             className="h-7 w-7 p-0"
                             onClick={(e) => { e.stopPropagation(); }}
-                            aria-label={`Ver envios de ${cliente.razonSocial}`}
+                            aria-label={`Ver envíos de ${cliente.razonSocial}`}
                             asChild
                           >
                             <Link to="/admin/envios">
@@ -385,7 +390,7 @@ const Clientes = () => {
                             </Link>
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Ver envios</TooltipContent>
+                        <TooltipContent>Ver envíos</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -426,7 +431,7 @@ const Clientes = () => {
                 {cliente.saldoCuentaCorriente < -100000 && (
                   <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-warning">
                     <Warning size={13} weight="fill" />
-                    <span>Saldo elevado, requiere atencion</span>
+                    <span>Saldo elevado, requiere atención</span>
                   </div>
                 )}
 
@@ -444,14 +449,20 @@ const Clientes = () => {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <Buildings size={18} weight="duotone" className="text-muted-foreground/50" />
                 </div>
-                <p className="text-[13px] font-medium">No se encontraron empresas</p>
-                <p className="text-[12px] text-muted-foreground mt-1">
-                  {searchTerm ? 'Proba con otros terminos' : 'Aun no hay clientes registrados'}
+                <p className="text-[13px] font-medium">
+                  {searchTerm || filterEstado !== 'todos' ? 'Ningún cliente coincide con los filtros' : 'Aún no hay clientes'}
                 </p>
-                <Button size="sm" className="mt-4 gap-1.5" onClick={() => setIsModalOpen(true)}>
-                  <Plus className="w-3.5 h-3.5" />
-                  Agregar cliente
-                </Button>
+                <p className="text-[12px] text-muted-foreground mt-1 mb-4">
+                  {searchTerm || filterEstado !== 'todos'
+                    ? 'Proba borrando los filtros o buscando otro termino'
+                    : 'Registrá el primer cliente para empezar a crear envíos'}
+                </p>
+                {!searchTerm && filterEstado === 'todos' && (
+                  <Button size="sm" className="gap-1.5" onClick={() => setIsModalOpen(true)}>
+                    <Plus className="w-3.5 h-3.5" />
+                    Registrar primer cliente
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -501,12 +512,12 @@ const Clientes = () => {
                     <Input
                       name="contactoCargo"
                       defaultValue={selectedCliente?.contactoCargo}
-                      placeholder="Ej: Gerente de Logistica"
+                      placeholder="Ej: Gerente de Logística"
                       className="mt-1.5"
                     />
                   </div>
                   <div>
-                    <Label className="text-[13px]">Telefono *</Label>
+                    <Label className="text-[13px]">Teléfono *</Label>
                     <Input
                       name="telefono"
                       defaultValue={selectedCliente?.telefono}
@@ -527,7 +538,7 @@ const Clientes = () => {
                     />
                   </div>
                   <div className="col-span-2">
-                    <Label className="text-[13px]">Direccion *</Label>
+                    <Label className="text-[13px]">Dirección *</Label>
                     <Input
                       name="direccion"
                       defaultValue={selectedCliente?.direccion}
@@ -616,7 +627,7 @@ const Clientes = () => {
                       <p className="font-data">{detailCliente.email}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Telefono</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Teléfono</p>
                       <p className="font-data">{detailCliente.telefono}</p>
                     </div>
                     <div>

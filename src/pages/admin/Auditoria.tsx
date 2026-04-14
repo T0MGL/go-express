@@ -25,19 +25,19 @@ import {
   CaretLeft,
   CaretRight,
 } from '@phosphor-icons/react';
-import { cn, formatTimestamp, formatTimestampTime } from '@/lib/utils';
+import { cn, formatTimestamp, formatTimestampTime, formatTimestampSmart } from '@/lib/utils';
 import { useAuditoria } from '@/hooks/api/use-auditoria';
 import { useUsuarios } from '@/hooks/api/use-usuarios';
 
 const entidadLabels: Record<string, string> = {
-  envio: 'Envio',
+  envio: 'Envío',
   cliente: 'Cliente',
   repartidor: 'Repartidor',
   pago: 'Pago',
   nota_interna: 'Nota Interna',
   tarifa: 'Tarifa',
   usuario: 'Usuario',
-  almacen: 'Almacen',
+  almacen: 'Almacén',
   sistema: 'Sistema',
 };
 
@@ -89,7 +89,7 @@ const Auditoria = () => {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const exportarCSV = () => {
-    const headers = ['Fecha', 'Hora', 'Usuario', 'Accion', 'Entidad', 'ID Entidad', 'Descripcion', 'Valor Anterior', 'Valor Nuevo'];
+    const headers = ['Fecha', 'Hora', 'Usuario', 'Acción', 'Entidad', 'ID Entidad', 'Descripción', 'Valor Anterior', 'Valor Nuevo'];
     const rows = logsFiltrados.map((l) => [
       formatTimestamp(l.creadoEn), formatTimestampTime(l.creadoEn), l.usuario,
       accionLabels[l.accion], entidadLabels[l.entidad], l.entidadId,
@@ -123,10 +123,10 @@ const Auditoria = () => {
         <div>
           <h1 className="page-header-title flex items-center gap-2">
             <ShieldCheck size={20} weight="duotone" className="text-primary" />
-            Log de Auditoria
+            Historial de acciones
           </h1>
           <p className="page-header-subtitle">
-            {logsFiltrados.length} de {totalCount} registros · Registro inmutable de todas las acciones del sistema
+            Cada cambio que se hizo en el sistema, quien lo hizo y cuando
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={exportarCSV} className="gap-1.5">
@@ -138,8 +138,7 @@ const Auditoria = () => {
       <div className="surface-card p-3 bg-primary/5 border-primary/20 flex items-start gap-2.5">
         <Info size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
         <p className="text-[12px] text-muted-foreground">
-          <strong className="text-foreground">Registro inmutable:</strong> El log de auditoria no puede ser editado ni eliminado.
-          Cada accion queda registrada con usuario, fecha, hora y detalle completo para garantizar la trazabilidad total del sistema.
+          <strong className="text-foreground">Este historial no se puede editar ni borrar.</strong> Todo queda guardado para poder revisar quien hizo que y cuando.
         </p>
       </div>
 
@@ -148,7 +147,7 @@ const Auditoria = () => {
         <SearchInput
           value={busqueda}
           onChange={setBusqueda}
-          placeholder="Buscar en descripcion o ID..."
+          placeholder="Buscar en el detalle de la acción..."
           className="flex-1 min-w-48"
         />
         <Select value={filtroUsuario} onValueChange={setFiltroUsuario}>
@@ -164,7 +163,7 @@ const Auditoria = () => {
         </Select>
         <Select value={filtroAccion} onValueChange={setFiltroAccion}>
           <SelectTrigger className={cn('w-44', filtroAccion !== 'todos' && 'border-primary/50 bg-primary/5 text-foreground')}>
-            <SelectValue placeholder="Accion" />
+            <SelectValue placeholder="Acción" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas las acciones</SelectItem>
@@ -218,14 +217,14 @@ const Auditoria = () => {
             <thead>
               <tr>
                 <th className="whitespace-nowrap w-[1%]">
-                  <div className="flex items-center gap-1.5"><Clock size={12} weight="duotone" /> Fecha / Hora</div>
+                  <div className="flex items-center gap-1.5"><Clock size={12} weight="duotone" /> Cuando</div>
                 </th>
                 <th className="whitespace-nowrap w-[1%]">
-                  <div className="flex items-center gap-1.5"><UserCircle size={12} weight="duotone" /> Usuario</div>
+                  <div className="flex items-center gap-1.5"><UserCircle size={12} weight="duotone" /> Quien</div>
                 </th>
-                <th className="w-[1%]">Accion</th>
-                <th className="w-[1%]">Entidad</th>
-                <th>Descripcion</th>
+                <th className="w-[1%]">Acción</th>
+                <th className="w-[1%]">Sobre</th>
+                <th>Detalle</th>
                 <th className="whitespace-nowrap w-[1%]">Cambios</th>
               </tr>
             </thead>
@@ -233,15 +232,17 @@ const Auditoria = () => {
               {logsFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
-                    No se encontraron registros con los filtros aplicados
+                    No hay registros que coincidan con los filtros
                   </td>
                 </tr>
               )}
               {logsFiltrados.map((log) => (
                 <tr key={log.id}>
                   <td className="whitespace-nowrap align-top">
-                    <p className="font-medium text-[12px] leading-snug">{formatTimestamp(log.creadoEn)}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{formatTimestampTime(log.creadoEn)}</p>
+                    <p className="font-medium text-[12px] leading-snug">{formatTimestampSmart(log.creadoEn)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5" title={`${formatTimestamp(log.creadoEn)} ${formatTimestampTime(log.creadoEn)}`}>
+                      {formatTimestampTime(log.creadoEn)}
+                    </p>
                   </td>
                   <td className="whitespace-nowrap align-top">
                     <div className="flex items-center gap-2">
@@ -263,7 +264,6 @@ const Auditoria = () => {
                     <Badge variant="outline" className="text-[11px] whitespace-nowrap">
                       {entidadLabels[log.entidad]}
                     </Badge>
-                    <p className="text-[11px] text-muted-foreground mt-1 font-data">{log.entidadId}</p>
                   </td>
                   <td className="align-top">
                     <p className="text-[12px] text-foreground leading-relaxed">{log.descripcion}</p>
@@ -281,7 +281,7 @@ const Auditoria = () => {
                         )}
                         {log.valorNuevo && (
                           <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground shrink-0 w-[46px] text-right">Despues:</span>
+                            <span className="text-muted-foreground shrink-0 w-[46px] text-right">Después:</span>
                             <span className="bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100 font-data text-[10px]">
                               {typeof log.valorNuevo === 'string' ? log.valorNuevo : JSON.stringify(log.valorNuevo)}
                             </span>

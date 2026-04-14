@@ -72,7 +72,7 @@ export const NotasInternas = ({ envioId: _envioId, notas, onNotaAdded }: NotasIn
         <Textarea
           value={nuevoTexto}
           onChange={(e) => setNuevoTexto(e.target.value)}
-          placeholder="Escribe una nota interna sobre este envio..."
+          placeholder="Escribe una nota interna sobre este envío..."
           rows={3}
           className="mb-3 text-[13px]"
         />

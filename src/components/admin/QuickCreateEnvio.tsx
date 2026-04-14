@@ -64,7 +64,7 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
     search: clienteSearch.length >= 2 ? clienteSearch : undefined,
     limit: 10,
   });
-  const clientes = clientesData?.data ?? [];
+  const clientes = useMemo(() => clientesData?.data ?? [], [clientesData]);
 
   const selectedCliente = useMemo(
     () => clientes.find((c) => c.id === form.clienteId) ?? null,

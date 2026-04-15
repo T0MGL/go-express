@@ -14,10 +14,12 @@ router.get(
     const today = todayPY();
     const sevenDaysAgoDate = new Date();
     sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7);
-    const sevenDaysAgo = sevenDaysAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Asunción' });
+    const sevenDaysAgo = sevenDaysAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
 
     const staleDeliveryCutoff = new Date();
     staleDeliveryCutoff.setHours(staleDeliveryCutoff.getHours() - 48);
+
+    const startOfTodayPY = new Date(`${today}T00:00:00-04:00`).toISOString();
 
     const [
       enviosHoyResult,
@@ -66,7 +68,7 @@ router.get(
         .select('id', { count: 'exact', head: true })
         .eq('eliminado', false)
         .eq('estado', 'problema')
-        .gte('problema_fecha', `${today}T00:00:00`),
+        .gte('problema_fecha', startOfTodayPY),
       // Open problems (not filtered by date: anything still in estado=problema)
       supabase
         .from('envios')

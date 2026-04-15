@@ -70,11 +70,13 @@ export const bulkLimiter = rateLimit({
 
 /**
  * SSE connection rate limiter.
- * Strict: 5 connections per minute per IP (long-lived, memory-intensive).
+ * 30 connections per minute per IP. Admins and cliente portal users routinely
+ * open multiple tabs and reconnect on visibility changes; the previous limit of
+ * 5 caused 429 cascades that the UI interpreted as auth failure.
  */
 export const sseLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 5,
+  limit: 30,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: rateLimitResponse,

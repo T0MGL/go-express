@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import { supabase } from './supabase';
 import env from './env';
 import type { Session } from '@supabase/supabase-js';
@@ -8,6 +9,7 @@ interface AuthUser {
   nombre: string;
   email: string;
   rol: 'admin' | 'operador' | 'cliente';
+  razonSocial?: string;
 }
 
 interface AuthState {
@@ -109,6 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const { data: { session: storedSession } } = await supabase.auth.getSession();
             if (storedSession) {
+              Sentry.addBreadcrumb({
+                category: 'auth',
+                level: 'info',
+                message: 'Spurious SIGNED_OUT ignored, session still present',
+              });
               await loadProfile(storedSession, 0, true);
               return;
             }
@@ -116,6 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Storage read failed, proceed with sign-out
           }
         }
+        Sentry.addBreadcrumb({
+          category: 'auth',
+          level: 'warning',
+          message: 'Auth state cleared',
+          data: { event, hasSession: !!session },
+        });
         setState({ user: null, session: null, loading: false, error: null });
         return;
       }

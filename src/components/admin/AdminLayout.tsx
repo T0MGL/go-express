@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, Suspense } from 'react';
+import * as Sentry from '@sentry/react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Header } from './Header';
@@ -90,11 +91,23 @@ export const AdminLayout = () => {
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      level: 'warning',
+      message: 'AdminLayout redirect to /login',
+      data: { reason: 'not-authenticated', path: location.pathname },
+    });
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Cliente users logged in via portal should not access admin UI
   if (user && user.rol !== 'admin' && user.rol !== 'operador') {
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      level: 'info',
+      message: 'AdminLayout redirect to /cliente',
+      data: { reason: 'wrong-role', rol: user.rol, path: location.pathname },
+    });
     return <Navigate to="/cliente" state={{ from: location }} replace />;
   }
 

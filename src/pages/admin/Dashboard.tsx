@@ -171,9 +171,9 @@ const Dashboard = () => {
         <div className="lg:col-span-5 stat-card">
           <div>
             <p className="stat-card-label">Envíos creados hoy</p>
-            <p className="stat-card-value mt-2">{animEnviosHoy}</p>
+            <p className="stat-card-value mt-2 tabular-nums">{animEnviosHoy}</p>
           </div>
-          <div className="mt-4 pt-4 border-t border-border/40 flex items-center gap-5 text-[13px]">
+          <div className="mt-4 pt-4 border-t border-border/40 flex items-center gap-5 text-[13px] tabular-nums">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="status-dot bg-primary status-pulse" />
               {enTransito} en camino
@@ -194,7 +194,7 @@ const Dashboard = () => {
               </div>
             </div>
             <p className="stat-card-label">En camino</p>
-            <p className="stat-card-value mt-1">{animEnTransito}</p>
+            <p className="stat-card-value mt-1 tabular-nums">{animEnTransito}</p>
             <p className="text-[11px] text-muted-foreground mt-1.5">Envíos activos en ruta</p>
           </div>
           <div className="stat-card">
@@ -204,7 +204,7 @@ const Dashboard = () => {
               </div>
             </div>
             <p className="stat-card-label">Tasa de entrega</p>
-            <p className="stat-card-value mt-1">{animTasa}%</p>
+            <p className="stat-card-value mt-1 tabular-nums">{animTasa}%</p>
             <Progress value={tasaEntregaNum} className="mt-2 h-1" />
           </div>
           <div className="stat-card">
@@ -214,7 +214,7 @@ const Dashboard = () => {
               </div>
             </div>
             <p className="stat-card-label">Pendiente de cobrar</p>
-            <p className="stat-card-value mt-1 text-xl font-data">{formatCurrency(pendienteCobro)}</p>
+            <p className="stat-card-value mt-1 text-xl tabular-nums">{formatCurrency(pendienteCobro)}</p>
             <p className="text-[11px] text-muted-foreground mt-1.5">Suma de envíos sin pagar</p>
           </div>
         </div>
@@ -291,7 +291,7 @@ const Dashboard = () => {
                         {estadoLabels[envio.estado]}
                       </Badge>
                     </td>
-                    <td className="text-[13px] text-muted-foreground">
+                    <td className="text-[13px] text-muted-foreground tabular-nums">
                       {formatDateSmart(envio.fecha)}
                     </td>
                     <td className="pr-5">

@@ -426,7 +426,7 @@ const EnviosList = () => {
                                 : 'Sin cobrar'}
                             </Badge>
                           </td>
-                          <td className="text-[13px] text-muted-foreground">{formatDateSmart(envio.fecha)}</td>
+                          <td className="text-[13px] text-muted-foreground tabular-nums">{formatDateSmart(envio.fecha)}</td>
                           <td className="text-right pr-4">
                             <Link to={`/admin/envios/${envio.id}`}>
                               <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" aria-label="Abrir detalle del envío">

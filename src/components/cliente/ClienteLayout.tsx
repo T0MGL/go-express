@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState, Suspense } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useRef, useEffect, useMemo, Suspense } from 'react';
+import * as Sentry from '@sentry/react';
+import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -14,18 +15,9 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { GearSix } from '@phosphor-icons/react';
-import { supabase } from '@/lib/supabase';
-import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/hooks/use-sse';
 import { getAvatarColor, getInitials } from '@/lib/avatar-color';
-
-interface ClienteProfile {
-  id: string;
-  razonSocial: string;
-  contactoNombre: string;
-  email: string;
-}
-
 
 const navItems = [
   { icon: ChartBar, label: 'Inicio', path: '/cliente', end: true, title: 'Inicio' },
@@ -53,8 +45,7 @@ export const ClienteLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement>(null);
-  const [profile, setProfile] = useState<ClienteProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const shouldReduceMotion = useReducedMotion();
   useSSE();
 
@@ -64,65 +55,22 @@ export const ClienteLayout = () => {
     document.title = `${section} · GO EXPRESS`;
   }, [location.pathname]);
 
+  // Keep a lightweight localStorage cache of the cliente identity so the initial
+  // skeleton shows the right name before the profile lands from /auth/me.
   useEffect(() => {
-    let mounted = true;
-
-    async function resolveClient() {
-      // Read cached profile from localStorage (persists across tabs and reloads)
-      const stored = localStorage.getItem('go_express_cliente');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as ClienteProfile;
-          if (mounted) setProfile(parsed);
-        } catch {
-          // Ignore malformed payload
-        }
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        if (mounted) navigate('/portal/login', { replace: true });
-        return;
-      }
-
+    if (user && user.rol === 'cliente') {
       try {
-        const me = await api.get<{
-          id: string;
-          nombre: string;
-          email: string;
-          razonSocial?: string;
-          tipo: string;
-        }>('/auth/me');
-
-        if (!mounted) return;
-
-        if (me.tipo === 'cliente') {
-          const p: ClienteProfile = {
-            id: me.id,
-            razonSocial: me.razonSocial || me.nombre,
-            contactoNombre: me.nombre,
-            email: me.email,
-          };
-          setProfile(p);
-          localStorage.setItem('go_express_cliente', JSON.stringify(p));
-        } else {
-          navigate('/admin', { replace: true });
-          return;
-        }
+        localStorage.setItem('go_express_cliente', JSON.stringify({
+          id: user.id,
+          razonSocial: user.razonSocial || user.nombre,
+          contactoNombre: user.nombre,
+          email: user.email,
+        }));
       } catch {
-        if (mounted) navigate('/portal/login', { replace: true });
-        return;
+        // Storage quota / private mode, non-critical
       }
-
-      if (mounted) setLoading(false);
     }
-
-    resolveClient().finally(() => {
-      if (mounted) setLoading(false);
-    });
-
-    return () => { mounted = false; };
-  }, [navigate]);
+  }, [user]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
@@ -130,28 +78,27 @@ export const ClienteLayout = () => {
 
   const handleLogout = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        try {
-          await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-        } catch {
-          // Non-critical
-        }
-      }
-      await supabase.auth.signOut();
+      await logout();
     } finally {
       localStorage.removeItem('go_express_cliente');
       navigate('/portal/login', { replace: true });
     }
   };
 
-  if (loading && !profile) {
+  // Cached profile from a previous session, used for first-paint display only.
+  // Source of truth is the AuthContext user; this merely prevents a skeleton flash.
+  const cachedProfile = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const stored = localStorage.getItem('go_express_cliente');
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as { razonSocial?: string; email?: string };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  if (loading && !cachedProfile) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <div className="border-b border-border/50 bg-card/80">
@@ -183,8 +130,28 @@ export const ClienteLayout = () => {
     );
   }
 
-  const displayName = profile?.razonSocial || 'Cliente';
-  const displayEmail = profile?.email || '';
+  if (!loading && !isAuthenticated) {
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      level: 'warning',
+      message: 'ClienteLayout redirect to portal/login',
+      data: { reason: 'not-authenticated', path: location.pathname },
+    });
+    return <Navigate to="/portal/login" state={{ from: location }} replace />;
+  }
+
+  if (!loading && user && user.rol !== 'cliente') {
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      level: 'info',
+      message: 'ClienteLayout redirect to /admin',
+      data: { reason: 'wrong-role', rol: user.rol, path: location.pathname },
+    });
+    return <Navigate to="/admin" state={{ from: location }} replace />;
+  }
+
+  const displayName = user?.razonSocial || user?.nombre || cachedProfile?.razonSocial || 'Cliente';
+  const displayEmail = user?.email || cachedProfile?.email || '';
   const avatarTone = getAvatarColor(displayName);
   const pageTransition = shouldReduceMotion
     ? {
@@ -207,7 +174,7 @@ export const ClienteLayout = () => {
           <div className="flex items-center gap-2.5">
             <img src="/isotipo.png" alt="Go Express" className="h-5 w-5" />
             <div className="flex items-baseline gap-2">
-              <span className="font-display font-extrabold text-[12px] tracking-tight">GO EXPRESS</span>
+              <span className="font-display font-bold text-[12px] tracking-tight">GO EXPRESS</span>
               <span className="text-[10px] text-muted-foreground font-medium">Portal</span>
             </div>
           </div>

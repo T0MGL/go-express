@@ -44,7 +44,7 @@ export const Sidebar = () => {
           <img src="/isotipo.png" alt="Go Express" className={collapsed ? 'h-5 w-5' : 'h-6 w-6'} />
           {!collapsed && (
             <div className="min-w-0">
-              <h2 className="font-display font-extrabold text-[12px] text-white leading-none tracking-tight">
+              <h2 className="font-display font-bold text-[12px] text-white leading-none tracking-tight">
                 GO EXPRESS
               </h2>
               <p className="text-[8px] text-white/20 mt-0.5 tracking-[0.18em] font-medium uppercase">
@@ -172,7 +172,7 @@ export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
       <SheetContent side="left" className="w-[240px] p-0 bg-sidebar border-r-0">
         <SheetHeader className="px-4 h-12 flex flex-row items-center gap-2.5 border-b border-white/[0.06]">
           <img src="/isotipo.png" alt="Go Express" className="h-6 w-6" />
-          <SheetTitle className="font-display font-extrabold text-[12px] text-white leading-none tracking-tight">
+          <SheetTitle className="font-display font-bold text-[12px] text-white leading-none tracking-tight">
             GO EXPRESS
           </SheetTitle>
         </SheetHeader>

@@ -276,7 +276,7 @@ const Landing = () => {
               <span className="text-[12px] text-sidebar font-bold tracking-wide">Solidez Logística a Nivel Nacional</span>
             </motion.div>
 
-            <motion.h1 variants={fadeUpVariant} className="font-display text-[2.75rem] md:text-[4.5rem] font-extrabold text-sidebar leading-[1.05] tracking-tight mb-6">
+            <motion.h1 variants={fadeUpVariant} className="font-display text-[2.75rem] md:text-[4.5rem] font-bold text-sidebar leading-[1.05] tracking-tight mb-6">
               Tu envío, <br />en buenas <br />manos.
             </motion.h1>
 
@@ -451,7 +451,7 @@ const Landing = () => {
             ].map((s, i) => (
               <motion.div variants={fadeUpVariant} key={i} className="text-center py-10 md:py-12">
                 <s.icon weight="fill" className="w-6 h-6 text-primary/25 mx-auto mb-3" />
-                <p className="text-3xl font-display font-extrabold text-slate-600 mb-1 tracking-tight">
+                <p className="text-3xl font-display font-bold text-slate-600 mb-1 tracking-tighter tabular-nums">
                   <NumberCounter target={s.target} suffix={s.suffix} />
                 </p>
                 <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{s.label}</p>
@@ -467,7 +467,7 @@ const Landing = () => {
           <div className="mb-16 md:mb-20 text-center max-w-2xl mx-auto">
             <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase mb-3 block">Nuestros Servicios</span>
-              <h2 className="font-display text-3xl md:text-5xl font-extrabold mb-6 tracking-tight text-sidebar">Logística hecha <br />para empresas.</h2>
+              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">Logística hecha <br />para empresas.</h2>
               <p className="text-sidebar/60 text-lg font-medium leading-relaxed">
                 Nos enfocamos en el cumplimiento seguro de la cadena de suministro de tu negocio, con procesos humanos verificados y atención personalizada.
               </p>
@@ -567,7 +567,7 @@ const Landing = () => {
                 <Globe weight="duotone" className="w-5 h-5 text-primary" />
                 <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase">Cobertura y Tarifas</span>
               </div>
-              <h2 className="font-display text-3xl md:text-5xl font-extrabold mb-6 tracking-tight text-sidebar">
+              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">
                 Presencia en todo<br />el territorio.
               </h2>
               <p className="text-sidebar/60 text-lg font-medium leading-relaxed mb-10 max-w-md">
@@ -580,7 +580,7 @@ const Landing = () => {
                   <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
                     <div className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Gran Asunción</div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-2xl font-extrabold text-sidebar">Gs. {formatGs(pricing.granAsuncionEstandar)}</span>
+                      <span className="font-display text-2xl font-bold text-sidebar tracking-tight tabular-nums">Gs. {formatGs(pricing.granAsuncionEstandar)}</span>
                       <span className="text-sm text-sidebar/40 font-medium">estándar</span>
                     </div>
                     {pricing.granAsuncionExpress !== null && (
@@ -595,7 +595,7 @@ const Landing = () => {
                   <div className="rounded-2xl border border-muted bg-slate-50 p-5">
                     <div className="text-[11px] font-bold uppercase tracking-widest text-sidebar/50 mb-2">Interior</div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-2xl font-extrabold text-sidebar">Gs. {formatGs(pricing.interiorDesde)}</span>
+                      <span className="font-display text-2xl font-bold text-sidebar tracking-tight tabular-nums">Gs. {formatGs(pricing.interiorDesde)}</span>
                       <span className="text-sm text-sidebar/40 font-medium">desde</span>
                     </div>
                   </div>
@@ -609,7 +609,7 @@ const Landing = () => {
                   { value: ciudades.length > 0 ? String(ciudades.filter(c => c.express !== null).length) : '...', label: 'Con Express' },
                 ].map((stat) => (
                   <div key={stat.label}>
-                    <div className="font-display text-3xl font-extrabold text-primary mb-1">{stat.value}</div>
+                    <div className="font-display text-3xl font-bold text-primary mb-1 tracking-tighter tabular-nums">{stat.value}</div>
                     <div className="text-sm text-sidebar/50 font-medium">{stat.label}</div>
                   </div>
                 ))}
@@ -679,7 +679,7 @@ const Landing = () => {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase mb-3 block">Proceso</span>
-              <h2 className="font-display text-3xl md:text-5xl font-extrabold mb-6 tracking-tight text-sidebar">Un proceso operativo<br />seguro y auditable.</h2>
+              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">Un proceso operativo<br />seguro y auditable.</h2>
               <p className="text-sidebar/60 text-lg font-medium leading-relaxed mb-10 max-w-md">
                 Sin complicaciones inventadas. Procesos de despacho lineales que aseguran que el paquete sale de tus manos y llega al destino correcto.
               </p>
@@ -757,7 +757,7 @@ const Landing = () => {
         <div className="max-w-3xl mx-auto px-6">
           <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
             <span className="text-slate-400 font-bold tracking-widest text-[11px] uppercase mb-3 block">Preguntas Frecuentes</span>
-            <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-slate-700">¿Tenés dudas?</h2>
+            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-slate-700">¿Tenés dudas?</h2>
           </motion.div>
 
           <div className="space-y-0 divide-y divide-muted/60">
@@ -780,7 +780,7 @@ const Landing = () => {
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <span className="text-brand-lime font-bold tracking-widest text-sm uppercase mb-3 block">Comercial</span>
-              <h2 className="font-display text-3xl md:text-5xl font-extrabold mb-6 tracking-tight text-white">Inicia la operación comercial hoy.</h2>
+              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-white">Inicia la operación comercial hoy.</h2>
               <p className="text-white/50 text-lg font-medium mb-12 leading-relaxed max-w-md">
                 Delega tu logística a un socio de confianza, E.A.S. con facturación legal e infraestructura lista para mover tu mercadería segura.
               </p>
@@ -960,7 +960,7 @@ const Landing = () => {
                 <ShieldCheck weight="duotone" className="w-6 h-6 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-display font-extrabold text-[22px] text-sidebar leading-tight tracking-tight">
+                <h3 className="font-display font-bold text-[22px] text-sidebar leading-tight tracking-tight">
                   Seguro de Carga
                 </h3>
                 <p className="text-[13px] text-sidebar/50 font-medium mt-1">
@@ -976,7 +976,7 @@ const Landing = () => {
                 <CheckCircle weight="fill" className="w-4 h-4 text-primary" />
                 <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Incluido sin costo</span>
               </div>
-              <p className="font-display font-extrabold text-[18px] text-sidebar leading-snug">
+              <p className="font-display font-bold text-[18px] text-sidebar leading-snug">
                 Hasta Gs. 200.000 por envío
               </p>
               <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">
@@ -989,7 +989,7 @@ const Landing = () => {
                 <Package weight="fill" className="w-4 h-4 text-sidebar/60" />
                 <span className="text-[11px] font-bold uppercase tracking-widest text-sidebar/60">Cobertura ampliada</span>
               </div>
-              <p className="font-display font-extrabold text-[18px] text-sidebar leading-snug">
+              <p className="font-display font-bold text-[18px] text-sidebar leading-snug">
                 Sobre el valor declarado
               </p>
               <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">

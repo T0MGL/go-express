@@ -454,7 +454,7 @@ const Track = () => {
                 <span className="text-[12px] text-sidebar font-bold tracking-wide">Rastreo en Tiempo Real</span>
               </motion.div>
 
-              <motion.h1 variants={fadeUpVariant} className="font-display text-[2.25rem] md:text-[3.5rem] font-extrabold text-sidebar tracking-tight leading-[1.05] mb-5">
+              <motion.h1 variants={fadeUpVariant} className="font-display text-[2.25rem] md:text-[3.5rem] font-bold text-sidebar tracking-tight leading-[1.05] mb-5">
                 Rastrea tu envío
               </motion.h1>
 

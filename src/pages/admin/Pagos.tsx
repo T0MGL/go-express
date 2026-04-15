@@ -252,7 +252,7 @@ const Pagos = () => {
                             ? metodosPagoLabels[pago.metodoPago]
                             : <span className="text-muted-foreground/60">Sin definir</span>}
                         </td>
-                        <td className="text-[12px] text-muted-foreground">
+                        <td className="text-[12px] text-muted-foreground tabular-nums">
                           {pago.fechaPago ? formatDateSmart(pago.fechaPago) : 'Sin cobrar'}
                         </td>
                         <td className="text-right">

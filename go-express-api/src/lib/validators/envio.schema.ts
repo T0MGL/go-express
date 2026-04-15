@@ -22,6 +22,15 @@ export const createEnvioSchema = z.object({
   destinatarioBarrio: z.string().max(100).optional(),
   destinatarioReferencia: z.string().max(500).optional(),
   destinatarioUbicacionUrl: z.string().url().max(2000).optional().or(z.literal('')),
+  destinatarioEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Email invalido')
+    .max(320)
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v === '' || v === undefined ? undefined : v)),
 
   // Paquete
   cantidad: z.number().int().min(1).max(999).default(1),

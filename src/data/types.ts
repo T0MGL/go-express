@@ -70,6 +70,7 @@ export interface Envio {
   destinatarioBarrio: string | null;
   destinatarioReferencia: string | null;
   destinatarioUbicacionUrl: string | null;
+  destinatarioEmail: string | null;
   cantidad: number;
   producto: string;
   estado: 'pendiente' | 'recolectado' | 'en_transito' | 'en_reparto' | 'entregado' | 'fallido' | 'problema';

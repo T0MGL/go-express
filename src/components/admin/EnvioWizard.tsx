@@ -70,6 +70,12 @@ const paso4Schema = z.object({
   destinatarioTelefono: z.string().refine((v) => isValidPhone(v), {
     message: `Formato: ${PHONE_PLACEHOLDER}`,
   }),
+  destinatarioEmail: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+      message: 'Email invalido',
+    }),
 });
 
 const paso5Schema = z.object({
@@ -241,6 +247,7 @@ export function EnvioWizard() {
           destinatarioNombre: formData.destinatarioNombre,
           destinatarioDireccion: formData.destinatarioDireccion,
           destinatarioTelefono: formData.destinatarioTelefono,
+          destinatarioEmail: formData.destinatarioEmail,
         };
         break;
       case 5:
@@ -296,6 +303,7 @@ export function EnvioWizard() {
 
     const talla = TALLAS.find(t => t.id === formData.talla);
     const valorDeclaradoPayload = Math.round(parseFloat(formData.valorDeclarado) || 0);
+    const emailTrimmed = formData.destinatarioEmail.trim();
     createEnvioMut.mutate(
         {
           clienteId: formData.cliente,
@@ -306,6 +314,7 @@ export function EnvioWizard() {
           destinatarioNombre: formData.destinatarioNombre,
           destinatarioDireccion: formData.destinatarioDireccion,
           destinatarioTelefono: normalizePhone(formData.destinatarioTelefono),
+          ...(emailTrimmed ? { destinatarioEmail: emailTrimmed } : {}),
           notas: formData.notas,
           costo: Math.round(parseFloat(formData.costo)),
           tipoPago: formData.tipoPago,
@@ -712,9 +721,13 @@ export function EnvioWizard() {
                   placeholder="correo@ejemplo.com"
                   value={formData.destinatarioEmail}
                   onChange={(e) => handleChange('destinatarioEmail', e.target.value)}
+                  className={errors.destinatarioEmail ? 'border-destructive' : ''}
                 />
+                {errors.destinatarioEmail && (
+                  <p className="text-[12px] text-destructive mt-1">{errors.destinatarioEmail}</p>
+                )}
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Se enviaran las actualizaciones de estado del envío a este correo
+                  Si lo completas, el destinatario recibira email en cada cambio de estado.
                 </p>
               </div>
 

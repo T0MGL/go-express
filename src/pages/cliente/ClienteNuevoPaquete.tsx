@@ -43,6 +43,7 @@ const ClienteNuevoPaquete = () => {
   const [form, setForm] = useState({
     destinatarioNombre: '',
     destinatarioTelefono: '',
+    destinatarioEmail: '',
     destinatarioDireccion: '',
     departamento: '',
     ciudad: '',
@@ -163,6 +164,12 @@ const ClienteNuevoPaquete = () => {
 
     const ciudadTrimmed = form.ciudad.trim();
     const codigoTrimmed = form.codigoReferencia.trim();
+    const emailTrimmed = form.destinatarioEmail.trim();
+
+    if (emailTrimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      toast.error('Email del destinatario invalido');
+      return;
+    }
 
     const valorDeclaradoNum = Math.round(parseFloat(form.valorDeclarado) || 0);
 
@@ -174,6 +181,7 @@ const ClienteNuevoPaquete = () => {
         destinatarioDepartamento: form.departamento,
         ...(ciudadTrimmed ? { destinatarioCiudad: ciudadTrimmed } : {}),
         ...(codigoTrimmed ? { codigoReferencia: codigoTrimmed } : {}),
+        ...(emailTrimmed ? { destinatarioEmail: emailTrimmed } : {}),
         peso: Number(form.peso),
         dimensiones: {
           largo: Number(form.largo) || 0,
@@ -227,6 +235,19 @@ const ClienteNuevoPaquete = () => {
             <div>
               <Label className="text-[11px]">Dirección de entrega *</Label>
               <Input required value={form.destinatarioDireccion} onChange={(e) => handleChange('destinatarioDireccion', e.target.value)} className="mt-1.5" />
+            </div>
+            <div>
+              <Label className="text-[11px]">Email del destinatario (opcional)</Label>
+              <Input
+                type="email"
+                placeholder="correo@ejemplo.com"
+                value={form.destinatarioEmail}
+                onChange={(e) => handleChange('destinatarioEmail', e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Si lo cargas, el destinatario recibe email en cada cambio de estado.
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>

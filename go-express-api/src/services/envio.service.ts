@@ -69,6 +69,7 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     destinatarioBarrio: row.destinatario_barrio,
     destinatarioReferencia: row.destinatario_referencia,
     destinatarioUbicacionUrl: row.destinatario_ubicacion_url,
+    destinatarioEmail: row.destinatario_email,
     cantidad: row.cantidad,
     producto: row.producto,
     peso: row.peso,
@@ -210,7 +211,7 @@ const ENVIO_COLUMNS = [
   'destinatario_nombre', 'destinatario_direccion', 'destinatario_telefono',
   'destinatario_telefono2', 'destinatario_cedula',
   'destinatario_ciudad', 'destinatario_departamento', 'destinatario_barrio',
-  'destinatario_referencia', 'destinatario_ubicacion_url',
+  'destinatario_referencia', 'destinatario_ubicacion_url', 'destinatario_email',
   'cantidad', 'producto', 'peso',
   'dimensiones_largo', 'dimensiones_ancho', 'dimensiones_alto',
   'fragil', 'valor_declarado', 'instrucciones_entrega', 'horario_entrega', 'notas',
@@ -417,6 +418,7 @@ class EnvioService {
         destinatario_barrio: input.destinatarioBarrio ?? null,
         destinatario_referencia: input.destinatarioReferencia ?? null,
         destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+        destinatario_email: input.destinatarioEmail ?? null,
         cantidad: input.cantidad,
         producto: input.producto ?? '',
         peso: input.peso,
@@ -520,6 +522,9 @@ class EnvioService {
     }
     if (input.destinatarioUbicacionUrl !== undefined) {
       updateData['destinatario_ubicacion_url'] = input.destinatarioUbicacionUrl || null;
+    }
+    if (input.destinatarioEmail !== undefined) {
+      updateData['destinatario_email'] = input.destinatarioEmail ?? null;
     }
     if (input.cantidad !== undefined) updateData['cantidad'] = input.cantidad;
     if (input.producto !== undefined) updateData['producto'] = input.producto;
@@ -843,6 +848,7 @@ class EnvioService {
       destinatario_barrio: input.destinatarioBarrio ?? null,
       destinatario_referencia: input.destinatarioReferencia ?? null,
       destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+      destinatario_email: input.destinatarioEmail ?? null,
       cantidad: input.cantidad,
       producto: input.producto ?? '',
       peso: input.peso,

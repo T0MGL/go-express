@@ -108,6 +108,7 @@ export interface EnvioRow {
   destinatario_barrio: string | null;
   destinatario_referencia: string | null;
   destinatario_ubicacion_url: string | null;
+  destinatario_email: string | null;
   cantidad: number;
   producto: string;
   peso: number;
@@ -361,6 +362,7 @@ export interface Envio {
   destinatarioBarrio: string | null;
   destinatarioReferencia: string | null;
   destinatarioUbicacionUrl: string | null;
+  destinatarioEmail: string | null;
   cantidad: number;
   producto: string;
   peso: number;

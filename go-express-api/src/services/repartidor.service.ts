@@ -296,6 +296,7 @@ class RepartidorService {
       destinatarioBarrio: null,
       destinatarioReferencia: null,
       destinatarioUbicacionUrl: null,
+      destinatarioEmail: null,
       cantidad: 0,
       producto: '',
       peso: 0,

@@ -70,6 +70,7 @@ export interface BulkImportEnvio {
   destinatarioBarrio?: string;
   destinatarioReferencia?: string;
   destinatarioUbicacionUrl?: string;
+  destinatarioEmail?: string;
   codigoReferencia?: string;
   cantidad?: number;
   producto?: string;

@@ -12,11 +12,14 @@ const Login = () => {
   const isAdminUser = user?.rol === 'admin' || user?.rol === 'operador';
 
   useEffect(() => {
-    if (isAuthenticated && user && !isAdminUser) {
+    // Only sign out a cliente that landed here AFTER the profile finished loading.
+    // During the initial fetch (loading=true) user may be null transiently, which
+    // would look like !isAdminUser and trigger a spurious logout.
+    if (!loading && isAuthenticated && user && !isAdminUser) {
       supabase.auth.signOut();
       localStorage.removeItem('go_express_cliente');
     }
-  }, [isAuthenticated, user, isAdminUser]);
+  }, [loading, isAuthenticated, user, isAdminUser]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);

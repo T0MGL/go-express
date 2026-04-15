@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import env from './env';
 import { supabase } from './supabase';
 
@@ -101,11 +102,34 @@ async function request<T>(
       return retryResponse.json();
     }
 
-    // Refresh failed: clear the stale cached token so the next call
-    // picks up a fresh session from Supabase (which may have been
-    // refreshed by its own internal visibility-change handler).
-    // Do NOT call signOut() here: the session may still be recoverable
-    // from another tab or from Supabase's own auto-refresh cycle.
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      level: 'warning',
+      message: 'API 401 and refreshSession returned no session',
+      data: { endpoint },
+    });
+
+    // Refresh failed. Before clearing the cache, re-read the session from storage:
+    // another tab or Supabase's own background refresh may have produced a fresh
+    // token in the meantime. Only null the cache if the session is truly gone.
+    const { data: { session: recoveredSession } } = await supabase.auth.getSession();
+    if (recoveredSession?.access_token) {
+      cachedAccessToken = recoveredSession.access_token;
+      const retryHeaders = {
+        ...config.headers as Record<string, string>,
+        'Authorization': `Bearer ${recoveredSession.access_token}`,
+      };
+      const retryResponse = await fetch(url, { ...config, headers: retryHeaders });
+      if (!retryResponse.ok) {
+        const retryData = await retryResponse.json().catch(() => null);
+        throw new ApiError(retryResponse.status, retryResponse.statusText, retryData);
+      }
+      if (retryResponse.status === 204) {
+        return undefined as T;
+      }
+      return retryResponse.json();
+    }
+
     cachedAccessToken = null;
   }
 

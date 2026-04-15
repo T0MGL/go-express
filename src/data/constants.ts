@@ -71,7 +71,7 @@ export const estadoClienteColors: Record<string, BadgeVariant> = {
 };
 
 export const departamentosPY = [
-  'Asunción (Capital)',
+  'Asunción',
   'Alto Paraguay',
   'Alto Paraná',
   'Amambay',

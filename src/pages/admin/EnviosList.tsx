@@ -394,7 +394,10 @@ const EnviosList = () => {
                           <td className="text-[13px]">{envio.clienteNombre}</td>
                           <td className="text-[13px] text-muted-foreground">{envio.destino}</td>
                           <td>
-                            <Badge variant={estadoColors[envio.estado]}>
+                            <Badge
+                              variant={estadoColors[envio.estado]}
+                              className={cn(envio.estado === 'problema' && 'badge-pulse')}
+                            >
                               {estadoLabels[envio.estado]}
                             </Badge>
                           </td>

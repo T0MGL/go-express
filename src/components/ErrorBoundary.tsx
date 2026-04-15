@@ -42,9 +42,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mx-auto mb-6">
               <span className="text-2xl font-bold text-destructive">!</span>
             </div>
-            <h1 className="font-display text-xl font-bold mb-2">Algo salio mal</h1>
+            <h1 className="font-display text-xl font-bold mb-2">Algo se nos rompió acá</h1>
             <p className="text-sm text-muted-foreground mb-6">
-              Ocurrio un error inesperado. Podés intentar de nuevo o recargar la página.
+              Ocurrió un error inesperado. Ya nos avisamos. Probá recargar la página o volver a intentarlo en un momento.
             </p>
             <div className="flex gap-3 justify-center" role="group" aria-label="Opciones de recuperacion">
               <button

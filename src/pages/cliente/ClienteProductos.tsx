@@ -132,12 +132,16 @@ const ClienteProductos = () => {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Mis Productos</h1>
-          <p className="page-header-subtitle">Productos guardados para agilizar la creación de envíos</p>
+          <h1 className="page-header-title">Mis productos</h1>
+          <p className="page-header-subtitle">
+            {productos.length > 0
+              ? `${productos.length} ${productos.length === 1 ? 'producto guardado' : 'productos guardados'} para cargar envíos más rápido`
+              : 'Productos guardados para cargar envíos más rápido'}
+          </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
           <Plus className="w-3.5 h-3.5" />
-          Nuevo Producto
+          Nuevo producto
         </Button>
       </div>
 
@@ -145,9 +149,9 @@ const ClienteProductos = () => {
       <div className="surface-card p-4 flex items-start gap-3 border-l-2 border-l-primary">
         <Cube size={18} weight="duotone" className="text-primary mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-[13px] font-medium">Ahorra tiempo en cada envío</p>
+          <p className="text-[13px] font-medium">Ahorrá tiempo en cada envío</p>
           <p className="text-[12px] text-muted-foreground mt-0.5">
-            Guardá los productos que enviás frecuentemente. Al crear un nuevo paquete, podés seleccionar un producto guardado y los datos de peso y dimensiones se completarán automáticamente.
+            Guardá los productos que enviás seguido. Cuando crees un paquete nuevo, lo elegís del listado y completamos peso, dimensiones y contenido automáticamente.
           </p>
         </div>
       </div>
@@ -253,15 +257,17 @@ const ClienteProductos = () => {
             <Cube size={18} weight="duotone" className="text-muted-foreground/50" />
           </div>
           <p className="text-[13px] font-medium">
-            {searchTerm ? 'No se encontraron productos' : 'Aún no tenés productos guardados'}
+            {searchTerm ? 'Nada coincide con tu búsqueda' : 'Todavía no guardaste productos'}
           </p>
-          <p className="text-[12px] text-muted-foreground mt-1">
-            {searchTerm ? 'Probá con otros términos' : 'Creá tu primer producto para agilizar tus envíos'}
+          <p className="text-[12px] text-muted-foreground mt-1 max-w-sm mx-auto">
+            {searchTerm
+              ? 'Probá con otro nombre o descripción.'
+              : 'Guardá los productos que enviás seguido y ahorrate completar peso y dimensiones cada vez.'}
           </p>
           {!searchTerm && (
             <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
               <Plus className="w-3.5 h-3.5" />
-              Crear producto
+              Crear mi primer producto
             </Button>
           )}
         </div>
@@ -292,7 +298,7 @@ const ClienteProductos = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">
-              {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+              {editingProduct ? 'Editar producto' : 'Nuevo producto'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -414,7 +420,7 @@ const ClienteProductos = () => {
                 {isMutating ? (
                   <CircleNotch size={14} weight="bold" className="animate-spin mr-1.5" />
                 ) : null}
-                {editingProduct ? 'Guardar' : 'Crear Producto'}
+                {editingProduct ? 'Guardar cambios' : 'Crear producto'}
               </Button>
             </DialogFooter>
           </form>

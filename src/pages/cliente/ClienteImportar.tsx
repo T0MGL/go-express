@@ -148,12 +148,12 @@ const ClienteImportar = () => {
       onSuccess: (res) => {
         setImportado(true);
         toast({
-          title: `${res.imported} envíos importados correctamente`,
-          description: 'Los envíos quedaron registrados y están pendientes de procesamiento por Go Express.',
+          title: `Listo, importamos ${res.imported} ${res.imported === 1 ? 'envío' : 'envíos'}`,
+          description: 'Los pedidos quedaron registrados y pasan a recolección en las próximas horas.',
         });
       },
       onError: () => {
-        toast({ title: 'Error al importar los envíos. Intenta nuevamente.', variant: 'destructive' });
+        toast({ title: 'No pudimos importar los envíos. Probá de nuevo.', variant: 'destructive' });
       },
     });
   };
@@ -169,13 +169,13 @@ const ClienteImportar = () => {
     <div>
       <div className="page-header mb-6">
         <div>
-          <h1 className="page-header-title">Importación Masiva</h1>
+          <h1 className="page-header-title">Importar paquetes</h1>
           <p className="page-header-subtitle">
-            Carga multiples pedidos de una sola vez usando un archivo CSV
+            Cargá varios pedidos a la vez con un archivo CSV
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={descargarTemplate} className="gap-1.5">
-          <DownloadSimple size={14} weight="duotone" /> Descargar plantilla CSV
+          <DownloadSimple size={14} weight="duotone" /> Descargar plantilla
         </Button>
       </div>
 
@@ -184,15 +184,15 @@ const ClienteImportar = () => {
         <div className="flex items-start gap-2.5">
           <Info size={14} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
           <div className="text-[12px] text-muted-foreground space-y-1">
-            <p><strong className="text-foreground">Como usar:</strong></p>
+            <p><strong className="text-foreground">Cómo funciona:</strong></p>
             <ol className="list-decimal list-inside space-y-0.5 ml-1">
-              <li>Descarga la plantilla CSV con el botón de arriba</li>
-              <li>Completa los datos de tus pedidos en el archivo (una fila por pedido)</li>
-              <li>Subi el archivo completado usando el area de carga</li>
-              <li>Revisa la vista previa y confirma la importación</li>
+              <li>Descargá la plantilla CSV con el botón de arriba</li>
+              <li>Completá los datos de tus pedidos en el archivo (una fila por pedido)</li>
+              <li>Subí el archivo completado al área de carga</li>
+              <li>Revisá la vista previa y confirmá la importación</li>
             </ol>
             <p className="mt-1">
-              <strong className="text-foreground">Columnas obligatorias:</strong> nombre, teléfono, dirección, ciudad destino, peso (kg).
+              <strong className="text-foreground">Campos obligatorios:</strong> nombre, teléfono, dirección, ciudad de destino, peso en kg.
             </p>
           </div>
         </div>
@@ -221,9 +221,9 @@ const ClienteImportar = () => {
           />
           <FileText size={32} weight="duotone" className="text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-[13px] font-medium mb-1">
-            {dragging ? 'Solta el archivo aquí' : 'Arrastra tu archivo CSV aquí'}
+            {dragging ? 'Soltá el archivo acá' : 'Arrastrá tu archivo CSV acá'}
           </p>
-          <p className="text-[12px] text-muted-foreground mb-3">o hace clic para seleccionarlo</p>
+          <p className="text-[12px] text-muted-foreground mb-3">o hacé clic para elegirlo</p>
           <Button variant="outline" size="sm" className="gap-1.5" type="button">
             <UploadSimple size={14} weight="duotone" /> Seleccionar archivo
           </Button>
@@ -237,9 +237,10 @@ const ClienteImportar = () => {
       {importado && (
         <div className="surface-card p-6 mb-5 bg-green-50 border-green-200 text-center">
           <CheckCircle size={32} weight="duotone" className="text-green-500 mx-auto mb-3" />
-          <h3 className="font-semibold text-[15px] mb-1">Importación exitosa!</h3>
+          <h3 className="font-semibold text-[15px] mb-1">Listo, recibimos tus pedidos</h3>
           <p className="text-[12px] text-muted-foreground mb-4">
-            Se importaron <strong>{filasValidas.length} envios</strong> correctamente. Go Express procesara los pedidos en las proximas horas.
+            Se importaron <strong className="font-data">{filasValidas.length}</strong>{' '}
+            {filasValidas.length === 1 ? 'envío' : 'envíos'}. Los procesamos en las próximas horas y te notificamos cuando pasen a recolección.
           </p>
           <Button variant="outline" size="sm" onClick={limpiar} className="gap-1.5">
             <UploadSimple size={14} weight="duotone" /> Importar otro archivo
@@ -254,7 +255,7 @@ const ClienteImportar = () => {
             <div className="flex gap-3 flex-1">
               <div className="stat-card !py-2 !px-3 flex-row items-center gap-2">
                 <CheckCircle size={14} weight="duotone" className="text-green-500" />
-                <span className="text-[12px]"><strong className="font-data">{filasValidas.length}</strong> validas</span>
+                <span className="text-[12px]"><strong className="font-data">{filasValidas.length}</strong> listas</span>
               </div>
               <div className="stat-card !py-2 !px-3 flex-row items-center gap-2">
                 <XCircle size={14} weight="duotone" className="text-destructive" />

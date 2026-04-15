@@ -1,10 +1,21 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useReducedMotion } from 'motion/react';
 
-export function useAnimatedNumber(target: number, duration = 600) {
+// Counts up from 0 to `target` over `duration` ms using ease-out cubic. If the
+// user prefers reduced motion we jump straight to the final value so the UI
+// never animates when it shouldn't. Re-runs whenever `target` changes, which
+// is what we want for live counters fed by queries.
+export function useAnimatedNumber(target: number, duration = 1200) {
   const [current, setCurrent] = useState(0);
   const rafId = useRef(0);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (shouldReduceMotion) {
+      setCurrent(target);
+      return;
+    }
+
     if (target === 0) {
       setCurrent(0);
       return;
@@ -26,7 +37,7 @@ export function useAnimatedNumber(target: number, duration = 600) {
 
     rafId.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId.current);
-  }, [target, duration]);
+  }, [target, duration, shouldReduceMotion]);
 
   return current;
 }

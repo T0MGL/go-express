@@ -63,10 +63,10 @@ const ClienteCuenta = () => {
 
     updateMutation.mutate(payload, {
       onSuccess: () => {
-        toast.success('Datos actualizados correctamente');
+        toast.success('Listo, guardamos los cambios');
       },
       onError: () => {
-        toast.error('Error al actualizar los datos');
+        toast.error('No pudimos guardar los cambios. Probá de nuevo.');
       },
     });
   };
@@ -96,8 +96,8 @@ const ClienteCuenta = () => {
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Mi Cuenta</h1>
-          <p className="page-header-subtitle">Información de tu empresa y datos de contacto</p>
+          <h1 className="page-header-title">Mi cuenta</h1>
+          <p className="page-header-subtitle">Los datos de tu empresa y contacto principal</p>
         </div>
       </div>
 
@@ -105,7 +105,7 @@ const ClienteCuenta = () => {
         <div className="surface-card p-5">
           <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
             <Buildings size={16} weight="duotone" className="text-primary" />
-            Datos de la Empresa
+            Datos de la empresa
           </h3>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -138,7 +138,7 @@ const ClienteCuenta = () => {
         <div className="surface-card p-5">
           <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
             <UserCircle size={16} weight="duotone" className="text-primary" />
-            Contacto Principal
+            Contacto principal
           </h3>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -161,7 +161,7 @@ const ClienteCuenta = () => {
             ) : (
               <FloppyDisk size={14} weight="duotone" />
             )}
-            {updateMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+            {updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
           </Button>
         </div>
       </form>

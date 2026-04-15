@@ -8,7 +8,7 @@ import {
 import { estadoLabels } from '@/data/constants';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
+import { formatDateSmart } from '@/lib/utils';
 import { useClienteDashboardStats } from '@/hooks/api/use-cliente-dashboard';
 import { useCuenta } from '@/hooks/api/use-cuenta';
 import { useState } from 'react';
@@ -17,6 +17,8 @@ import { Timeline } from '@/components/tracking/Timeline';
 import { Barcode } from '@phosphor-icons/react';
 import { printShippingLabel } from '@/components/printing/generateShippingLabel';
 import { useClienteEnvio } from '@/hooks/api/use-cliente-envios';
+import { useAnimatedNumber } from '@/hooks/use-animated-number';
+import { cn } from '@/lib/utils';
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
@@ -38,11 +40,21 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] as const } },
 } as const;
 
+const rowStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+} as const;
+
+const rowFade = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const } },
+} as const;
+
 const quickActions = [
-  { icon: PlusCircle, label: 'Nuevo envío', desc: 'Registrar paquete', path: '/cliente/envios/nuevo' },
-  { icon: UploadSimple, label: 'Importar', desc: 'Carga masiva CSV', path: '/cliente/importar' },
-  { icon: Calculator, label: 'Cotizador', desc: 'Calcular costos', path: '/cliente/cotizar' },
-  { icon: Tag, label: 'Etiquetas', desc: 'Descargar e imprimir', path: '/cliente/etiquetas' },
+  { icon: PlusCircle, label: 'Nuevo envío', desc: 'Registrar un paquete', path: '/cliente/envios/nuevo' },
+  { icon: UploadSimple, label: 'Importar', desc: 'Varios pedidos con CSV', path: '/cliente/importar' },
+  { icon: Calculator, label: 'Cotizador', desc: 'Calcular el costo antes', path: '/cliente/cotizar' },
+  { icon: Tag, label: 'Etiquetas', desc: 'Organizar los paquetes', path: '/cliente/etiquetas' },
 ];
 
 const defaultStats = { activos: 0, entregados: 0, pendientes: 0, problemas: 0 };
@@ -56,11 +68,16 @@ const ClienteDashboard = () => {
   const dashStats = apiStats ?? defaultStats;
   const clienteEnvios = apiStats?.enviosRecientes ?? [];
 
+  const animActivos = useAnimatedNumber(dashStats.activos);
+  const animEntregados = useAnimatedNumber(dashStats.entregados);
+  const animPendientes = useAnimatedNumber(dashStats.pendientes);
+  const animProblemas = useAnimatedNumber(dashStats.problemas);
+
   const stats = [
-    { label: 'Activos', value: dashStats.activos, icon: Truck, color: 'text-primary', bg: 'bg-primary/6' },
-    { label: 'Entregados', value: dashStats.entregados, icon: CheckCircle, color: 'text-success', bg: 'bg-success/6' },
-    { label: 'Pendientes', value: dashStats.pendientes, icon: Clock, color: 'text-warning', bg: 'bg-warning/6' },
-    { label: 'Problemas', value: dashStats.problemas, icon: Warning, color: 'text-destructive', bg: 'bg-destructive/6' },
+    { label: 'Activos', value: animActivos, icon: Truck, color: 'text-primary', bg: 'bg-primary/6' },
+    { label: 'Entregados', value: animEntregados, icon: CheckCircle, color: 'text-success', bg: 'bg-success/6' },
+    { label: 'Pendientes', value: animPendientes, icon: Clock, color: 'text-warning', bg: 'bg-warning/6' },
+    { label: 'Problemas', value: animProblemas, icon: Warning, color: 'text-destructive', bg: 'bg-destructive/6' },
   ];
 
   return (
@@ -68,12 +85,11 @@ const ClienteDashboard = () => {
       {/* Header */}
       <motion.div variants={fadeUp} className="page-header">
         <div>
-          <h1 className="page-header-title">Bienvenido</h1>
+          <h1 className="page-header-title">
+            {cuenta?.razonSocial ? `Hola, ${cuenta.razonSocial}` : 'Hola'}
+          </h1>
           <p className="page-header-subtitle">
-            {cuenta?.razonSocial && (
-              <span className="font-medium text-foreground">{cuenta.razonSocial} · </span>
-            )}
-            Resumen de operaciones
+            Así vienen los envíos de tu cuenta hoy
           </p>
         </div>
         <Link to="/cliente/envios/nuevo">
@@ -130,7 +146,10 @@ const ClienteDashboard = () => {
       {/* Recent Shipments */}
       <motion.div variants={fadeUp} className="surface-card">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="font-display text-[15px] font-semibold">Últimos Envíos</h2>
+          <div>
+            <h2 className="font-display text-[15px] font-semibold">Últimos envíos</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Los más recientes de tu cuenta</p>
+          </div>
           <Link to="/cliente/envios">
             <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
               Ver todos
@@ -156,40 +175,62 @@ const ClienteDashboard = () => {
             <table className="premium-table">
               <thead>
                 <tr>
-                  <th className="pl-5">Tracking</th>
+                  <th className="pl-5">Seguimiento</th>
                   <th>Destino</th>
                   <th>Destinatario</th>
                   <th>Estado</th>
-                  <th>Fecha</th>
+                  <th>Creado</th>
                   <th className="w-10 pr-5"></th>
                 </tr>
               </thead>
-              <tbody>
+              <motion.tbody variants={rowStagger} initial="hidden" animate="show">
                 {clienteEnvios.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-12">
-                      <p className="text-[13px] text-muted-foreground">Sin envíos recientes</p>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+                          <Truck size={16} weight="duotone" className="text-muted-foreground/50" />
+                        </div>
+                        <p className="text-[13px] font-medium">Todavía no hay envíos</p>
+                        <p className="text-[12px] text-muted-foreground max-w-[18rem]">
+                          Creá tu primer envío y te va a aparecer acá con el estado en tiempo real.
+                        </p>
+                        <Link to="/cliente/envios/nuevo" className="mt-2">
+                          <Button size="sm" className="gap-1.5">
+                            <PlusCircle size={14} weight="bold" />
+                            Crear mi primer envío
+                          </Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 )}
                 {clienteEnvios.map((envio) => {
                   const badge = estadoBadge[envio.estado] || { label: estadoLabels[envio.estado], variant: 'secondary' as const };
+                  const isProblema = envio.estado === 'problema';
                   return (
-                    <tr key={envio.id} className="group cursor-pointer" onClick={() => setSelectedEnvioId(envio.id)}>
+                    <motion.tr
+                      key={envio.id}
+                      variants={rowFade}
+                      className="group cursor-pointer"
+                      onClick={() => setSelectedEnvioId(envio.id)}
+                    >
                       <td className="pl-5 font-data font-medium text-primary">{envio.trackingNumber}</td>
                       <td className="text-[13px] text-muted-foreground">{envio.destino}</td>
                       <td className="text-[13px]">{envio.destinatarioNombre}</td>
                       <td>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant={badge.variant} className={cn(isProblema && 'badge-pulse')}>
+                          {badge.label}
+                        </Badge>
                       </td>
-                      <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
+                      <td className="text-[13px] text-muted-foreground">{formatDateSmart(envio.fecha)}</td>
                       <td className="pr-5">
                         <ArrowUpRight size={14} weight="bold" className="text-transparent group-hover:text-muted-foreground transition-colors" />
                       </td>
-                    </tr>
+                    </motion.tr>
                   );
                 })}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         )}
@@ -212,11 +253,14 @@ const ClienteDashboard = () => {
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Fecha</p>
-                  <p className="text-[13px] font-medium">{formatDate(selectedEnvio.fecha)}</p>
+                  <p className="text-[13px] font-medium">{formatDateSmart(selectedEnvio.fecha)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Estado</p>
-                  <Badge variant={estadoBadge[selectedEnvio.estado]?.variant || 'secondary'}>
+                  <Badge
+                    variant={estadoBadge[selectedEnvio.estado]?.variant || 'secondary'}
+                    className={cn(selectedEnvio.estado === 'problema' && 'badge-pulse')}
+                  >
                     {estadoLabels[selectedEnvio.estado]}
                   </Badge>
                 </div>
@@ -241,7 +285,7 @@ const ClienteDashboard = () => {
                 }}
               >
                 <Barcode size={14} weight="duotone" />
-                Imprimir Etiqueta
+                Imprimir etiqueta
               </Button>
             </div>
           )}

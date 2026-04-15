@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import {
@@ -17,6 +17,7 @@ import { GearSix } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { useSSE } from '@/hooks/use-sse';
+import { getAvatarColor, getInitials } from '@/lib/avatar-color';
 
 interface ClienteProfile {
   id: string;
@@ -27,24 +28,25 @@ interface ClienteProfile {
 
 
 const navItems = [
-  { icon: ChartBar, label: 'Dashboard', path: '/cliente', end: true },
-  { icon: Package, label: 'Mis Envíos', path: '/cliente/envios', end: false },
-  { icon: PlusCircle, label: 'Nuevo', path: '/cliente/envios/nuevo', end: true },
-  { icon: UploadSimple, label: 'Importar', path: '/cliente/importar', end: true },
-  { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true },
-  { icon: Tag, label: 'Etiquetas', path: '/cliente/etiquetas', end: true },
-  { icon: Cube, label: 'Productos', path: '/cliente/productos', end: true },
+  { icon: ChartBar, label: 'Inicio', path: '/cliente', end: true, title: 'Inicio' },
+  { icon: Package, label: 'Mis envíos', path: '/cliente/envios', end: false, title: 'Mis envíos' },
+  { icon: PlusCircle, label: 'Nuevo', path: '/cliente/envios/nuevo', end: true, title: 'Nuevo envío' },
+  { icon: UploadSimple, label: 'Importar', path: '/cliente/importar', end: true, title: 'Importar paquetes' },
+  { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true, title: 'Cotizador' },
+  { icon: Tag, label: 'Etiquetas', path: '/cliente/etiquetas', end: true, title: 'Etiquetas' },
+  { icon: Cube, label: 'Productos', path: '/cliente/productos', end: true, title: 'Mis productos' },
 ];
 
-const pageTransition = {
-  initial: { opacity: 0, y: 3 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -2 },
-  transition: { duration: 0.12, ease: [0.25, 0.46, 0.45, 0.94] as const },
-};
-
-function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+function getTitleForPath(pathname: string): string {
+  // More specific first
+  if (pathname.startsWith('/cliente/envios/nuevo')) return 'Nuevo envío';
+  if (pathname.startsWith('/cliente/envios')) return 'Mis envíos';
+  if (pathname.startsWith('/cliente/importar')) return 'Importar paquetes';
+  if (pathname.startsWith('/cliente/cotizar')) return 'Cotizador';
+  if (pathname.startsWith('/cliente/etiquetas')) return 'Etiquetas';
+  if (pathname.startsWith('/cliente/productos')) return 'Mis productos';
+  if (pathname.startsWith('/cliente/cuenta')) return 'Mi cuenta';
+  return 'Inicio';
 }
 
 export const ClienteLayout = () => {
@@ -53,7 +55,14 @@ export const ClienteLayout = () => {
   const mainRef = useRef<HTMLElement>(null);
   const [profile, setProfile] = useState<ClienteProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const shouldReduceMotion = useReducedMotion();
   useSSE();
+
+  // Dynamic document title: "Sección · GO EXPRESS"
+  useEffect(() => {
+    const section = getTitleForPath(location.pathname);
+    document.title = `${section} · GO EXPRESS`;
+  }, [location.pathname]);
 
   useEffect(() => {
     let mounted = true;
@@ -176,6 +185,20 @@ export const ClienteLayout = () => {
 
   const displayName = profile?.razonSocial || 'Cliente';
   const displayEmail = profile?.email || '';
+  const avatarTone = getAvatarColor(displayName);
+  const pageTransition = shouldReduceMotion
+    ? {
+        initial: { opacity: 1, y: 0 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 1, y: 0 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, y: 3 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -2 },
+        transition: { duration: 0.12, ease: [0.25, 0.46, 0.45, 0.94] as const },
+      };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -198,7 +221,7 @@ export const ClienteLayout = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 h-8 pl-1.5 pr-2 ml-0.5">
                   <Avatar className="h-6 w-6">
-                    <AvatarFallback className="bg-primary/8 text-primary text-[10px] font-bold">
+                    <AvatarFallback className={cn(avatarTone.bg, avatarTone.text, 'text-[10px] font-bold')}>
                       {getInitials(displayName)}
                     </AvatarFallback>
                   </Avatar>
@@ -214,12 +237,12 @@ export const ClienteLayout = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('/cliente/cuenta')}>
                   <GearSix size={16} weight="duotone" className="mr-2" />
-                  Mi Cuenta
+                  Mi cuenta
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
                   <SignOut size={16} weight="duotone" className="mr-2" />
-                  Cerrar Sesión
+                  Cerrar sesión
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, Suspense } from 'react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Header } from './Header';
 import { Sidebar, MobileSidebar } from './Sidebar';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -10,12 +10,19 @@ import { useSSE } from '@/hooks/use-sse';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
-const pageTransition = {
-  initial: { opacity: 0, y: 3 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -2 },
-  transition: { duration: 0.12, ease: [0.25, 0.46, 0.45, 0.94] as const },
-};
+function getAdminTitleForPath(pathname: string): string {
+  if (pathname.startsWith('/admin/envios/nuevo')) return 'Nuevo envío';
+  if (pathname.match(/\/admin\/envios\/[^/]+$/)) return 'Detalle de envío';
+  if (pathname.startsWith('/admin/envios')) return 'Envíos';
+  if (pathname.startsWith('/admin/warehouse')) return 'Warehouse';
+  if (pathname.startsWith('/admin/clientes')) return 'Clientes';
+  if (pathname.startsWith('/admin/repartidores')) return 'Repartidores';
+  if (pathname.startsWith('/admin/pagos')) return 'Pagos';
+  if (pathname.startsWith('/admin/tarifas')) return 'Tarifas';
+  if (pathname.startsWith('/admin/auditoria')) return 'Auditoría';
+  if (pathname.startsWith('/admin/configuracion')) return 'Configuración';
+  return 'Inicio';
+}
 
 export const AdminLayout = () => {
   const location = useLocation();
@@ -23,6 +30,7 @@ export const AdminLayout = () => {
   const scrolled = useScrollShadow(mainRef);
   const { isAuthenticated, loading, user } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
   useSSE();
 
   // Close mobile nav on route change
@@ -34,6 +42,26 @@ export const AdminLayout = () => {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  // Dynamic document title for admin routes
+  useEffect(() => {
+    const section = getAdminTitleForPath(location.pathname);
+    document.title = `${section} · GO EXPRESS Admin`;
+  }, [location.pathname]);
+
+  const pageTransition = shouldReduceMotion
+    ? {
+        initial: { opacity: 1, y: 0 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 1, y: 0 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, y: 3 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -2 },
+        transition: { duration: 0.12, ease: [0.25, 0.46, 0.45, 0.94] as const },
+      };
 
   // Show skeleton layout while checking auth (faster perceived load)
   if (loading) {

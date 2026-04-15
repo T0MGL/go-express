@@ -23,6 +23,16 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] as const } },
 } as const;
 
+const rowStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+} as const;
+
+const rowFade = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const } },
+} as const;
+
 const Dashboard = () => {
   // API data
   const { data: apiStats, isLoading } = useDashboardStats();
@@ -237,7 +247,7 @@ const Dashboard = () => {
                 <th className="w-10 pr-5"></th>
               </tr>
             </thead>
-            <tbody>
+            <motion.tbody variants={rowStagger} initial="hidden" animate="show">
               {recentEnvios.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-12">
@@ -257,36 +267,42 @@ const Dashboard = () => {
                   </td>
                 </tr>
               )}
-              {recentEnvios.map((envio) => (
-                <tr key={envio.id} className="group">
-                  <td className="pl-5">
-                    <CopyButton value={envio.trackingNumber} label="Copiar número de seguimiento">
-                      <Link
-                        to={`/admin/envios/${envio.id}`}
-                        className="font-data font-medium text-primary hover:text-primary/80 transition-colors"
+              {recentEnvios.map((envio) => {
+                const isProblema = envio.estado === 'problema';
+                return (
+                  <motion.tr key={envio.id} variants={rowFade} className="group">
+                    <td className="pl-5">
+                      <CopyButton value={envio.trackingNumber} label="Copiar número de seguimiento">
+                        <Link
+                          to={`/admin/envios/${envio.id}`}
+                          className="font-data font-medium text-primary hover:text-primary/80 transition-colors"
+                        >
+                          {envio.trackingNumber}
+                        </Link>
+                      </CopyButton>
+                    </td>
+                    <td className="text-[13px]">{envio.clienteNombre}</td>
+                    <td className="text-[13px] text-muted-foreground">{envio.destino}</td>
+                    <td>
+                      <Badge
+                        variant={estadoColors[envio.estado]}
+                        className={cn(isProblema && 'badge-pulse')}
                       >
-                        {envio.trackingNumber}
+                        {estadoLabels[envio.estado]}
+                      </Badge>
+                    </td>
+                    <td className="text-[13px] text-muted-foreground">
+                      {formatDateSmart(envio.fecha)}
+                    </td>
+                    <td className="pr-5">
+                      <Link to={`/admin/envios/${envio.id}`}>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-transparent group-hover:text-muted-foreground transition-colors" />
                       </Link>
-                    </CopyButton>
-                  </td>
-                  <td className="text-[13px]">{envio.clienteNombre}</td>
-                  <td className="text-[13px] text-muted-foreground">{envio.destino}</td>
-                  <td>
-                    <Badge variant={estadoColors[envio.estado]}>
-                      {estadoLabels[envio.estado]}
-                    </Badge>
-                  </td>
-                  <td className="text-[13px] text-muted-foreground">
-                    {formatDateSmart(envio.fecha)}
-                  </td>
-                  <td className="pr-5">
-                    <Link to={`/admin/envios/${envio.id}`}>
-                      <ArrowUpRight className="w-3.5 h-3.5 text-transparent group-hover:text-muted-foreground transition-colors" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+            </motion.tbody>
           </table>
         </div>
       </motion.div>
@@ -318,7 +334,7 @@ function UrgencyCard({ count, label, helper, tone, icon, to }: UrgencyCardProps)
       <div
         className={cn(
           'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-          tone === 'destructive' && !inactive && 'bg-destructive/12 text-destructive',
+          tone === 'destructive' && !inactive && 'bg-destructive/12 text-destructive badge-pulse',
           tone === 'warning' && !inactive && 'bg-warning/15 text-warning',
           inactive && 'bg-muted text-muted-foreground/60',
         )}

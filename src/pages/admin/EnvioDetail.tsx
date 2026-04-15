@@ -21,7 +21,7 @@ import {
   MapPin,
   UserCircle,
 } from '@phosphor-icons/react';
-import { formatCurrency, formatDate, formatDateSmart } from '@/lib/utils';
+import { cn, formatCurrency, formatDate, formatDateSmart } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -379,7 +379,10 @@ const EnvioDetail = () => {
               <p className="section-label mb-1">Número de seguimiento</p>
               <p className="text-xl font-semibold font-data">{envio.trackingNumber}</p>
             </div>
-            <Badge variant={estadoColors[envio.estado]} className="text-[12px]">
+            <Badge
+              variant={estadoColors[envio.estado]}
+              className={cn('text-[12px]', envio.estado === 'problema' && 'badge-pulse')}
+            >
               {estadoLabels[envio.estado]}
             </Badge>
           </div>

@@ -280,6 +280,16 @@
     75%, 100% { transform: scale(2.5); opacity: 0; }
   }
 
+  /* ── Badge pulse for attention states (Con problema) ── */
+  .badge-pulse {
+    animation: badge-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.62; }
+  }
+
   /* ── Scroll-aware header shadow ── */
   .header-scrolled {
     box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03);
@@ -301,6 +311,42 @@
     font-family: var(--font-sans);
     line-height: 1;
     min-width: 18px;
+  }
+
+  /* ── Sticky table header ── */
+  .premium-table-sticky thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: hsl(var(--card));
+    box-shadow: inset 0 -1px 0 hsl(var(--border) / 0.7);
+  }
+
+  /* ── Row focus ring (accessible keyboard nav on tables) ── */
+  .premium-table tbody tr:focus-within {
+    background: hsl(var(--muted) / 0.5);
+    outline: 1px solid hsl(var(--ring) / 0.35);
+    outline-offset: -1px;
+  }
+
+  /* ── Honor reduced motion across pulse/shimmer utilities ── */
+  @media (prefers-reduced-motion: reduce) {
+    .status-pulse::after,
+    .badge-pulse,
+    .animate-pulse,
+    .animate-spin {
+      animation: none !important;
+    }
+
+    * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+
+  /* ── Skip to content (a11y) ── */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-1.5 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg;
   }
 }
 

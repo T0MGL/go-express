@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { getAvatarColor, getInitials } from '@/lib/avatar-color';
 
 interface HeaderProps {
   scrolled?: boolean;
@@ -23,9 +24,9 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const initials = user?.nombre
-    ? user.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-    : 'AD';
+  const displayName = user?.nombre ?? 'Admin';
+  const initials = getInitials(displayName);
+  const avatarTone = getAvatarColor(displayName);
 
   async function handleLogout() {
     await logout();
@@ -69,7 +70,7 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 h-8 pl-1.5 pr-2 ml-0.5">
               <Avatar className="h-6 w-6">
-                <AvatarFallback className="bg-primary/8 text-primary text-[10px] font-semibold">
+                <AvatarFallback className={cn(avatarTone.bg, avatarTone.text, 'text-[10px] font-semibold')}>
                   {initials}
                 </AvatarFallback>
               </Avatar>
@@ -95,7 +96,7 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
               <SignOut size={16} weight="duotone" className="mr-2" />
-              Cerrar Sesión
+              Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

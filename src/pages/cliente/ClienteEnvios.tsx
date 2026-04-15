@@ -14,27 +14,27 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Timeline } from '@/components/tracking/Timeline';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDateSmart } from '@/lib/utils';
 import { useClienteEnvios, useClienteEnvio } from '@/hooks/api/use-cliente-envios';
 
 const estadoList = [
   { value: 'todos', label: 'Todos' },
-  { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_transito', label: 'En tránsito' },
-  { value: 'en_reparto', label: 'En Reparto' },
-  { value: 'entregado', label: 'Entregado' },
-  { value: 'fallido', label: 'Fallido' },
-  { value: 'problema', label: 'Problema' },
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'en_transito', label: 'En camino' },
+  { value: 'en_reparto', label: 'En reparto' },
+  { value: 'entregado', label: 'Entregados' },
+  { value: 'fallido', label: 'Fallidos' },
+  { value: 'problema', label: 'Con problema' },
 ];
 
 const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
   pendiente: { label: 'Pendiente', variant: 'secondary' },
   recolectado: { label: 'Retirado', variant: 'outline' },
-  en_transito: { label: 'En tránsito', variant: 'default' },
-  en_reparto: { label: 'En Reparto', variant: 'warning' },
+  en_transito: { label: 'En camino', variant: 'default' },
+  en_reparto: { label: 'En reparto', variant: 'warning' },
   entregado: { label: 'Entregado', variant: 'success' },
   fallido: { label: 'Fallido', variant: 'destructive' },
-  problema: { label: 'Problema', variant: 'destructive' },
+  problema: { label: 'Con problema', variant: 'destructive' },
 };
 
 const PAGE_SIZE = 20;
@@ -69,12 +69,16 @@ const ClienteEnvios = () => {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Mis Envíos</h1>
-          <p className="page-header-subtitle">Segui el estado de todos tus paquetes</p>
+          <h1 className="page-header-title">Mis envíos</h1>
+          <p className="page-header-subtitle">
+            {totalCount > 0
+              ? `${totalCount} ${totalCount === 1 ? 'envío' : 'envíos'} en tu cuenta`
+              : 'Seguí el estado de todos tus paquetes'}
+          </p>
         </div>
         <Button onClick={() => navigate('/cliente/envios/nuevo')} size="sm" className="gap-1.5">
           <Plus className="w-3.5 h-3.5" />
-          Nuevo Paquete
+          Nuevo envío
         </Button>
       </div>
 
@@ -124,12 +128,12 @@ const ClienteEnvios = () => {
               <table className="premium-table">
                 <thead>
                   <tr>
-                    <th className="pl-4">Tracking</th>
+                    <th className="pl-4">Seguimiento</th>
                     <th>Destino</th>
                     <th>Destinatario</th>
                     <th>Peso</th>
                     <th>Estado</th>
-                    <th>Fecha</th>
+                    <th>Creado</th>
                     <th className="text-right pr-4">Ver</th>
                   </tr>
                 </thead>
@@ -143,9 +147,14 @@ const ClienteEnvios = () => {
                         <td className="text-[13px]">{envio.destinatarioNombre}</td>
                         <td className="text-[13px] text-muted-foreground font-data">{envio.peso} kg</td>
                         <td>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          <Badge
+                            variant={badge.variant}
+                            className={cn(envio.estado === 'problema' && 'badge-pulse')}
+                          >
+                            {badge.label}
+                          </Badge>
                         </td>
-                        <td className="text-[13px] text-muted-foreground">{formatDate(envio.fecha)}</td>
+                        <td className="text-[13px] text-muted-foreground">{formatDateSmart(envio.fecha)}</td>
                         <td className="text-right pr-4">
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedEnvioId(envio.id)} aria-label={`Ver detalle del envío ${envio.trackingNumber}`}>
                             <Eye size={14} weight="duotone" />
@@ -163,15 +172,31 @@ const ClienteEnvios = () => {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <Package size={18} weight="duotone" className="text-muted-foreground/50" />
                 </div>
-                <p className="text-[13px] font-medium">No se encontraron envíos</p>
-                <p className="text-[12px] text-muted-foreground mt-1">
-                  {searchTerm ? 'Probá con otros términos' : 'Aún no tenés envíos en este estado'}
-                </p>
-                {!searchTerm && filterEstado === 'todos' && (
-                  <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate('/cliente/envios/nuevo')}>
-                    <Plus className="w-3.5 h-3.5" />
-                    Crear tu primer envío
-                  </Button>
+                {searchTerm ? (
+                  <>
+                    <p className="text-[13px] font-medium">Nada coincide con tu búsqueda</p>
+                    <p className="text-[12px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Probá buscando por número de seguimiento, nombre del destinatario o ciudad.
+                    </p>
+                  </>
+                ) : filterEstado !== 'todos' ? (
+                  <>
+                    <p className="text-[13px] font-medium">Ningún envío en este estado</p>
+                    <p className="text-[12px] text-muted-foreground mt-1">
+                      Cambiá el filtro para ver otros envíos de tu cuenta.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[13px] font-medium">Todavía no tenés envíos</p>
+                    <p className="text-[12px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Creá tu primer envío y se te va a listar acá con seguimiento en tiempo real.
+                    </p>
+                    <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate('/cliente/envios/nuevo')}>
+                      <Plus className="w-3.5 h-3.5" />
+                      Crear mi primer envío
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -179,7 +204,9 @@ const ClienteEnvios = () => {
             {envios.length > 0 && totalPages > 1 && (
               <div className="border-t px-4 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground bg-muted/20">
                 <span>
-                  Pagina {page} de {totalPages} ({totalCount} envios)
+                  Página <span className="font-data">{page}</span> de <span className="font-data">{totalPages}</span>
+                  <span className="mx-1.5 opacity-50">·</span>
+                  <span className="font-data">{totalCount}</span> envíos en total
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
@@ -233,11 +260,14 @@ const ClienteEnvios = () => {
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Fecha</p>
-                  <p className="text-[13px] font-medium">{formatDate(selectedEnvio.fecha)}</p>
+                  <p className="text-[13px] font-medium">{formatDateSmart(selectedEnvio.fecha)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-0.5">Estado</p>
-                  <Badge variant={estadoBadge[selectedEnvio.estado]?.variant || 'secondary'}>
+                  <Badge
+                    variant={estadoBadge[selectedEnvio.estado]?.variant || 'secondary'}
+                    className={cn(selectedEnvio.estado === 'problema' && 'badge-pulse')}
+                  >
                     {estadoLabels[selectedEnvio.estado]}
                   </Badge>
                 </div>
@@ -266,7 +296,7 @@ const ClienteEnvios = () => {
                 }}
               >
                 <Barcode size={14} weight="duotone" />
-                Imprimir Etiqueta
+                Imprimir etiqueta
               </Button>
             </div>
           )}

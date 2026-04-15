@@ -66,21 +66,22 @@ const ClienteEtiquetas = () => {
       <div className="page-header">
         <div>
           <h1 className="page-header-title">Etiquetas</h1>
-          <p className="page-header-subtitle">Gestiona las etiquetas para organizar tus paquetes</p>
+          <p className="page-header-subtitle">Creá etiquetas para agrupar y encontrar tus paquetes</p>
         </div>
       </div>
 
       <div className="surface-card p-5">
         <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
           <Tag size={16} weight="duotone" className="text-primary" />
-          Crear nueva etiqueta
+          Nueva etiqueta
         </h3>
         <div className="flex gap-2">
           <Input
-            placeholder="Nombre de la etiqueta..."
+            placeholder="Ej: Frágil, Urgente, Cliente preferente"
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+            aria-describedby="etiqueta-hint"
           />
           <Button type="button" onClick={addTag} size="sm" className="gap-1.5" disabled={createTagMutation.isPending || !newTag.trim()}>
             {createTagMutation.isPending ? (
@@ -91,10 +92,13 @@ const ClienteEtiquetas = () => {
             Crear
           </Button>
         </div>
+        <p id="etiqueta-hint" className="text-[11px] text-muted-foreground mt-2">
+          Apretá <kbd className="kbd">Enter</kbd> para agregarla sin sacar la mano del teclado.
+        </p>
       </div>
 
       <div className="surface-card p-5">
-        <p className="section-label mb-4">Mis Etiquetas</p>
+        <p className="section-label mb-4">Mis etiquetas</p>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
@@ -105,8 +109,10 @@ const ClienteEtiquetas = () => {
             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
               <Tag size={18} weight="duotone" className="text-muted-foreground/50" />
             </div>
-            <p className="text-[13px] font-medium">No tienes etiquetas creadas aun</p>
-            <p className="text-[12px] text-muted-foreground mt-1">Crea tu primera etiqueta para organizar tus paquetes</p>
+            <p className="text-[13px] font-medium">Todavía no hay etiquetas</p>
+            <p className="text-[12px] text-muted-foreground mt-1 max-w-[18rem] mx-auto">
+              Creá tu primera etiqueta arriba. Sirven para filtrar envíos rápido, por ejemplo "Frágil" o "Cliente top".
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

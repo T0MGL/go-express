@@ -28,6 +28,10 @@ const PortalLogin = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    document.title = 'Portal de clientes · GO EXPRESS';
+  }, []);
+
+  useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -50,11 +54,11 @@ const PortalLogin = () => {
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      setError('Ingrese su email');
+      setError('Ingresá tu email');
       return;
     }
     if (password.length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres');
+      setError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
@@ -76,7 +80,7 @@ const PortalLogin = () => {
       navigate('/cliente', { replace: true });
     } catch (err) {
       const apiErr = err as { data?: { error?: string } };
-      setError(apiErr?.data?.error || 'Credenciales invalidas. Verifique su email y contrasena.');
+      setError(apiErr?.data?.error || 'Credenciales inválidas. Revisá tu email y contraseña.');
     } finally {
       setLoading(false);
     }
@@ -127,7 +131,7 @@ const PortalLogin = () => {
 
           <div className="space-y-2">
             <label htmlFor="portal-password" className="text-sm font-medium">
-              Contrasena
+              Contraseña
             </label>
             <input
               id="portal-password"
@@ -139,7 +143,7 @@ const PortalLogin = () => {
               value={password}
               onChange={e => { setPassword(e.target.value); setError(null); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Ingrese su contrasena"
+              placeholder="Tu contraseña"
             />
           </div>
 
@@ -153,7 +157,7 @@ const PortalLogin = () => {
         </form>
 
         <p className="text-[11px] text-muted-foreground text-center mt-6">
-          Si no tiene acceso al portal, solicite una invitacion a GO EXPRESS.
+          ¿Todavía no tenés acceso? Pedile una invitación a tu contacto de GO EXPRESS.
         </p>
       </motion.div>
     </div>

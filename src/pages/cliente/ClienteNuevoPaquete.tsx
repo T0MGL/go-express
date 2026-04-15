@@ -188,11 +188,11 @@ const ClienteNuevoPaquete = () => {
       },
       {
         onSuccess: () => {
-          toast.success('Paquete registrado exitosamente. Se generara tu número de tracking.');
+          toast.success('Listo, tu paquete quedó registrado. Generamos el número de seguimiento en unos segundos.');
           navigate('/cliente/envios');
         },
         onError: () => {
-          toast.error('Error al registrar el paquete. Intenta nuevamente.');
+          toast.error('No pudimos registrar el paquete. Probá de nuevo en un momento.');
         },
       }
     );
@@ -202,8 +202,8 @@ const ClienteNuevoPaquete = () => {
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Registrar Nuevo Paquete</h1>
-          <p className="page-header-subtitle">Completa los datos del paquete para solicitar el envío</p>
+          <h1 className="page-header-title">Nuevo envío</h1>
+          <p className="page-header-subtitle">Completá los datos del paquete y lo retiramos de tu depósito</p>
         </div>
       </div>
 
@@ -211,7 +211,7 @@ const ClienteNuevoPaquete = () => {
         <div className="surface-card p-5">
           <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
             <User size={16} weight="duotone" className="text-primary" />
-            Datos del Destinatario
+            Quien recibe el paquete
           </h3>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -274,7 +274,7 @@ const ClienteNuevoPaquete = () => {
         <div className="surface-card p-5">
           <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
             <Package size={16} weight="duotone" className="text-primary" />
-            Detalles del Paquete
+            El paquete
           </h3>
           <div className="space-y-3">
             {/* Product quick-fill selector */}
@@ -533,7 +533,7 @@ const ClienteNuevoPaquete = () => {
             ) : (
               <PlusCircle size={14} weight="duotone" />
             )}
-            {createEnvioMutation.isPending ? 'Registrando...' : 'Registrar Paquete'}
+            {createEnvioMutation.isPending ? 'Registrando...' : 'Registrar paquete'}
           </Button>
         </div>
       </form>

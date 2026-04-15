@@ -117,9 +117,9 @@ const ClienteCotizador = () => {
     <div>
       <div className="page-header mb-6">
         <div>
-          <h1 className="page-header-title">Cotizador de Envíos</h1>
+          <h1 className="page-header-title">Cotizador</h1>
           <p className="page-header-subtitle">
-            Calcula el costo estimado de tu envío antes de crearlo
+            Calculá el costo estimado antes de crear el envío
           </p>
         </div>
       </div>
@@ -242,14 +242,16 @@ const ClienteCotizador = () => {
           {!cotizando && (
             <div className="surface-card p-8 text-center text-muted-foreground h-full flex flex-col items-center justify-center">
               <Calculator size={32} weight="duotone" className="mb-3 opacity-30" />
-              <p className="text-[13px] font-medium">Completa el formulario</p>
-              <p className="text-[12px] mt-1">Los resultados de cotización apareceran aquí</p>
+              <p className="text-[13px] font-medium">Completá el formulario</p>
+              <p className="text-[12px] mt-1 max-w-[18rem]">
+                Los resultados de la cotización van a aparecer acá al apretar "Calcular cotización".
+              </p>
             </div>
           )}
 
           {cotizando && displayResultados.length === 0 && (
             <div className="surface-card p-6 text-center text-muted-foreground">
-              <p className="text-[13px]">No se pudo calcular. Verifica los datos ingresados.</p>
+              <p className="text-[13px]">No pudimos calcular. Revisá los datos ingresados.</p>
             </div>
           )}
 
@@ -316,6 +318,11 @@ const ClienteCotizador = () => {
                       <Button size="sm" className="w-full gap-1.5 mt-1" onClick={() => navigate('/cliente/envios/nuevo')}>
                         <CheckCircle size={14} weight="duotone" /> Crear envío con esta tarifa
                       </Button>
+                    )}
+                    {i === 0 && (
+                      <p className="text-[10px] text-muted-foreground text-center mt-2">
+                        El precio final puede variar al verificar el paquete en depósito.
+                      </p>
                     )}
                   </div>
                 ))}

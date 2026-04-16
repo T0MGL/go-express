@@ -1,5 +1,6 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { logger } from '../config/logger.js';
 import { auditoriaService } from './auditoria.service.js';
 import { nowISO } from '../lib/datetime.js';
 import type {
@@ -97,6 +98,17 @@ class TarifaService {
   }
 
   async create(input: CreateTarifaInput, userId: string): Promise<Tarifa> {
+    const { data: creadorExists } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!creadorExists) {
+      logger.warn({ userId }, 'Tarifa create: userId no existe en usuarios (token viejo o usuario eliminado)');
+      throw AppError.forbidden('Tu sesion admin no corresponde a un usuario activo. Volve a iniciar sesion.');
+    }
+
     const { data, error } = await supabase
       .from('tarifas')
       .insert({
@@ -113,7 +125,11 @@ class TarifaService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error creating tarifa', 500, 'DB_ERROR');
+      logger.error({ error, input, userId }, 'Tarifa create failed');
+      if (error?.code === '23505') {
+        throw AppError.conflict('Ya existe una tarifa con esa combinacion de origen, destino y tipo de servicio');
+      }
+      throw new AppError(`Error creating tarifa: ${error?.message ?? 'unknown'}`, 500, 'DB_ERROR');
     }
 
     const tarifa = toApi(data as unknown as TarifaRow);

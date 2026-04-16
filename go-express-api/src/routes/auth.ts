@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { supabase, supabaseAuth } from '../config/database.js';
 import { auditoriaService } from '../services/auditoria.service.js';
 import { clienteService } from '../services/cliente.service.js';
+import { repartidorService } from '../services/repartidor.service.js';
 import { logger } from '../config/logger.js';
 
 
@@ -148,6 +149,69 @@ router.post(
 );
 
 /**
+ * POST /api/auth/repartidor/login
+ *
+ * Repartidor portal login. Authenticates via Supabase Auth, then resolves the
+ * repartidor from the repartidores table via auth_id.
+ */
+router.post(
+  '/repartidor/login',
+  validate({ body: loginSchema }),
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body as { email: string; password: string };
+
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+
+    if (error || !data.session) {
+      logger.warn({ email, error: error?.message }, 'Repartidor login attempt failed');
+      throw AppError.unauthorized('Credenciales invalidas');
+    }
+
+    const { data: repartidorRow, error: repartidorErr } = await supabase
+      .from('repartidores')
+      .select('id, auth_id, nombre, estado, portal_status, email, vehiculo')
+      .eq('auth_id', data.user.id)
+      .eq('eliminado', false)
+      .single();
+
+    if (repartidorErr || !repartidorRow) {
+      logger.warn({ authId: data.user.id }, 'Repartidor login: no repartidor linked');
+      throw AppError.unauthorized('Credenciales invalidas');
+    }
+
+    const rep = repartidorRow as {
+      id: string;
+      auth_id: string;
+      nombre: string;
+      estado: string;
+      portal_status: string;
+      email: string | null;
+      vehiculo: string;
+    };
+
+    if (rep.estado !== 'activo') {
+      throw AppError.unauthorized('Cuenta de repartidor inactiva');
+    }
+
+    if (rep.portal_status !== 'activo') {
+      await repartidorService.activatePortal(rep.id);
+    }
+
+    res.json({
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at,
+      repartidor: {
+        id: rep.id,
+        nombre: rep.nombre,
+        email: rep.email,
+        vehiculo: rep.vehiculo,
+      },
+    });
+  }),
+);
+
+/**
  * POST /api/auth/refresh
  *
  * Refreshes the Supabase session using the anon-key auth client,
@@ -215,6 +279,34 @@ router.post(
           razonSocial: cr.razon_social,
           contactoNombre: cr.contacto_nombre,
           email: cr.email,
+        },
+      });
+      return;
+    }
+
+    const { data: repartidorRow } = await supabase
+      .from('repartidores')
+      .select('id, nombre, email, estado, vehiculo')
+      .eq('auth_id', data.user?.id)
+      .eq('eliminado', false)
+      .single();
+
+    if (repartidorRow) {
+      const rp = repartidorRow as { id: string; nombre: string; email: string | null; estado: string; vehiculo: string };
+
+      if (rp.estado !== 'activo') {
+        throw AppError.forbidden('Cuenta de repartidor inactiva.');
+      }
+
+      res.json({
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at,
+        repartidor: {
+          id: rp.id,
+          nombre: rp.nombre,
+          email: rp.email,
+          vehiculo: rp.vehiculo,
         },
       });
       return;
@@ -340,6 +432,32 @@ router.get(
         portalActivo: cr.portal_activo,
         portalStatus: cr.portal_status,
         tipo: 'cliente',
+      });
+      return;
+    }
+
+    const { data: repRow } = await supabase
+      .from('repartidores')
+      .select('id, nombre, email, estado, vehiculo')
+      .eq('auth_id', user.id)
+      .eq('eliminado', false)
+      .single();
+
+    if (repRow) {
+      const rp = repRow as { id: string; nombre: string; email: string | null; estado: string; vehiculo: string };
+
+      if (rp.estado !== 'activo') {
+        throw AppError.forbidden('Cuenta de repartidor inactiva. Contacte a GO EXPRESS.');
+      }
+
+      res.json({
+        id: rp.id,
+        nombre: rp.nombre,
+        email: rp.email ?? '',
+        rol: 'repartidor',
+        estado: rp.estado,
+        vehiculo: rp.vehiculo,
+        tipo: 'repartidor',
       });
       return;
     }

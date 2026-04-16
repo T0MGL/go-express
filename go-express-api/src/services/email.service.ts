@@ -290,6 +290,32 @@ ${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-
     await this.send(email, 'Bienvenido al Portal GO EXPRESS', html);
   }
 
+  async sendRepartidorInvite(email: string, temporaryPassword: string, repartidorName: string): Promise<void> {
+    const safeName = escapeHtml(repartidorName);
+    const safeEmail = escapeHtml(email);
+    const safePassword = escapeHtml(temporaryPassword);
+
+    const html = baseTemplate({
+      title: 'Tu acceso al portal de repartidores GO EXPRESS',
+      accent: '#0643F7',
+      tracking: '',
+      ctaText: 'Abrir portal repartidor',
+      ctaUrl: 'https://goexpressparaguay.com/repartidor/login',
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu cuenta esta lista</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Desde ahora vas a ver tus pedidos asignados en el portal. Podes marcar entregas, reportar incidencias y avisar al cliente con un toque.</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
+<tr><td style="padding:24px">
+${row('Email', safeEmail)}
+${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
+</td></tr></table>
+<p style="font-size:13px;color:#6b7280;margin:0 0 8px"><strong>Consejo:</strong> abri el portal desde el celular y agregalo a la pantalla de inicio para tenerlo como una app.</p>
+<p style="font-size:12px;color:#9ca3af;margin:0">Si no esperabas este correo, podes ignorarlo.</p>`,
+    });
+
+    await this.send(email, 'Tu acceso al portal de repartidores GO EXPRESS', html);
+  }
+
   private destinatarioEmail(envio: Envio): string | null {
     const email = envio.destinatarioEmail?.trim();
     return email ? email : null;

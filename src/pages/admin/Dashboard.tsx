@@ -46,7 +46,8 @@ const Dashboard = () => {
   const problemasAbiertos = apiStats?.problemasAbiertos ?? 0;
   const pendientesRecoleccion = apiStats?.pendientesRecoleccionHoy ?? 0;
   const enRutaSinActualizar = apiStats?.enRutaSinActualizar ?? 0;
-  const hayUrgencias = problemasAbiertos + pendientesRecoleccion + enRutaSinActualizar > 0;
+  const incidenciasActivas = (apiStats as unknown as Record<string, unknown>)?.['incidenciasActivas'] as number ?? 0;
+  const hayUrgencias = problemasAbiertos + pendientesRecoleccion + enRutaSinActualizar + incidenciasActivas > 0;
   const recentEnvios = (apiStats?.enviosRecientes ?? []).map(e => ({
     ...e,
     clienteNombre: (e as Record<string, unknown>).clienteNombre as string ?? (e as Record<string, unknown>).cliente_nombre as string ?? '',
@@ -136,7 +137,15 @@ const Dashboard = () => {
             <h2 className="font-display text-[15px] font-semibold">Atención inmediata</h2>
             <p className="text-[11px] text-muted-foreground">Lo que toca resolver hoy</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <UrgencyCard
+              count={incidenciasActivas}
+              label="Incidencias activas"
+              helper="Reportadas por repartidores"
+              tone="destructive"
+              icon={<Warning size={16} weight="duotone" />}
+              to="/admin/envios?soloIncidencias=true"
+            />
             <UrgencyCard
               count={problemasAbiertos}
               label="Con problema sin resolver"

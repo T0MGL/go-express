@@ -8,8 +8,9 @@ interface AuthUser {
   id: string;
   nombre: string;
   email: string;
-  rol: 'admin' | 'operador' | 'cliente';
+  rol: 'admin' | 'operador' | 'cliente' | 'repartidor';
   razonSocial?: string;
+  vehiculo?: string;
 }
 
 interface AuthState {

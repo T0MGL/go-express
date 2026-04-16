@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
 import { toast } from "sonner";
@@ -65,6 +65,11 @@ const ClienteImportar = lazyWithReload(() => import("./pages/cliente/ClienteImpo
 const ClienteCotizador = lazyWithReload(() => import("./pages/cliente/ClienteCotizador"));
 const ClienteProductos = lazyWithReload(() => import("./pages/cliente/ClienteProductos"));
 const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
+const RepartidorLogin = lazyWithReload(() => import("./pages/repartidor/RepartidorLogin"));
+const RepartidorLayout = lazyWithReload(() => import("./pages/repartidor/RepartidorLayout").then(m => ({ default: m.RepartidorLayout })));
+const RepartidorDashboard = lazyWithReload(() => import("./pages/repartidor/RepartidorDashboard"));
+const RepartidorEnvioDetail = lazyWithReload(() => import("./pages/repartidor/RepartidorEnvioDetail"));
+const Conciliacion = lazyWithReload(() => import("./pages/admin/Conciliacion"));
 
 // Pull the server-provided message when available, fall back to a generic one
 // per HTTP code so the operator gets something actionable instead of silence.
@@ -175,7 +180,10 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/track" element={<Track />} />
-                <Route path="/login" element={<Login />} />
+
+                {/* Backward compat: old /login bookmark redirects to /admin/login */}
+                <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+                <Route path="/admin/login" element={<Login />} />
 
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Dashboard />} />
@@ -185,6 +193,7 @@ const App = () => (
                   <Route path="warehouse" element={<Warehouse />} />
                   <Route path="clientes" element={<Clientes />} />
                   <Route path="repartidores" element={<Repartidores />} />
+                  <Route path="conciliacion" element={<Conciliacion />} />
                   <Route path="pagos" element={<Pagos />} />
                   <Route path="tarifas" element={<Tarifas />} />
                   <Route path="auditoria" element={<Auditoria />} />
@@ -193,7 +202,7 @@ const App = () => (
 
                 <Route path="/portal/login" element={<PortalLogin />} />
 
-                <Route path="/cliente" element={<ClienteLayout />}>
+                <Route path="/portal" element={<ClienteLayout />}>
                   <Route index element={<ClienteDashboard />} />
                   <Route path="envios" element={<ClienteEnvios />} />
                   <Route path="envios/nuevo" element={<ClienteNuevoPaquete />} />
@@ -202,6 +211,16 @@ const App = () => (
                   <Route path="etiquetas" element={<ClienteEtiquetas />} />
                   <Route path="productos" element={<ClienteProductos />} />
                   <Route path="cuenta" element={<ClienteCuenta />} />
+                </Route>
+
+                {/* Backward compat: existing /cliente bookmarks redirect to /portal */}
+                <Route path="/cliente" element={<Navigate to="/portal" replace />} />
+                <Route path="/cliente/*" element={<Navigate to="/portal" replace />} />
+
+                <Route path="/repartidor/login" element={<RepartidorLogin />} />
+                <Route path="/repartidor" element={<RepartidorLayout />}>
+                  <Route index element={<RepartidorDashboard />} />
+                  <Route path="envio/:id" element={<RepartidorEnvioDetail />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

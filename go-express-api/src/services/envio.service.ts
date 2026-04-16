@@ -93,6 +93,17 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     repartidorAsignadoEn: row.repartidor_asignado_en,
     problemaDescripcion: row.problema_descripcion,
     problemaFecha: row.problema_fecha,
+    fotoEntregaUrl: row.foto_entrega_url ?? null,
+    entregadoPorNombre: row.entregado_por_nombre ?? null,
+    entregadoPorDocumento: row.entregado_por_documento ?? null,
+    fechaEntregaReal: row.fecha_entrega_real ?? null,
+    montoCobrado: row.monto_cobrado ?? null,
+    recolectadoEn: row.recolectado_en ?? null,
+    entregaNotas: row.entrega_notas ?? null,
+    tieneIncidencia: row.tiene_incidencia ?? false,
+    incidenciaNota: row.incidencia_nota ?? null,
+    incidenciaReportadaEn: row.incidencia_reportada_en ?? null,
+    incidenciaReportadaPor: row.incidencia_reportada_por ?? null,
     tags: row.tags,
     tarifaId: row.tarifa_id,
     fecha: row.fecha,
@@ -219,6 +230,9 @@ const ENVIO_COLUMNS = [
   'seguro_adicional', 'costo_seguro',
   'repartidor_id', 'repartidor_asignado_en',
   'problema_descripcion', 'problema_fecha',
+  'foto_entrega_url', 'entregado_por_nombre', 'entregado_por_documento',
+  'fecha_entrega_real', 'monto_cobrado', 'recolectado_en', 'entrega_notas',
+  'tiene_incidencia', 'incidencia_nota', 'incidencia_reportada_en', 'incidencia_reportada_por',
   'tags', 'tarifa_id', 'fecha',
   'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
@@ -272,7 +286,7 @@ export async function computeSeguroForEnvio(
 
 class EnvioService {
   async list(query: EnvioQuery): Promise<PaginatedResponse<Envio>> {
-    const { limit, page = 1, search, estado, clienteId, repartidorId, fechaDesde, fechaHasta } = query;
+    const { limit, page = 1, search, estado, clienteId, repartidorId, fechaDesde, fechaHasta, fechaEntregaDesde, fechaEntregaHasta, soloIncidencias } = query;
     const offset = (page - 1) * limit;
 
     let q = supabase.from('envios').select(ENVIO_LIST_COLUMNS, { count: 'exact' })
@@ -287,6 +301,9 @@ class EnvioService {
     }
     if (fechaDesde) q = q.gte('fecha', fechaDesde);
     if (fechaHasta) q = q.lte('fecha', fechaHasta);
+    if (fechaEntregaDesde) q = q.gte('fecha_entrega_real', fechaEntregaDesde);
+    if (fechaEntregaHasta) q = q.lte('fecha_entrega_real', `${fechaEntregaHasta}T23:59:59.999Z`);
+    if (soloIncidencias) q = q.eq('tiene_incidencia', true);
     if (search) {
       const raw = escapeLikePattern(search);
       // Strip separators to match normalized phones stored as +595XXXXXXXXX

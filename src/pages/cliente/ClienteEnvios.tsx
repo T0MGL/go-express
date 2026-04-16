@@ -76,7 +76,7 @@ const ClienteEnvios = () => {
               : 'Seguí el estado de todos tus paquetes'}
           </p>
         </div>
-        <Button onClick={() => navigate('/cliente/envios/nuevo')} size="sm" className="gap-1.5">
+        <Button onClick={() => navigate('/portal/envios/nuevo')} size="sm" className="gap-1.5">
           <Plus className="w-3.5 h-3.5" />
           Nuevo envío
         </Button>
@@ -192,7 +192,7 @@ const ClienteEnvios = () => {
                     <p className="text-[12px] text-muted-foreground mt-1 max-w-sm mx-auto">
                       Creá tu primer envío y se te va a listar acá con seguimiento en tiempo real.
                     </p>
-                    <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate('/cliente/envios/nuevo')}>
+                    <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate('/portal/envios/nuevo')}>
                       <Plus className="w-3.5 h-3.5" />
                       Crear mi primer envío
                     </Button>

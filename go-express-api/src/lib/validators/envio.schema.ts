@@ -87,6 +87,12 @@ export const envioQuerySchema = paginationSchema.merge(searchSchema).merge(dateR
   estado: envioEstadoEnum.optional(),
   clienteId: uuidSchema.optional(),
   repartidorId: z.union([uuidSchema, z.literal('sin_asignar')]).optional(),
+  fechaEntregaDesde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  fechaEntregaHasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  soloIncidencias: z
+    .union([z.boolean(), z.string()])
+    .transform((v) => v === true || v === 'true' || v === '1')
+    .optional(),
 });
 
 // Bulk import: array of envios

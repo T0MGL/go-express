@@ -315,7 +315,7 @@ const ClienteCotizador = () => {
                     )}
 
                     {i === 0 && (
-                      <Button size="sm" className="w-full gap-1.5 mt-1" onClick={() => navigate('/cliente/envios/nuevo')}>
+                      <Button size="sm" className="w-full gap-1.5 mt-1" onClick={() => navigate('/portal/envios/nuevo')}>
                         <CheckCircle size={14} weight="duotone" /> Crear envío con esta tarifa
                       </Button>
                     )}

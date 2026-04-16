@@ -197,7 +197,7 @@ const ClienteNuevoPaquete = () => {
       {
         onSuccess: () => {
           toast.success('Listo, tu paquete quedó registrado. Generamos el número de seguimiento en unos segundos.');
-          navigate('/cliente/envios');
+          navigate('/portal/envios');
         },
         onError: () => {
           toast.error('No pudimos registrar el paquete. Probá de nuevo en un momento.');
@@ -547,7 +547,7 @@ const ClienteNuevoPaquete = () => {
         </div>
 
         <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/cliente/envios')}>Cancelar</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/portal/envios')}>Cancelar</Button>
           <Button type="submit" size="sm" className="gap-1.5" disabled={createEnvioMutation.isPending}>
             {createEnvioMutation.isPending ? (
               <CircleNotch size={14} weight="bold" className="animate-spin" />

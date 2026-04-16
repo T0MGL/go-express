@@ -2,25 +2,22 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
-interface PortalLoginResponse {
+interface RepartidorLoginResponse {
   token: string;
   refreshToken: string;
   expiresAt: number;
-  cliente: {
+  repartidor: {
     id: string;
-    razonSocial: string;
-    contactoNombre: string;
-    email: string;
-    portalActivo: boolean;
-    portalStatus: string;
+    nombre: string;
+    email: string | null;
+    vehiculo: string;
   };
 }
 
-const PortalLogin = () => {
+const RepartidorLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +25,7 @@ const PortalLogin = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = 'Portal de clientes · GO EXPRESS';
+    document.title = 'Portal Repartidor · GO EXPRESS';
   }, []);
 
   useEffect(() => {
@@ -37,11 +34,11 @@ const PortalLogin = () => {
       if (session) {
         try {
           const me = await api.get<{ tipo: string }>('/auth/me');
-          if (me.tipo === 'cliente') {
-            navigate('/portal', { replace: true });
+          if (me.tipo === 'repartidor') {
+            navigate('/repartidor', { replace: true });
           }
         } catch {
-          // Not authenticated or not a client
+          // not authenticated or not a delivery user
         }
       }
     };
@@ -65,7 +62,7 @@ const PortalLogin = () => {
     setLoading(true);
 
     try {
-      const response = await api.post<PortalLoginResponse>('/auth/portal/login', {
+      const response = await api.post<RepartidorLoginResponse>('/auth/repartidor/login', {
         email: trimmedEmail,
         password,
       });
@@ -75,9 +72,9 @@ const PortalLogin = () => {
         refresh_token: response.refreshToken,
       });
 
-      localStorage.setItem('go_express_cliente', JSON.stringify(response.cliente));
+      localStorage.setItem('go_express_repartidor', JSON.stringify(response.repartidor));
 
-      navigate('/portal', { replace: true });
+      navigate('/repartidor', { replace: true });
     } catch (err) {
       const apiErr = err as { data?: { error?: string } };
       setError(apiErr?.data?.error || 'Credenciales inválidas. Revisá tu email y contraseña.');
@@ -87,7 +84,7 @@ const PortalLogin = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -97,7 +94,7 @@ const PortalLogin = () => {
         <div className="flex flex-col items-center mb-8">
           <img src="/isotipo.png" alt="Go Express" className="w-12 h-12 mb-4" />
           <h1 className="text-xl font-semibold tracking-tight">GO EXPRESS</h1>
-          <p className="text-sm text-muted-foreground mt-1">Portal de clientes</p>
+          <p className="text-sm text-muted-foreground mt-1">Portal Repartidor</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -113,55 +110,51 @@ const PortalLogin = () => {
           )}
 
           <div className="space-y-2">
-            <label htmlFor="portal-email" className="text-sm font-medium">
-              Email
-            </label>
+            <label htmlFor="rep-email" className="text-sm font-medium">Email</label>
             <input
-              id="portal-email"
+              id="rep-email"
               type="email"
+              inputMode="email"
               autoComplete="email"
               required
-              aria-required="true"
               value={email}
-              onChange={e => { setEmail(e.target.value); setError(null); }}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="su-email@empresa.com"
+              onChange={(e) => { setEmail(e.target.value); setError(null); }}
+              className="w-full rounded-md border border-input bg-background px-3 py-3 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="tu-email@ejemplo.com"
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="portal-password" className="text-sm font-medium">
-              Contraseña
-            </label>
+            <label htmlFor="rep-password" className="text-sm font-medium">Contraseña</label>
             <input
-              id="portal-password"
+              id="rep-password"
               type="password"
               autoComplete="current-password"
               required
-              aria-required="true"
               minLength={6}
               value={password}
-              onChange={e => { setPassword(e.target.value); setError(null); }}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
+              className="w-full rounded-md border border-input bg-background px-3 py-3 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Tu contraseña"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
             {loading ? (
               <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
             ) : (
-              'Ingresar al portal'
+              'Ingresar'
             )}
           </Button>
         </form>
 
-        <p className="text-[11px] text-muted-foreground text-center mt-6">
-          ¿Todavía no tenés acceso? Pedile una invitación a tu contacto de GO EXPRESS.
-        </p>
+        <div className="mt-6 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">Consejo</p>
+          <p>Abrí este link desde el celular y agregalo a la pantalla de inicio para usarlo como una app.</p>
+        </div>
       </motion.div>
     </div>
   );
 };
 
-export default PortalLogin;
+export default RepartidorLogin;

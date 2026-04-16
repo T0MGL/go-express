@@ -28,6 +28,20 @@ export function useRepartidores(
   });
 }
 
+export function useInviteRepartidor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ repartidor: Repartidor; tempPassword: string }>(
+        `/admin/repartidores/${id}/invite`,
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: repartidorKeys.lists() });
+    },
+  });
+}
+
 export function useRepartidor(id: string | undefined) {
   return useQuery({
     queryKey: repartidorKeys.detail(id ?? ''),

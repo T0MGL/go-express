@@ -20,24 +20,24 @@ import { useSSE } from '@/hooks/use-sse';
 import { getAvatarColor, getInitials } from '@/lib/avatar-color';
 
 const navItems = [
-  { icon: ChartBar, label: 'Inicio', path: '/cliente', end: true, title: 'Inicio' },
-  { icon: Package, label: 'Mis envíos', path: '/cliente/envios', end: false, title: 'Mis envíos' },
-  { icon: PlusCircle, label: 'Nuevo', path: '/cliente/envios/nuevo', end: true, title: 'Nuevo envío' },
-  { icon: UploadSimple, label: 'Importar', path: '/cliente/importar', end: true, title: 'Importar paquetes' },
-  { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true, title: 'Cotizador' },
-  { icon: Tag, label: 'Etiquetas', path: '/cliente/etiquetas', end: true, title: 'Etiquetas' },
-  { icon: Cube, label: 'Productos', path: '/cliente/productos', end: true, title: 'Mis productos' },
+  { icon: ChartBar, label: 'Inicio', path: '/portal', end: true, title: 'Inicio' },
+  { icon: Package, label: 'Mis envíos', path: '/portal/envios', end: false, title: 'Mis envíos' },
+  { icon: PlusCircle, label: 'Nuevo', path: '/portal/envios/nuevo', end: true, title: 'Nuevo envío' },
+  { icon: UploadSimple, label: 'Importar', path: '/portal/importar', end: true, title: 'Importar paquetes' },
+  { icon: Calculator, label: 'Cotizador', path: '/portal/cotizar', end: true, title: 'Cotizador' },
+  { icon: Tag, label: 'Etiquetas', path: '/portal/etiquetas', end: true, title: 'Etiquetas' },
+  { icon: Cube, label: 'Productos', path: '/portal/productos', end: true, title: 'Mis productos' },
 ];
 
 function getTitleForPath(pathname: string): string {
   // More specific first
-  if (pathname.startsWith('/cliente/envios/nuevo')) return 'Nuevo envío';
-  if (pathname.startsWith('/cliente/envios')) return 'Mis envíos';
-  if (pathname.startsWith('/cliente/importar')) return 'Importar paquetes';
-  if (pathname.startsWith('/cliente/cotizar')) return 'Cotizador';
-  if (pathname.startsWith('/cliente/etiquetas')) return 'Etiquetas';
-  if (pathname.startsWith('/cliente/productos')) return 'Mis productos';
-  if (pathname.startsWith('/cliente/cuenta')) return 'Mi cuenta';
+  if (pathname.startsWith('/portal/envios/nuevo')) return 'Nuevo envío';
+  if (pathname.startsWith('/portal/envios')) return 'Mis envíos';
+  if (pathname.startsWith('/portal/importar')) return 'Importar paquetes';
+  if (pathname.startsWith('/portal/cotizar')) return 'Cotizador';
+  if (pathname.startsWith('/portal/etiquetas')) return 'Etiquetas';
+  if (pathname.startsWith('/portal/productos')) return 'Mis productos';
+  if (pathname.startsWith('/portal/cuenta')) return 'Mi cuenta';
   return 'Inicio';
 }
 
@@ -202,7 +202,7 @@ export const ClienteLayout = () => {
                   <p className="text-xs text-muted-foreground">{displayEmail}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/cliente/cuenta')}>
+                <DropdownMenuItem onClick={() => navigate('/portal/cuenta')}>
                   <GearSix size={16} weight="duotone" className="mr-2" />
                   Mi cuenta
                 </DropdownMenuItem>

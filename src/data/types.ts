@@ -96,6 +96,17 @@ export interface Envio {
   repartidorAsignadoEn: string | null;
   problemaDescripcion: string | null;
   problemaFecha: string | null;
+  fotoEntregaUrl?: string | null;
+  entregadoPorNombre?: string | null;
+  entregadoPorDocumento?: string | null;
+  fechaEntregaReal?: string | null;
+  montoCobrado?: number | null;
+  recolectadoEn?: string | null;
+  entregaNotas?: string | null;
+  tieneIncidencia?: boolean;
+  incidenciaNota?: string | null;
+  incidenciaReportadaEn?: string | null;
+  incidenciaReportadaPor?: string | null;
   notasInternas: NotaInterna[];
   tags: string[];
   tarifaId: string | null;
@@ -222,6 +233,9 @@ export interface Repartidor {
   placa: string;
   licencia: string | null;
   estado: 'activo' | 'inactivo';
+  email?: string | null;
+  portalStatus?: 'no_invitado' | 'invitado' | 'activo';
+  portalInvitedAt?: string | null;
   enviosHoy: number;
   eliminado: boolean;
   eliminadoPor: string | null;

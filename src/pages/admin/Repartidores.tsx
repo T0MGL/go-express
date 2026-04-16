@@ -15,8 +15,10 @@ import { estadoLabels } from '@/data/constants';
 import { Plus } from 'lucide-react';
 import { Eye, UserMinus, UserPlus as UserActivate, UsersThree } from '@phosphor-icons/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useRepartidores, useRepartidorEnvios, useCreateRepartidor, useToggleRepartidorEstado } from '@/hooks/api/use-repartidores';
+import { useRepartidores, useRepartidorEnvios, useCreateRepartidor, useToggleRepartidorEstado, useInviteRepartidor } from '@/hooks/api/use-repartidores';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { EnvelopeSimple, ChartLine } from '@phosphor-icons/react';
 
 const Repartidores = () => {
   const [busqueda, setBusqueda] = useState('');
@@ -41,6 +43,9 @@ const Repartidores = () => {
   );
   const createMut = useCreateRepartidor();
   const toggleEstadoMut = useToggleRepartidorEstado();
+  const inviteMut = useInviteRepartidor();
+  const [inviteDialog, setInviteDialog] = useState<{ open: boolean; id: string | null; email: string }>({ open: false, id: null, email: '' });
+  const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null);
 
   const allRepartidores = apiRepartidores?.data ?? [];
 
@@ -91,6 +96,7 @@ const Repartidores = () => {
     const vehiculo = (fd.get('vehiculo') as string || '').trim();
     const placa = (fd.get('placa') as string || '').trim();
     const licencia = (fd.get('licencia') as string || '').trim();
+    const email = (fd.get('email') as string || '').trim();
 
     if (!nombre || !telefonoRaw || !vehiculo || !placa) {
       toast.error('Completa todos los campos obligatorios');
@@ -111,6 +117,7 @@ const Repartidores = () => {
         vehiculo,
         placa,
         licencia,
+        ...(email ? { email } : {}),
         estado: nuevoEstado ? 'activo' : 'inactivo',
       },
       {
@@ -203,13 +210,21 @@ const Repartidores = () => {
                       <th>Teléfono</th>
                       <th>Vehículo</th>
                       <th>Placa</th>
+                      <th>Portal</th>
                       <th>Estado</th>
                       <th>Entregas hoy</th>
                       <th className="text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRepartidores.map((repartidor) => (
+                    {filteredRepartidores.map((repartidor) => {
+                      const portalStatus = repartidor.portalStatus ?? 'no_invitado';
+                      const portalBadge = portalStatus === 'activo'
+                        ? <Badge variant="success" className="text-[10px]">Activo</Badge>
+                        : portalStatus === 'invitado'
+                        ? <Badge variant="warning" className="text-[10px]">Invitado</Badge>
+                        : <Badge variant="muted" className="text-[10px]">Sin invitar</Badge>;
+                      return (
                       <tr key={repartidor.id}>
                         <td>
                           <div className="flex items-center gap-3">
@@ -224,6 +239,7 @@ const Repartidores = () => {
                         <td className="text-[13px] font-data text-muted-foreground">{repartidor.telefono || 'Sin registrar'}</td>
                         <td className="text-[13px]">{repartidor.vehiculo}</td>
                         <td className="text-[13px] font-data">{repartidor.placa}</td>
+                        <td>{portalBadge}</td>
                         <td>
                           <Badge variant={repartidor.estado === 'activo' ? 'success' : 'muted'}>
                             {repartidor.estado === 'activo' ? 'Activo' : 'Inactivo'}
@@ -238,6 +254,45 @@ const Repartidores = () => {
                         </td>
                         <td>
                           <div className="flex gap-1 justify-end">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={async () => {
+                                    if (!repartidor.email) {
+                                      setInviteDialog({ open: true, id: repartidor.id, email: '' });
+                                      return;
+                                    }
+                                    try {
+                                      const result = await inviteMut.mutateAsync(repartidor.id);
+                                      setInviteResult({ email: repartidor.email, tempPassword: result.tempPassword });
+                                      toast.success('Invitación enviada por email');
+                                    } catch {
+                                      toast.error('No se pudo enviar la invitación');
+                                    }
+                                  }}
+                                  disabled={inviteMut.isPending}
+                                  aria-label={`Invitar ${repartidor.nombre}`}
+                                >
+                                  <EnvelopeSimple size={14} weight="duotone" className="text-primary" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {portalStatus === 'activo' ? 'Reenviar invitación (resetea contraseña)' : 'Invitar al portal'}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                                  <Link to={`/admin/conciliacion?repartidor=${repartidor.id}`} aria-label={`Conciliación de ${repartidor.nombre}`}>
+                                    <ChartLine size={14} weight="duotone" />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver conciliación</TooltipContent>
+                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -277,7 +332,8 @@ const Repartidores = () => {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -412,6 +468,13 @@ const Repartidores = () => {
                 <Label htmlFor="licencia" className="text-[13px]">Licencia de conducir</Label>
                 <Input id="licencia" name="licencia" placeholder="LIC-123456" className="mt-1.5 font-data" />
               </div>
+              <div>
+                <Label htmlFor="email" className="text-[13px]">Email (para invitar al portal)</Label>
+                <Input id="email" name="email" type="email" placeholder="repartidor@ejemplo.com" className="mt-1.5" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Opcional ahora. Lo podés agregar después desde el detalle.
+                </p>
+              </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="estado" className="text-[13px]">Estado</Label>
                 <div className="flex items-center gap-2">
@@ -429,6 +492,101 @@ const Repartidores = () => {
               <Button type="submit" size="sm" disabled={createMut.isPending}>Guardar</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email required dialog when inviting without email */}
+      <Dialog open={inviteDialog.open} onOpenChange={(o) => setInviteDialog({ ...inviteDialog, open: o })}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Falta el email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[13px] text-muted-foreground">
+              Este repartidor todavía no tiene email cargado. Agregá uno para enviarle la invitación.
+            </p>
+            <div>
+              <Label className="text-[13px]">Email</Label>
+              <Input
+                type="email"
+                value={inviteDialog.email}
+                onChange={(e) => setInviteDialog({ ...inviteDialog, email: e.target.value })}
+                placeholder="repartidor@ejemplo.com"
+                className="mt-1.5"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setInviteDialog({ open: false, id: null, email: '' })}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!inviteDialog.email || !inviteDialog.id || inviteMut.isPending}
+              onClick={async () => {
+                if (!inviteDialog.id) return;
+                try {
+                  // Update email first
+                  await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/admin/repartidores/${inviteDialog.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${(await import('@/lib/supabase').then(m => m.supabase.auth.getSession())).data.session?.access_token ?? ''}`,
+                    },
+                    body: JSON.stringify({ email: inviteDialog.email }),
+                  });
+                  const result = await inviteMut.mutateAsync(inviteDialog.id);
+                  setInviteResult({ email: inviteDialog.email, tempPassword: result.tempPassword });
+                  setInviteDialog({ open: false, id: null, email: '' });
+                  toast.success('Invitación enviada por email');
+                } catch {
+                  toast.error('No se pudo enviar la invitación');
+                }
+              }}
+            >
+              Enviar invitación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credentials dialog as fallback */}
+      <Dialog open={!!inviteResult} onOpenChange={(o) => !o && setInviteResult(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Invitación enviada</DialogTitle>
+          </DialogHeader>
+          {inviteResult && (
+            <div className="space-y-3">
+              <p className="text-[13px] text-muted-foreground">
+                Email enviado a <strong>{inviteResult.email}</strong>. Si no llega, podés pasarle estas credenciales por WhatsApp:
+              </p>
+              <div className="rounded-lg bg-muted/40 p-3 space-y-2">
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">Email</Label>
+                  <div className="font-data text-[13px]">{inviteResult.email}</div>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">Contraseña temporal</Label>
+                  <div className="font-data text-[14px] font-semibold select-all">{inviteResult.tempPassword}</div>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  navigator.clipboard.writeText(`Email: ${inviteResult.email}\nContraseña: ${inviteResult.tempPassword}\n\nIngresá en https://goexpressparaguay.com/repartidor/login`);
+                  toast.success('Copiado al portapapeles');
+                }}
+              >
+                Copiar credenciales
+              </Button>
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" onClick={() => setInviteResult(null)}>Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       </div>

@@ -12,6 +12,8 @@ export interface PublicTrackingResult {
   destino: string;
   destinatarioCiudad: string;
   fecha: string;
+  entregadoEn?: string;
+  recibidoPor?: string;
   eventos: Array<{
     estado: string;
     descripcion: string;
@@ -21,16 +23,23 @@ export interface PublicTrackingResult {
 }
 
 
+function firstName(nombre: string | null | undefined): string | undefined {
+  if (!nombre) return undefined;
+  const first = nombre.trim().split(/\s+/)[0];
+  return first ? first : undefined;
+}
+
 class TrackingService {
   /**
    * Look up an envio by tracking number and return LIMITED public data.
-   * Does NOT include: destinatario name, address, phone, cedula, internal notes, payment info.
+   * Does NOT include: destinatario name, address, phone, cedula, internal notes, payment info,
+   * POD photo, collected amount.
    */
   async getByTrackingNumber(trackingNumber: string): Promise<PublicTrackingResult | null> {
     // Only safe columns plus id (for eventos lookup)
     const { data: envioData, error: envioError } = await supabase
       .from('envios')
-      .select('id, tracking_number, estado, origen, destino, destinatario_ciudad, fecha')
+      .select('id, tracking_number, estado, origen, destino, destinatario_ciudad, fecha, fecha_entrega_real, entregado_por_nombre')
       .eq('tracking_number', trackingNumber)
       .eq('eliminado', false)
       .single();
@@ -54,6 +63,8 @@ class TrackingService {
       destino: string;
       destinatario_ciudad: string;
       fecha: string;
+      fecha_entrega_real: string | null;
+      entregado_por_nombre: string | null;
     };
 
     let eventos: PublicTrackingResult['eventos'] = [];
@@ -76,7 +87,7 @@ class TrackingService {
       }));
     }
 
-    return {
+    const result: PublicTrackingResult = {
       trackingNumber: envio.tracking_number,
       estado: envio.estado,
       origen: envio.origen,
@@ -85,6 +96,16 @@ class TrackingService {
       fecha: envio.fecha,
       eventos,
     };
+
+    if (envio.estado === 'entregado' && envio.fecha_entrega_real) {
+      result.entregadoEn = envio.fecha_entrega_real;
+      const recibidoPor = firstName(envio.entregado_por_nombre);
+      if (recibidoPor) {
+        result.recibidoPor = recibidoPor;
+      }
+    }
+
+    return result;
   }
 }
 

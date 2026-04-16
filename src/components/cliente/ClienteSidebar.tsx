@@ -5,13 +5,13 @@ import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 
 const menuItems = [
-  { icon: ChartBar, label: 'Inicio', path: '/cliente', end: true },
-  { icon: Package, label: 'Mis envíos', path: '/cliente/envios', end: false },
-  { icon: PlusCircle, label: 'Nuevo envío', path: '/cliente/envios/nuevo', end: true },
-  { icon: UploadSimple, label: 'Importar', path: '/cliente/importar', end: true },
-  { icon: Calculator, label: 'Cotizador', path: '/cliente/cotizar', end: true },
-  { icon: Tag, label: 'Etiquetas', path: '/cliente/etiquetas', end: true },
-  { icon: GearSix, label: 'Mi cuenta', path: '/cliente/cuenta', end: true },
+  { icon: ChartBar, label: 'Inicio', path: '/portal', end: true },
+  { icon: Package, label: 'Mis envíos', path: '/portal/envios', end: false },
+  { icon: PlusCircle, label: 'Nuevo envío', path: '/portal/envios/nuevo', end: true },
+  { icon: UploadSimple, label: 'Importar', path: '/portal/importar', end: true },
+  { icon: Calculator, label: 'Cotizador', path: '/portal/cotizar', end: true },
+  { icon: Tag, label: 'Etiquetas', path: '/portal/etiquetas', end: true },
+  { icon: GearSix, label: 'Mi cuenta', path: '/portal/cuenta', end: true },
 ];
 
 export const ClienteSidebar = () => {

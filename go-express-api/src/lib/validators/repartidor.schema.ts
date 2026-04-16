@@ -10,6 +10,7 @@ export const createRepartidorSchema = z.object({
   vehiculo: vehiculoTipoEnum,
   placa: z.string().min(2).max(20),
   licencia: z.string().max(50).optional(),
+  email: z.string().email().optional(),
 });
 
 export const updateRepartidorSchema = createRepartidorSchema.partial();

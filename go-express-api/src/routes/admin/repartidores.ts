@@ -96,4 +96,36 @@ router.delete(
   })
 );
 
+/**
+ * POST /:id/invite
+ *
+ * Sends portal invitation email to repartidor with temporary credentials.
+ * Returns tempPassword for admin to share via WhatsApp as fallback.
+ */
+router.post(
+  '/:id/invite',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await repartidorService.inviteToPortal(req.params['id'] as string, req.userId!);
+    res.json(result);
+  })
+);
+
+/**
+ * GET /:id/conciliacion?desde=&hasta=
+ *
+ * Returns delivery summary grouped by zone for a repartidor within a date range.
+ */
+router.get(
+  '/:id/conciliacion',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const repartidorId = req.params['id'] as string;
+    const desde = (req.query['desde'] as string | undefined) ?? undefined;
+    const hasta = (req.query['hasta'] as string | undefined) ?? undefined;
+    const resumen = await repartidorService.getConciliacion(repartidorId, desde, hasta);
+    res.json(resumen);
+  })
+);
+
 export default router;

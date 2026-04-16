@@ -51,10 +51,10 @@ const rowFade = {
 } as const;
 
 const quickActions = [
-  { icon: PlusCircle, label: 'Nuevo envío', desc: 'Registrar un paquete', path: '/cliente/envios/nuevo' },
-  { icon: UploadSimple, label: 'Importar', desc: 'Varios pedidos con CSV', path: '/cliente/importar' },
-  { icon: Calculator, label: 'Cotizador', desc: 'Calcular el costo antes', path: '/cliente/cotizar' },
-  { icon: Tag, label: 'Etiquetas', desc: 'Organizar los paquetes', path: '/cliente/etiquetas' },
+  { icon: PlusCircle, label: 'Nuevo envío', desc: 'Registrar un paquete', path: '/portal/envios/nuevo' },
+  { icon: UploadSimple, label: 'Importar', desc: 'Varios pedidos con CSV', path: '/portal/importar' },
+  { icon: Calculator, label: 'Cotizador', desc: 'Calcular el costo antes', path: '/portal/cotizar' },
+  { icon: Tag, label: 'Etiquetas', desc: 'Organizar los paquetes', path: '/portal/etiquetas' },
 ];
 
 const defaultStats = { activos: 0, entregados: 0, pendientes: 0, problemas: 0 };
@@ -92,7 +92,7 @@ const ClienteDashboard = () => {
             Así vienen los envíos de tu cuenta hoy
           </p>
         </div>
-        <Link to="/cliente/envios/nuevo">
+        <Link to="/portal/envios/nuevo">
           <Button size="sm" className="gap-1.5">
             <PlusCircle size={14} weight="bold" />
             Nuevo envío
@@ -150,7 +150,7 @@ const ClienteDashboard = () => {
             <h2 className="font-display text-[15px] font-semibold">Últimos envíos</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">Los más recientes de tu cuenta</p>
           </div>
-          <Link to="/cliente/envios">
+          <Link to="/portal/envios">
             <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
               Ver todos
               <ArrowRight size={14} weight="bold" />
@@ -195,7 +195,7 @@ const ClienteDashboard = () => {
                         <p className="text-[12px] text-muted-foreground max-w-[18rem]">
                           Creá tu primer envío y te va a aparecer acá con el estado en tiempo real.
                         </p>
-                        <Link to="/cliente/envios/nuevo" className="mt-2">
+                        <Link to="/portal/envios/nuevo" className="mt-2">
                           <Button size="sm" className="gap-1.5">
                             <PlusCircle size={14} weight="bold" />
                             Crear mi primer envío

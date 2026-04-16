@@ -1,9 +1,13 @@
 import { Router } from 'express';
-import { asyncHandler } from '../../middleware/errorHandler.js';
+import { z } from 'zod';
+import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import { envioService } from '../../services/envio.service.js';
 import { sseService } from '../../services/sse.service.js';
+import { supabase } from '../../config/database.js';
+import { nowISO } from '../../lib/datetime.js';
+import { logger } from '../../config/logger.js';
 import type { EnvioQuery } from '../../lib/validators/envio.schema.js';
 import {
   createEnvioSchema,
@@ -115,6 +119,79 @@ router.patch(
     sseService.broadcast({ entity: ['envios', 'detail'], action: 'updated', id });
     res.json(envio);
   })
+);
+
+const resolverIncidenciaSchema = z.object({
+  nota: z.string().max(1000).optional(),
+});
+
+router.post(
+  '/:id/incidencia/resolver',
+  validate({ params: idParamSchema, body: resolverIncidenciaSchema }),
+  asyncHandler(async (req, res) => {
+    const id = req.params['id'] as string;
+    const nota = (req.body as { nota?: string }).nota;
+    const userName = req.userName ?? 'Admin GoExpress';
+
+    const { data: envio, error } = await supabase
+      .from('envios')
+      .select('id, tiene_incidencia')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (error || !envio) throw AppError.notFound('Envio', id);
+
+    await supabase
+      .from('envios')
+      .update({ tiene_incidencia: false })
+      .eq('id', id);
+
+    await supabase.from('eventos_envio').insert({
+      envio_id: id,
+      estado: 'nota',
+      descripcion: `Incidencia resuelta por ${userName}${nota ? `: ${nota}` : ''}`,
+      registrado_por_nombre: userName,
+    });
+
+    sseService.broadcast({ entity: ['envios', 'detail'], action: 'updated', id });
+    sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
+
+    res.json({ ok: true });
+  }),
+);
+
+router.get(
+  '/:id/pod-download-url',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const id = req.params['id'] as string;
+    const { data: envio, error } = await supabase
+      .from('envios')
+      .select('id, foto_entrega_url')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (error || !envio) throw AppError.notFound('Envio', id);
+
+    const row = envio as { id: string; foto_entrega_url: string | null };
+    if (!row.foto_entrega_url) {
+      res.json({ signedUrl: null });
+      return;
+    }
+
+    const { data, error: sErr } = await supabase.storage
+      .from('pod-entregas')
+      .createSignedUrl(row.foto_entrega_url, 600);
+
+    if (sErr || !data) {
+      logger.error({ err: sErr, id }, 'Error creating POD signed url for admin');
+      throw new AppError('No se pudo generar URL de POD', 500, 'STORAGE_ERROR');
+    }
+
+    res.json({ signedUrl: data.signedUrl });
+  }),
 );
 
 router.patch(

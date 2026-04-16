@@ -411,7 +411,7 @@ const Track = () => {
               Volver al Inicio
             </Button>
             <div className="w-px h-5 bg-border hidden md:block" />
-            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20" onClick={() => navigate('/cliente')}>
+            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20" onClick={() => navigate('/portal')}>
               Portal Empresas
             </Button>
             <Button variant="ghost" size="sm" className="md:hidden text-sidebar hover:bg-muted border-0 px-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -428,7 +428,7 @@ const Track = () => {
                   <ArrowRight weight="bold" className="rotate-180" /> Volver al Inicio
                 </button>
                 <div className="h-px bg-muted w-full my-2" />
-                <button onClick={() => { setMobileMenuOpen(false); navigate('/cliente'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
+                <button onClick={() => { setMobileMenuOpen(false); navigate('/portal'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
                   Portal Empresas
                 </button>
               </div>
@@ -780,7 +780,7 @@ const Track = () => {
             </div>
             <div className="flex gap-6 text-sidebar/30 text-xs font-medium">
               <button onClick={() => navigate('/track')} className="hover:text-sidebar transition-colors">Rastreo</button>
-              <button onClick={() => navigate('/cliente')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
+              <button onClick={() => navigate('/portal')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
               <button onClick={() => navigate('/admin')} className="hover:text-sidebar transition-colors">Administracion</button>
             </div>
           </div>

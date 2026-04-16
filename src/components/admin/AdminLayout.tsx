@@ -108,7 +108,7 @@ export const AdminLayout = () => {
       message: 'AdminLayout redirect to /cliente',
       data: { reason: 'wrong-role', rol: user.rol, path: location.pathname },
     });
-    return <Navigate to="/cliente" state={{ from: location }} replace />;
+    return <Navigate to="/portal" state={{ from: location }} replace />;
   }
 
   return (

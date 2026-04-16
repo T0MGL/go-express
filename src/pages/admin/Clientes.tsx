@@ -416,7 +416,7 @@ const Clientes = () => {
                             aria-label={`Ver portal de ${cliente.razonSocial}`}
                             asChild
                           >
-                            <Link to="/cliente">
+                            <Link to="/portal">
                               <ArrowSquareOut size={14} weight="duotone" />
                             </Link>
                           </Button>

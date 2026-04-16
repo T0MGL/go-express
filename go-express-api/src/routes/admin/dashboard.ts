@@ -31,6 +31,7 @@ router.get(
       problemasAbiertosResult,
       pendientesRecoleccionHoyResult,
       enRutaSinActualizarResult,
+      incidenciasActivasResult,
       recientesResult,
     ] = await Promise.all([
       // Envios created today
@@ -90,6 +91,12 @@ router.get(
         .eq('eliminado', false)
         .in('estado', ['en_transito', 'en_reparto'])
         .lte('updated_at', staleDeliveryCutoff.toISOString()),
+      // Active incidents reported by delivery partners
+      supabase
+        .from('envios')
+        .select('id', { count: 'exact', head: true })
+        .eq('eliminado', false)
+        .eq('tiene_incidencia', true),
       // Recent envios (last 7 days)
       supabase
         .from('envios')
@@ -127,6 +134,7 @@ router.get(
       problemasAbiertos: problemasAbiertosResult.count ?? 0,
       pendientesRecoleccionHoy: pendientesRecoleccionHoyResult.count ?? 0,
       enRutaSinActualizar: enRutaSinActualizarResult.count ?? 0,
+      incidenciasActivas: incidenciasActivasResult.count ?? 0,
       enviosRecientes: rawRecientes.map(r => ({
         id: r.id,
         trackingNumber: r.tracking_number,

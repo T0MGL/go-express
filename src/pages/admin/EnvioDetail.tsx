@@ -40,6 +40,8 @@ import {
 } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
 import { IntentosContactoCard } from '@/components/admin/IntentosContactoCard';
+import { useAdminPodDownloadUrl, useResolverIncidencia } from '@/hooks/api/use-envio-pod';
+import type { Envio } from '@/data/types';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   pendiente: ['recolectado', 'problema'],
@@ -370,6 +372,18 @@ const EnvioDetail = () => {
             <p className="text-[13px]">{envio.problemaDescripcion}</p>
           </AlertDescription>
         </Alert>
+      )}
+
+      {envio.tieneIncidencia && envio.incidenciaNota && envio.estado !== 'entregado' && (
+        <IncidenciaBanner
+          envioId={envio.id}
+          nota={envio.incidenciaNota}
+          reportadaEn={envio.incidenciaReportadaEn ?? null}
+        />
+      )}
+
+      {envio.estado === 'entregado' && (envio.entregadoPorNombre || envio.fotoEntregaUrl) && (
+        <EntregaPODBanner envio={envio} />
       )}
 
       <div className="grid gap-6">
@@ -844,5 +858,107 @@ const EnvioDetail = () => {
     </div>
   );
 };
+
+function IncidenciaBanner({
+  envioId,
+  nota,
+  reportadaEn,
+}: { envioId: string; nota: string; reportadaEn: string | null }) {
+  const resolverMut = useResolverIncidencia(envioId);
+
+  async function handleResolve() {
+    if (!window.confirm('¿Resolver la incidencia? Se registrará en el historial.')) return;
+    try {
+      await resolverMut.mutateAsync(undefined);
+      toast.success('Incidencia resuelta');
+    } catch {
+      toast.error('No se pudo resolver');
+    }
+  }
+
+  return (
+    <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+      <Warning size={16} weight="duotone" className="text-amber-600" />
+      <AlertTitle>Incidencia reportada por el repartidor</AlertTitle>
+      <AlertDescription className="space-y-2">
+        <p className="text-[13px]">{nota}</p>
+        {reportadaEn && (
+          <p className="text-[11px] text-amber-700">
+            Reportada {formatDateSmart(reportadaEn).toLowerCase()}
+          </p>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2 border-amber-400 text-amber-800 hover:bg-amber-100"
+          onClick={handleResolve}
+          disabled={resolverMut.isPending}
+        >
+          {resolverMut.isPending ? 'Resolviendo...' : 'Marcar como resuelta'}
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function EntregaPODBanner({ envio }: { envio: Envio }) {
+  const { data: pod } = useAdminPodDownloadUrl(envio.id, envio.fotoEntregaUrl ?? null);
+  const isCod = envio.tipoPago === 'contra_entrega' && envio.montoACobrar > 0;
+  const montoDiff = isCod && envio.montoCobrado != null && envio.montoCobrado !== envio.montoACobrar;
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+      <div className="flex items-start gap-3">
+        {pod?.signedUrl ? (
+          <a href={pod.signedUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={pod.signedUrl}
+              alt="Prueba de entrega"
+              className="w-20 h-20 rounded-lg object-cover border border-emerald-300 flex-shrink-0"
+            />
+          </a>
+        ) : (
+          <div className="w-20 h-20 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+            <span className="text-[10px] text-emerald-600 text-center px-1">Sin foto registrada</span>
+          </div>
+        )}
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="text-[12px] font-bold text-emerald-800 uppercase tracking-wide">Prueba de entrega</div>
+          {envio.entregadoPorNombre && (
+            <div className="text-[14px] font-semibold">
+              Entregado a {envio.entregadoPorNombre}
+              {envio.entregadoPorDocumento && (
+                <span className="text-[12px] font-normal text-emerald-700 ml-1">· Doc {envio.entregadoPorDocumento}</span>
+              )}
+            </div>
+          )}
+          {envio.fechaEntregaReal && (
+            <div className="text-[12px] text-emerald-700">
+              {formatDateSmart(envio.fechaEntregaReal)}
+            </div>
+          )}
+          {isCod && envio.montoCobrado != null && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[13px] font-medium">
+                Cobrado: {formatCurrency(envio.montoCobrado)}
+              </span>
+              {montoDiff && (
+                <Badge variant="warning" className="text-[10px]">
+                  ≠ pactado ({formatCurrency(envio.montoACobrar)})
+                </Badge>
+              )}
+              {!montoDiff && (
+                <Badge variant="success" className="text-[10px]">coincide</Badge>
+              )}
+            </div>
+          )}
+          {envio.entregaNotas && (
+            <div className="text-[12px] text-emerald-800 italic mt-1">"{envio.entregaNotas}"</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default EnvioDetail;

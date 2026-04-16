@@ -236,7 +236,7 @@ const Landing = () => {
               Rastrear Envío
             </Button>
             <div className="w-px h-5 bg-border hidden md:block" />
-            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20" onClick={() => navigate('/cliente')}>
+            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20" onClick={() => navigate('/portal')}>
               Portal Empresas
             </Button>
             <Button variant="ghost" size="sm" className="md:hidden text-sidebar hover:bg-muted border-0 px-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -898,7 +898,7 @@ const Landing = () => {
                 {[
                   { label: 'Distribución B2B', onClick: undefined },
                   { label: 'Seguro de Carga', onClick: () => setInsuranceOpen(true) },
-                  { label: 'Portal Corporativo', onClick: () => navigate('/cliente') },
+                  { label: 'Portal Corporativo', onClick: () => navigate('/portal') },
                 ].map((item) => (
                   <button
                     key={item.label}
@@ -944,7 +944,7 @@ const Landing = () => {
             </div>
             <div className="flex gap-6 text-sidebar/30 text-xs font-medium">
               <button onClick={() => navigate('/track')} className="hover:text-sidebar transition-colors">Rastreo</button>
-              <button onClick={() => navigate('/cliente')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
+              <button onClick={() => navigate('/portal')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
               <button onClick={() => navigate('/admin')} className="hover:text-sidebar transition-colors">Administración</button>
             </div>
           </div>

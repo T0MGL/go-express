@@ -1,6 +1,7 @@
 import { defineConfig, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }): UserConfig => ({
   server: {
@@ -13,7 +14,46 @@ export default defineConfig(({ mode }): UserConfig => ({
       },
     },
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'isotipo.png', 'apple-touch-icon.png'],
+      manifest: {
+        name: 'GO EXPRESS',
+        short_name: 'GO EXPRESS',
+        description: 'Portal de envíos y repartidores',
+        theme_color: '#0643F7',
+        background_color: '#ffffff',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/repartidor',
+        icons: [
+          { src: '/isotipo.png', sizes: '192x192', type: 'image/png' },
+          { src: '/isotipo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.goexpressparaguay\.com\/api\/public\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-public-cache',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 30, maxAgeSeconds: 300 },
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: false,
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

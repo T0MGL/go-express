@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { CheckCircle } from '@phosphor-icons/react';
 
@@ -11,9 +11,10 @@ interface ForgotPasswordSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   redirectPath: string;
+  portal: 'cliente' | 'repartidor';
 }
 
-export function ForgotPasswordSheet({ open, onOpenChange, redirectPath }: ForgotPasswordSheetProps) {
+export function ForgotPasswordSheet({ open, onOpenChange, redirectPath, portal }: ForgotPasswordSheetProps) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -27,10 +28,11 @@ export function ForgotPasswordSheet({ open, onOpenChange, redirectPath }: Forgot
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      await api.post('/auth/forgot-password', {
+        email: trimmed,
+        portal,
         redirectTo: `${window.location.origin}${redirectPath}`,
       });
-      if (error) throw error;
       setSent(true);
     } catch {
       toast.error('No se pudo enviar el link. Reintentá en unos segundos.');

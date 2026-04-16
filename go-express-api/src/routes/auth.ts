@@ -6,6 +6,7 @@ import { supabase, supabaseAuth } from '../config/database.js';
 import { auditoriaService } from '../services/auditoria.service.js';
 import { clienteService } from '../services/cliente.service.js';
 import { repartidorService } from '../services/repartidor.service.js';
+import { emailService } from '../services/email.service.js';
 import { logger } from '../config/logger.js';
 
 
@@ -208,6 +209,66 @@ router.post(
         vehiculo: rep.vehiculo,
       },
     });
+  }),
+);
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  portal: z.enum(['cliente', 'repartidor']),
+  redirectTo: z.string().url(),
+});
+
+/**
+ * POST /api/auth/forgot-password
+ *
+ * Generates a password recovery link via Supabase admin API and sends it
+ * through Resend using our own branded template. Always returns 200 to
+ * avoid email enumeration attacks.
+ */
+router.post(
+  '/forgot-password',
+  validate({ body: forgotPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    const { email, portal, redirectTo } = req.body as z.infer<typeof forgotPasswordSchema>;
+
+    const table = portal === 'repartidor' ? 'repartidores' : 'clientes';
+    const nameField = portal === 'repartidor' ? 'nombre' : 'contacto_nombre';
+
+    const { data: row } = await supabase
+      .from(table)
+      .select(`id, email, estado, eliminado, ${nameField}`)
+      .ilike('email', email)
+      .eq('eliminado', false)
+      .maybeSingle();
+
+    const account = row as (Record<string, unknown> & { email?: string; estado?: string }) | null;
+
+    if (!account || account.estado !== 'activo') {
+      // Silent success: do not leak account existence.
+      logger.info({ email, portal }, 'Forgot-password request for unknown or inactive account');
+      res.json({ ok: true });
+      return;
+    }
+
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo },
+    });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      logger.error({ err: linkError, email, portal }, 'Failed to generate recovery link');
+      res.json({ ok: true });
+      return;
+    }
+
+    const nombre = typeof account[nameField] === 'string' ? (account[nameField] as string) : '';
+
+    emailService
+      .sendPasswordReset(email, nombre, linkData.properties.action_link, portal)
+      .catch((err) => logger.error({ err, email }, 'Failed to send password reset email'));
+
+    res.json({ ok: true });
   }),
 );
 

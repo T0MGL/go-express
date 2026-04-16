@@ -290,6 +290,32 @@ ${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-
     await this.send(email, 'Bienvenido al Portal GO EXPRESS', html);
   }
 
+  async sendPasswordReset(
+    email: string,
+    nombre: string,
+    resetUrl: string,
+    portal: 'cliente' | 'repartidor',
+  ): Promise<void> {
+    const safeName = escapeHtml(nombre || 'Hola');
+    const safeUrl = escapeHtml(resetUrl);
+    const portalLabel = portal === 'repartidor' ? 'Portal Repartidor' : 'Portal de Clientes';
+
+    const html = baseTemplate({
+      title: 'Recuperación de contraseña GO EXPRESS',
+      accent: '#0643F7',
+      tracking: '',
+      ctaText: 'Crear nueva contraseña',
+      ctaUrl: safeUrl,
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Recuperá tu contraseña</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 16px">Hola, ${safeName}. Recibimos una solicitud para crear una nueva contraseña en tu cuenta de ${portalLabel}.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tocá el botón de abajo para elegir una contraseña nueva. El link es válido por 1 hora.</p>
+<p style="font-size:12px;color:#9ca3af;margin:0">Si no fuiste vos, podés ignorar este correo. Tu contraseña actual sigue funcionando.</p>`,
+    });
+
+    await this.send(email, 'Recuperá tu contraseña GO EXPRESS', html);
+  }
+
   async sendRepartidorInvite(email: string, temporaryPassword: string, repartidorName: string): Promise<void> {
     const safeName = escapeHtml(repartidorName);
     const safeEmail = escapeHtml(email);

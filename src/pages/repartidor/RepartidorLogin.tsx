@@ -165,6 +165,7 @@ const RepartidorLogin = () => {
           open={forgotOpen}
           onOpenChange={setForgotOpen}
           redirectPath="/repartidor/reset-password"
+          portal="repartidor"
         />
 
         {!isStandalone && (

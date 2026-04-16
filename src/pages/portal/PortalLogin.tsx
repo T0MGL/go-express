@@ -174,6 +174,7 @@ const PortalLogin = () => {
           open={forgotOpen}
           onOpenChange={setForgotOpen}
           redirectPath="/portal/reset-password"
+          portal="cliente"
         />
       </motion.div>
     </div>

@@ -104,7 +104,7 @@ export { useTracking } from './use-tracking';
 export { useProductos, useCreateProducto, useUpdateProducto, useDeleteProducto } from './use-productos';
 export { useClienteDashboardStats } from './use-cliente-dashboard';
 export { useClienteEnvios, useClienteEnvio, useClienteCreateEnvio, useClienteBulkImport } from './use-cliente-envios';
-export { useCiudadesDisponibles, useCotizar } from './use-cotizador';
+export { useCiudadesDisponibles, useDestinosDisponibles, useCotizar } from './use-cotizador';
 export { useCuenta, useUpdateCuenta } from './use-cuenta';
 export { useTags, useCreateTag, useDeleteTag } from './use-tags';
 

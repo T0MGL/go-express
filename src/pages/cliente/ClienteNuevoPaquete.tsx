@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -6,17 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { departamentosPY } from '@/data/constants';
 import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn, formatCurrency } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
-import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch } from '@phosphor-icons/react';
+import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch, MapPin, ArrowRight } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
 import { useClienteSeguroCotizar } from '@/hooks/api/use-seguro-config';
 import { useProductos } from '@/hooks/api/use-productos';
-import { useCiudadesDisponibles } from '@/hooks/api/use-cotizador';
+import { useDestinosDisponibles } from '@/hooks/api/use-cotizador';
 import type { SeguroCotizarResponse } from '@/lib/seguro';
 
 interface SizePreset {
@@ -45,8 +44,7 @@ const ClienteNuevoPaquete = () => {
     destinatarioTelefono: '',
     destinatarioEmail: '',
     destinatarioDireccion: '',
-    departamento: '',
-    ciudad: '',
+    ciudadDestino: '',
     codigoReferencia: '',
     peso: '',
     largo: '',
@@ -62,7 +60,9 @@ const ClienteNuevoPaquete = () => {
   const createEnvioMutation = useClienteCreateEnvio();
   const seguroCotizarMutation = useClienteSeguroCotizar();
   const { data: apiProductos } = useProductos();
-  const { data: ciudadesDisponibles } = useCiudadesDisponibles();
+  const { data: destinosData, isLoading: destinosLoading } = useDestinosDisponibles();
+  const origen = destinosData?.origen ?? '';
+  const destinos = destinosData?.destinos ?? [];
 
   // Debounced cotizacion de seguro cuando cambia valorDeclarado.
   // Cliente NO tiene acceso a la config cruda: pregunta al backend por el resultado calculado.
@@ -90,14 +90,6 @@ const ClienteNuevoPaquete = () => {
   }, [form.valorDeclarado]);
 
   const productos: ProductoGuardado[] = apiProductos?.data ?? [];
-
-  const activeDepartamentos = useMemo(() => {
-    const active = new Set(ciudadesDisponibles ?? []);
-    return departamentosPY.map((d) => ({
-      name: d,
-      isActive: active.size === 0 ? true : active.has(d),
-    }));
-  }, [ciudadesDisponibles]);
 
   const applySizePreset = (preset: SizePreset) => {
     setSelectedSize(preset.id);
@@ -149,8 +141,8 @@ const ClienteNuevoPaquete = () => {
       toast.error('La dirección debe tener al menos 5 caracteres');
       return;
     }
-    if (!form.departamento) {
-      toast.error('Selecciona un departamento de destino');
+    if (!form.ciudadDestino) {
+      toast.error('Selecciona una ciudad de destino');
       return;
     }
     if (!form.peso || Number(form.peso) <= 0) {
@@ -162,7 +154,6 @@ const ClienteNuevoPaquete = () => {
       return;
     }
 
-    const ciudadTrimmed = form.ciudad.trim();
     const codigoTrimmed = form.codigoReferencia.trim();
     const emailTrimmed = form.destinatarioEmail.trim();
 
@@ -178,8 +169,7 @@ const ClienteNuevoPaquete = () => {
         destinatarioNombre: form.destinatarioNombre,
         destinatarioTelefono: telefono,
         destinatarioDireccion: form.destinatarioDireccion,
-        destinatarioDepartamento: form.departamento,
-        destinatarioCiudad: ciudadTrimmed || form.departamento,
+        destinatarioCiudad: form.ciudadDestino,
         ...(codigoTrimmed ? { codigoReferencia: codigoTrimmed } : {}),
         ...(emailTrimmed ? { destinatarioEmail: emailTrimmed } : {}),
         peso: Number(form.peso),
@@ -249,36 +239,50 @@ const ClienteNuevoPaquete = () => {
                 Si lo cargas, el destinatario recibe email en cada cambio de estado.
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-[11px]">Departamento *</Label>
-                <Select value={form.departamento} onValueChange={(v) => handleChange('departamento', v)}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeDepartamentos.map((d) => (
-                      <SelectItem key={d.name} value={d.name} disabled={!d.isActive}>
-                        <span className="flex items-center justify-between gap-2 w-full">
-                          <span>{d.name}</span>
-                          {!d.isActive && (
-                            <span className="text-[10px] text-muted-foreground/60 italic">sin cobertura</span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[11px]">Ciudad</Label>
-                <Input
-                  value={form.ciudad}
-                  onChange={(e) => handleChange('ciudad', e.target.value)}
-                  placeholder="Ej: Ciudad del Este"
-                  className="mt-1.5"
-                />
-              </div>
+            <div>
+              <Label className="text-[11px]">Ciudad de destino *</Label>
+              <Select
+                value={form.ciudadDestino}
+                onValueChange={(v) => handleChange('ciudadDestino', v)}
+                disabled={destinosLoading || destinos.length === 0}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue
+                    placeholder={
+                      destinosLoading
+                        ? 'Cargando destinos...'
+                        : destinos.length === 0
+                        ? 'No hay destinos con cobertura'
+                        : 'Seleccionar ciudad'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {destinos.map((ciudad) => (
+                    <SelectItem key={ciudad} value={ciudad}>
+                      {ciudad}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {origen && (
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <MapPin size={11} weight="duotone" />
+                  <span>Sale desde</span>
+                  <span className="font-medium text-foreground">{origen}</span>
+                  {form.ciudadDestino && (
+                    <>
+                      <ArrowRight size={11} weight="bold" className="text-muted-foreground/60" />
+                      <span className="font-medium text-foreground">{form.ciudadDestino}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {!destinosLoading && destinos.length === 0 && (
+                <p className="text-[11px] text-warning mt-1.5">
+                  Aun no hay rutas configuradas desde tu ciudad. Contactá al equipo de GO EXPRESS.
+                </p>
+              )}
             </div>
             <div>
               <Label className="text-[11px]">Número de pedido (opcional)</Label>

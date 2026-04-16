@@ -277,7 +277,7 @@ router.post(
     const clienteNombre = clienteRow.razon_social;
 
     const origen = clienteRow.ciudad?.trim() || 'Asuncion';
-    const destinatarioCiudad = input.destinatarioCiudad?.trim() || input.destinatarioDepartamento;
+    const destinatarioCiudad = input.destinatarioCiudad.trim();
     const destino = destinatarioCiudad;
 
     // Buscar tarifa activa para la ruta. Si no hay, el envio se crea con costo 0 y tarifa_id null
@@ -335,7 +335,7 @@ router.post(
       destinatario_telefono2: input.destinatarioTelefono2 ?? null,
       destinatario_cedula: input.destinatarioCedula ?? null,
       destinatario_ciudad: destinatarioCiudad,
-      destinatario_departamento: input.destinatarioDepartamento,
+      destinatario_departamento: input.destinatarioDepartamento ?? '',
       destinatario_barrio: input.destinatarioBarrio ?? null,
       destinatario_referencia: input.destinatarioReferencia ?? null,
       destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,

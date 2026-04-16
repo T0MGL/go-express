@@ -43,6 +43,50 @@ router.get(
   })
 );
 
+/**
+ * GET /destinos: devuelve las ciudades destino disponibles desde el origen del cliente
+ * autenticado (cliente.ciudad). Si el cliente no tiene ciudad cargada, usa 'Asuncion'
+ * como fallback. Usado por el form /portal/nuevo-paquete para mostrar un dropdown
+ * de destinos con cobertura real (no departamentos), y pintar el origen readonly.
+ */
+router.get(
+  '/destinos',
+  asyncHandler(async (req, res) => {
+    const clienteId = req.clienteId!;
+
+    const { data: clienteData, error: clienteError } = await supabase
+      .from('clientes')
+      .select('ciudad')
+      .eq('id', clienteId)
+      .single();
+
+    if (clienteError) {
+      logger.error({ error: clienteError, clienteId }, 'Error fetching cliente origen');
+      throw new AppError('Error fetching cliente', 500, 'DB_ERROR');
+    }
+
+    const origen = (clienteData as { ciudad: string | null }).ciudad?.trim() || 'Asuncion';
+
+    const { data, error } = await supabase
+      .from('tarifas')
+      .select('destino')
+      .eq('origen', origen)
+      .eq('activo', true)
+      .eq('eliminado', false);
+
+    if (error) {
+      logger.error({ error, origen }, 'Error fetching destinos');
+      throw new AppError('Error fetching destinos', 500, 'DB_ERROR');
+    }
+
+    const destinos = Array.from(
+      new Set((data ?? []).map((row) => (row as { destino: string }).destino))
+    ).sort();
+
+    res.json({ origen, destinos });
+  })
+);
+
 router.post(
   '/cotizar',
   validate({ body: cotizarSchema }),

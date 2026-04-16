@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { tipoServicioLabels, departamentosPY } from '@/data/constants';
+import { tipoServicioLabels, ciudadesPYNombres } from '@/data/constants';
 import type { Tarifa } from '@/data/types';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
@@ -27,27 +27,7 @@ import {
 } from '@/hooks/api/use-tarifas';
 import { toast as sonnerToast } from 'sonner';
 
-const ciudadesPY = [
-  'Asunción',
-  'Ciudad del Este',
-  'Encarnación',
-  'Luque',
-  'San Lorenzo',
-  'Lambaré',
-  'Fernando de la Mora',
-  'Capiatá',
-  'Limpio',
-  'Ñemby',
-  'Villarrica',
-  'Pedro Juan Caballero',
-  'Concepción',
-  'Coronel Oviedo',
-  'Caaguazú',
-  'Itauguá',
-  ...departamentosPY,
-];
-
-const ciudadesUnicas = [...new Set(ciudadesPY)].sort();
+const ciudadesUnicas = [...ciudadesPYNombres].sort();
 
 const emptyForm: Partial<Tarifa> = {
   origen: '',

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { estadoClienteLabels, estadoClienteColors, departamentosPY } from '@/data/constants';
+import { estadoClienteLabels, estadoClienteColors, ciudadesPYNombres } from '@/data/constants';
 import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
@@ -562,11 +562,11 @@ const Clientes = () => {
                     <Label className="text-[13px]">Ciudad *</Label>
                     <Select name="ciudad" defaultValue={selectedCliente?.ciudad ?? undefined}>
                       <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="Seleccionar" />
+                        <SelectValue placeholder="Seleccionar ciudad" />
                       </SelectTrigger>
                       <SelectContent>
-                        {departamentosPY.map((d) => (
-                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        {ciudadesPYNombres.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

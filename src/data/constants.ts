@@ -70,6 +70,53 @@ export const estadoClienteColors: Record<string, BadgeVariant> = {
   suspendido: 'destructive',
 };
 
+// Ciudades PY que Go Express opera. Esta lista es la fuente unica:
+// (1) dropdown de origen/destino en admin Tarifas,
+// (2) dropdown de ciudad en el alta de cliente en admin,
+// (3) si crece, se puede mover a la DB con un catalog table.
+// Orden: Asuncion primero (caso base), despues por departamento.
+export const ciudadesPY: ReadonlyArray<{ ciudad: string; departamento: string }> = [
+  { ciudad: 'Asunción', departamento: 'Asunción' },
+  { ciudad: 'Areguá', departamento: 'Central' },
+  { ciudad: 'Capiatá', departamento: 'Central' },
+  { ciudad: 'Fernando de la Mora', departamento: 'Central' },
+  { ciudad: 'Itauguá', departamento: 'Central' },
+  { ciudad: 'Lambaré', departamento: 'Central' },
+  { ciudad: 'Limpio', departamento: 'Central' },
+  { ciudad: 'Luque', departamento: 'Central' },
+  { ciudad: 'Mariano Roque Alonso', departamento: 'Central' },
+  { ciudad: 'Ñemby', departamento: 'Central' },
+  { ciudad: 'San Antonio', departamento: 'Central' },
+  { ciudad: 'San Lorenzo', departamento: 'Central' },
+  { ciudad: 'Villa Elisa', departamento: 'Central' },
+  { ciudad: 'Ciudad del Este', departamento: 'Alto Paraná' },
+  { ciudad: 'Hernandarias', departamento: 'Alto Paraná' },
+  { ciudad: 'Minga Guazú', departamento: 'Alto Paraná' },
+  { ciudad: 'Presidente Franco', departamento: 'Alto Paraná' },
+  { ciudad: 'Encarnación', departamento: 'Itapúa' },
+  { ciudad: 'Caacupé', departamento: 'Cordillera' },
+  { ciudad: 'Villarrica', departamento: 'Guairá' },
+  { ciudad: 'Caaguazú', departamento: 'Caaguazú' },
+  { ciudad: 'Coronel Oviedo', departamento: 'Caaguazú' },
+  { ciudad: 'Pedro Juan Caballero', departamento: 'Amambay' },
+  { ciudad: 'Concepción', departamento: 'Concepción' },
+  { ciudad: 'Paraguarí', departamento: 'Paraguarí' },
+  { ciudad: 'San Pedro', departamento: 'San Pedro' },
+  { ciudad: 'San Juan Bautista', departamento: 'Misiones' },
+  { ciudad: 'Salto del Guairá', departamento: 'Canindeyú' },
+  { ciudad: 'Caazapá', departamento: 'Caazapá' },
+  { ciudad: 'Pilar', departamento: 'Ñeembucú' },
+  { ciudad: 'Fuerte Olimpo', departamento: 'Alto Paraguay' },
+  { ciudad: 'Filadelfia', departamento: 'Boquerón' },
+  { ciudad: 'Villa Hayes', departamento: 'Presidente Hayes' },
+];
+
+export const ciudadesPYNombres: string[] = ciudadesPY.map((c) => c.ciudad);
+
+export function departamentoDeCiudad(ciudad: string): string | null {
+  return ciudadesPY.find((c) => c.ciudad === ciudad)?.departamento ?? null;
+}
+
 export const departamentosPY = [
   'Asunción',
   'Alto Paraguay',

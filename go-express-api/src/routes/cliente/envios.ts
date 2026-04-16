@@ -10,6 +10,7 @@ import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../..
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
 import { calcularCosto } from '../../lib/volumetric.js';
+import { normalizeCiudad } from '../../lib/ciudad.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import {
   createEnvioSchema,
@@ -276,41 +277,53 @@ router.post(
 
     const clienteNombre = clienteRow.razon_social;
 
-    const origen = clienteRow.ciudad?.trim() || 'Asuncion';
-    const destinatarioCiudad = input.destinatarioCiudad.trim();
-    const destino = destinatarioCiudad;
+    const origenInput = clienteRow.ciudad?.trim() || 'Asuncion';
+    const destinoInput = input.destinatarioCiudad.trim();
+    const origenNorm = normalizeCiudad(origenInput);
+    const destinoNorm = normalizeCiudad(destinoInput);
 
-    // Buscar tarifa activa para la ruta. Si no hay, el envio se crea con costo 0 y tarifa_id null
-    // y el admin lo tasa despues (no bloqueamos al cliente por configuracion faltante).
+    // Buscar tarifa activa con match normalizado (tolera tildes/mayusculas entre
+    // cliente.ciudad y lo que el admin haya cargado en tarifas). Si no hay match,
+    // el envio se crea con costo 0 y el admin lo tasa despues (no bloqueamos al
+    // cliente por configuracion faltante o mismatch de strings).
     let costo = 0;
     let tarifaId: string | null = null;
-    const { data: tarifaData, error: tarifaError } = await supabase
+    let origen = origenInput;
+    let destino = destinoInput;
+
+    const { data: tarifasData, error: tarifaError } = await supabase
       .from('tarifas')
-      .select('id, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
-      .eq('origen', origen)
-      .eq('destino', destino)
+      .select('id, origen, destino, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
       .eq('activo', true)
-      .eq('eliminado', false)
-      .limit(1)
-      .maybeSingle();
+      .eq('eliminado', false);
 
     if (tarifaError) {
-      logger.warn({ error: tarifaError, origen, destino, clienteId }, 'Error buscando tarifa para envio cliente, se crea con costo 0');
-    } else if (tarifaData) {
-      const tarifa = tarifaData as Pick<TarifaRow, 'id' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'>;
-      const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
-      costo = calcularCosto(
-        {
-          precioBase: tarifa.precio_base,
-          pesoBase: tarifa.peso_base,
-          precioPorKgExtra: tarifa.precio_por_kg_extra,
-          factorDimensional: tarifa.factor_dimensional,
-        },
-        input.peso,
-        hasDims ? input.dimensiones : undefined
-      ).costoTotal;
-      tarifaId = tarifa.id;
+      logger.warn({ error: tarifaError, origenInput, destinoInput, clienteId }, 'Error buscando tarifas para envio cliente, se crea con costo 0');
+    } else {
+      const tarifas = (tarifasData ?? []) as Array<Pick<TarifaRow, 'id' | 'origen' | 'destino' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'>>;
+      const tarifa = tarifas.find(
+        (t) => normalizeCiudad(t.origen) === origenNorm && normalizeCiudad(t.destino) === destinoNorm
+      );
+      if (tarifa) {
+        const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
+        costo = calcularCosto(
+          {
+            precioBase: tarifa.precio_base,
+            pesoBase: tarifa.peso_base,
+            precioPorKgExtra: tarifa.precio_por_kg_extra,
+            factorDimensional: tarifa.factor_dimensional,
+          },
+          input.peso,
+          hasDims ? input.dimensiones : undefined
+        ).costoTotal;
+        tarifaId = tarifa.id;
+        // Guardar con la forma canonica de la tarifa, no con lo que mando el cliente.
+        origen = tarifa.origen;
+        destino = tarifa.destino;
+      }
     }
+
+    const destinatarioCiudad = destino;
 
     const trackingNumber = await generateTrackingNumber(supabase);
 

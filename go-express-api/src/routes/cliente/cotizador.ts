@@ -6,6 +6,7 @@ import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { cotizarSchema } from '../../lib/validators/tarifa.schema.js';
 import { calcularCosto } from '../../lib/volumetric.js';
+import { normalizeCiudad } from '../../lib/ciudad.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import type { TarifaRow } from '../../types/index.js';
 import type { CotizarInput } from '../../lib/validators/tarifa.schema.js';
@@ -66,11 +67,13 @@ router.get(
     }
 
     const origen = (clienteData as { ciudad: string | null }).ciudad?.trim() || 'Asuncion';
+    const origenNorm = normalizeCiudad(origen);
 
+    // Fetch todos los origenes/destinos activos y filtrar en JS con normalizacion
+    // (tolera que la tarifa se haya cargado con 'Asuncion' vs cliente con 'Asunción').
     const { data, error } = await supabase
       .from('tarifas')
-      .select('destino')
-      .eq('origen', origen)
+      .select('origen, destino')
       .eq('activo', true)
       .eq('eliminado', false);
 
@@ -79,8 +82,13 @@ router.get(
       throw new AppError('Error fetching destinos', 500, 'DB_ERROR');
     }
 
+    const rows = (data ?? []) as Array<{ origen: string; destino: string }>;
     const destinos = Array.from(
-      new Set((data ?? []).map((row) => (row as { destino: string }).destino))
+      new Set(
+        rows
+          .filter((r) => normalizeCiudad(r.origen) === origenNorm)
+          .map((r) => r.destino)
+      )
     ).sort();
 
     res.json({ origen, destinos });

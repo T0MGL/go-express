@@ -5,7 +5,17 @@ import { supabase } from '../config/database.js';
 import type { Envio } from '../types/index.js';
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
-const from = env.EMAIL_FROM;
+
+// Force display name to "GO EXPRESS" regardless of what EMAIL_FROM holds.
+// Gmail groups/shows the local-part of the address when the display name is
+// missing or malformed; we standardize here so invites and notifications
+// always appear as "GO EXPRESS" in the recipient's inbox.
+const from = (() => {
+  const raw = env.EMAIL_FROM ?? '';
+  const match = raw.match(/<([^>]+)>/);
+  const addr = match?.[1] ?? raw.trim();
+  return `GO EXPRESS <${addr}>`;
+})();
 
 const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;',
@@ -90,7 +100,7 @@ function baseTemplate({ title, body, tracking, accent = '#0643F7', ctaText, ctaU
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;border-bottom:1px solid #eef0f4">
 <tr><td align="center" style="padding-bottom:28px">
-<img src="https://goexpressparaguay.com/logotipo.png" alt="GO EXPRESS" height="32" style="height:32px;width:auto;display:block" />
+<img src="https://www.goexpressparaguay.com/logotipo.png" alt="GO EXPRESS" height="32" style="height:32px;width:auto;display:block" />
 </td></tr></table>
 
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px">
@@ -282,7 +292,7 @@ ${row('Estado', badge('Con problema', '#FFFBEB', '#D97706'), true)}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
-${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
+${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
 <p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesion por primera vez.</p>`,
     });
@@ -333,7 +343,7 @@ ${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
-${row('Contrasena', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
+${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
 <p style="font-size:13px;color:#6b7280;margin:0 0 8px"><strong>Consejo:</strong> abri el portal desde el celular y agregalo a la pantalla de inicio para tenerlo como una app.</p>
 <p style="font-size:12px;color:#9ca3af;margin:0">Si no esperabas este correo, podes ignorarlo.</p>`,

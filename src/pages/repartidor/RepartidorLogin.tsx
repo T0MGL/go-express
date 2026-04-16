@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useIsStandalone } from '@/hooks/use-is-standalone';
+import { InstallAppButton } from '@/components/repartidor/InstallAppButton';
 
 interface RepartidorLoginResponse {
   token: string;
@@ -153,7 +154,8 @@ const RepartidorLogin = () => {
         {!isStandalone && (
           <div className="mt-6 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">Consejo</p>
-            <p>Abrí este link desde el celular y agregalo a la pantalla de inicio para usarlo como una app.</p>
+            <p>Agregá esto a la pantalla de inicio para usarlo como una app.</p>
+            <InstallAppButton />
           </div>
         )}
       </motion.div>

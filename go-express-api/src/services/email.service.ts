@@ -100,7 +100,7 @@ function baseTemplate({ title, body, tracking, accent = '#0643F7', ctaText, ctaU
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;border-bottom:1px solid #eef0f4">
 <tr><td align="center" style="padding-bottom:28px">
-<img src="https://www.goexpressparaguay.com/logotipo.png" alt="GO EXPRESS" height="32" style="height:32px;width:auto;display:block" />
+<img src="https://www.goexpressparaguay.com/isotipo.png" alt="GO EXPRESS" width="40" height="40" style="width:40px;height:40px;display:block;border-radius:8px" />
 </td></tr></table>
 
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px">

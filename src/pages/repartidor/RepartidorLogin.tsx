@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useIsStandalone } from '@/hooks/use-is-standalone';
 import { InstallAppButton } from '@/components/repartidor/InstallAppButton';
+import { ForgotPasswordSheet } from '@/components/auth/ForgotPasswordSheet';
 
 interface RepartidorLoginResponse {
   token: string;
@@ -25,6 +26,7 @@ const RepartidorLogin = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const isStandalone = useIsStandalone();
 
   useEffect(() => {
@@ -149,7 +151,21 @@ const RepartidorLogin = () => {
               'Ingresar'
             )}
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setForgotOpen(true)}
+            className="w-full text-[12px] text-muted-foreground hover:text-foreground transition-colors text-center"
+          >
+            Olvidé mi contraseña
+          </button>
         </form>
+
+        <ForgotPasswordSheet
+          open={forgotOpen}
+          onOpenChange={setForgotOpen}
+          redirectPath="/repartidor/reset-password"
+        />
 
         {!isStandalone && (
           <div className="mt-6 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-1">

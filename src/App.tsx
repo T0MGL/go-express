@@ -70,6 +70,8 @@ const RepartidorLayout = lazyWithReload(() => import("./pages/repartidor/Reparti
 const RepartidorDashboard = lazyWithReload(() => import("./pages/repartidor/RepartidorDashboard"));
 const RepartidorEnvioDetail = lazyWithReload(() => import("./pages/repartidor/RepartidorEnvioDetail"));
 const Conciliacion = lazyWithReload(() => import("./pages/admin/Conciliacion"));
+const ResetPasswordCliente = lazyWithReload(() => import("./pages/auth/ResetPasswordCliente"));
+const ResetPasswordRepartidor = lazyWithReload(() => import("./pages/auth/ResetPasswordRepartidor"));
 
 // Pull the server-provided message when available, fall back to a generic one
 // per HTTP code so the operator gets something actionable instead of silence.
@@ -201,6 +203,7 @@ const App = () => (
                 </Route>
 
                 <Route path="/portal/login" element={<PortalLogin />} />
+                <Route path="/portal/reset-password" element={<ResetPasswordCliente />} />
 
                 <Route path="/portal" element={<ClienteLayout />}>
                   <Route index element={<ClienteDashboard />} />
@@ -218,6 +221,7 @@ const App = () => (
                 <Route path="/cliente/*" element={<Navigate to="/portal" replace />} />
 
                 <Route path="/repartidor/login" element={<RepartidorLogin />} />
+                <Route path="/repartidor/reset-password" element={<ResetPasswordRepartidor />} />
                 <Route path="/repartidor" element={<RepartidorLayout />}>
                   <Route index element={<RepartidorDashboard />} />
                   <Route path="envio/:id" element={<RepartidorEnvioDetail />} />

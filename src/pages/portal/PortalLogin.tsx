@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { ForgotPasswordSheet } from '@/components/auth/ForgotPasswordSheet';
 
 interface PortalLoginResponse {
   token: string;
@@ -26,6 +27,7 @@ const PortalLogin = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   useEffect(() => {
     document.title = 'Portal de clientes · GO EXPRESS';
@@ -154,11 +156,25 @@ const PortalLogin = () => {
               'Ingresar al portal'
             )}
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setForgotOpen(true)}
+            className="w-full text-[12px] text-muted-foreground hover:text-foreground transition-colors text-center"
+          >
+            Olvidé mi contraseña
+          </button>
         </form>
 
         <p className="text-[11px] text-muted-foreground text-center mt-6">
           ¿Todavía no tenés acceso? Pedile una invitación a tu contacto de GO EXPRESS.
         </p>
+
+        <ForgotPasswordSheet
+          open={forgotOpen}
+          onOpenChange={setForgotOpen}
+          redirectPath="/portal/reset-password"
+        />
       </motion.div>
     </div>
   );

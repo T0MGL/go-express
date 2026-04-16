@@ -100,6 +100,57 @@ export const bulkImportSchema = z.object({
   envios: z.array(createEnvioSchema).min(1).max(500),
 });
 
+// Cliente portal: shape que puede enviar el cliente desde /portal/nuevo-paquete.
+// El cliente NO decide clienteId, origen, destino, costo ni tipoPago: el servidor
+// los deriva (clienteId desde auth, origen desde cliente.ciudad, destino desde
+// destinatarioCiudad, costo desde la tarifa que matchee, tipoPago default cuenta_corriente).
+export const createClienteEnvioSchema = z.object({
+  codigoReferencia: z.string().max(100).optional(),
+
+  destinatarioNombre: z.string().min(1).max(200),
+  destinatarioDireccion: z.string().min(1).max(500),
+  destinatarioTelefono: phoneSchema,
+  destinatarioTelefono2: optionalPhoneSchema,
+  destinatarioCedula: z.string().max(20).optional(),
+  destinatarioCiudad: z.string().max(100).optional(),
+  destinatarioDepartamento: z.string().min(1).max(100),
+  destinatarioBarrio: z.string().max(100).optional(),
+  destinatarioReferencia: z.string().max(500).optional(),
+  destinatarioUbicacionUrl: z.string().url().max(2000).optional().or(z.literal('')),
+  destinatarioEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Email invalido')
+    .max(320)
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v === '' || v === undefined ? undefined : v)),
+
+  cantidad: z.number().int().min(1).max(999).default(1),
+  producto: z.string().max(500).optional(),
+  peso: z.number().positive().max(9999),
+  dimensiones: z
+    .object({
+      largo: z.number().nonnegative().max(999),
+      ancho: z.number().nonnegative().max(999),
+      alto: z.number().nonnegative().max(999),
+    })
+    .optional(),
+  fragil: z.boolean().default(false),
+  valorDeclarado: z.number().int().min(0).optional(),
+
+  instruccionesEntrega: z.string().max(1000).optional(),
+  horarioEntrega: z.string().max(100).optional(),
+  notas: z.string().max(1000).optional(),
+
+  seguroAdicional: z.boolean().default(false),
+
+  tags: z.array(z.string().max(50)).max(10).optional(),
+});
+
+export type CreateClienteEnvioInput = z.infer<typeof createClienteEnvioSchema>;
+
 // Bulk actions over existing envios (change estado or assign repartidor).
 // The frontend ticks rows in EnviosList and sends their IDs; the server
 // validates each one can take the action and applies per-id (all in a

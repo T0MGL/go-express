@@ -9,12 +9,22 @@ import { computeSeguroForEnvio } from '../../services/envio.service.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
+import { calcularCosto } from '../../lib/volumetric.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
-import { createEnvioSchema, envioQuerySchema, bulkImportSchema } from '../../lib/validators/envio.schema.js';
+import {
+  createEnvioSchema,
+  createClienteEnvioSchema,
+  envioQuerySchema,
+  bulkImportSchema,
+} from '../../lib/validators/envio.schema.js';
 import { escapeLikePattern } from '../../lib/validators/common.schema.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
-import type { EnvioRow, EventoEnvioRow, PagoRow, Envio } from '../../types/index.js';
-import type { CreateEnvioInput, EnvioQuery } from '../../lib/validators/envio.schema.js';
+import type { EnvioRow, EventoEnvioRow, PagoRow, Envio, TarifaRow } from '../../types/index.js';
+import type {
+  CreateEnvioInput,
+  CreateClienteEnvioInput,
+  EnvioQuery,
+} from '../../lib/validators/envio.schema.js';
 
 const router = Router();
 
@@ -228,34 +238,79 @@ router.get(
 );
 
 // POST /: create envio (clienteId from auth)
+// El cliente solo manda destinatario + paquete. El server deriva:
+//   - clienteId desde req.clienteId
+//   - origen desde cliente.ciudad (fallback 'Asuncion')
+//   - destino desde destinatarioCiudad o destinatarioDepartamento
+//   - costo + tarifaId buscando la tarifa activa que matchee origen/destino (si no hay, costo=0 y admin lo setea)
+//   - tipoPago = 'cuenta_corriente' (cliente portal siempre factura a cuenta)
 
 router.post(
   '/',
-  validate({ body: createEnvioSchema }),
+  validate({ body: createClienteEnvioSchema }),
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
-    const input = req.body as CreateEnvioInput;
-
-    // Enforce clienteId from auth token, ignore whatever the body sends
-    input.clienteId = clienteId;
+    const input = req.body as CreateClienteEnvioInput;
 
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
-      .select('razon_social, estado, eliminado')
+      .select('razon_social, ciudad, estado, eliminado')
       .eq('id', clienteId)
       .single();
 
     if (clienteError || !clienteData) {
       throw AppError.notFound('Cliente no encontrado');
     }
-    if ((clienteData as { eliminado: boolean }).eliminado) {
+    const clienteRow = clienteData as {
+      razon_social: string;
+      ciudad: string | null;
+      estado: string;
+      eliminado: boolean;
+    };
+    if (clienteRow.eliminado) {
       throw AppError.forbidden('La cuenta del cliente esta eliminada');
     }
-    if ((clienteData as { estado: string }).estado !== 'activo') {
+    if (clienteRow.estado !== 'activo') {
       throw AppError.forbidden('La cuenta del cliente no esta activa');
     }
 
-    const clienteNombre = (clienteData as { razon_social: string }).razon_social;
+    const clienteNombre = clienteRow.razon_social;
+
+    const origen = clienteRow.ciudad?.trim() || 'Asuncion';
+    const destinatarioCiudad = input.destinatarioCiudad?.trim() || input.destinatarioDepartamento;
+    const destino = destinatarioCiudad;
+
+    // Buscar tarifa activa para la ruta. Si no hay, el envio se crea con costo 0 y tarifa_id null
+    // y el admin lo tasa despues (no bloqueamos al cliente por configuracion faltante).
+    let costo = 0;
+    let tarifaId: string | null = null;
+    const { data: tarifaData, error: tarifaError } = await supabase
+      .from('tarifas')
+      .select('id, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
+      .eq('origen', origen)
+      .eq('destino', destino)
+      .eq('activo', true)
+      .eq('eliminado', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (tarifaError) {
+      logger.warn({ error: tarifaError, origen, destino, clienteId }, 'Error buscando tarifa para envio cliente, se crea con costo 0');
+    } else if (tarifaData) {
+      const tarifa = tarifaData as Pick<TarifaRow, 'id' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'>;
+      const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
+      costo = calcularCosto(
+        {
+          precioBase: tarifa.precio_base,
+          pesoBase: tarifa.peso_base,
+          precioPorKgExtra: tarifa.precio_por_kg_extra,
+          factorDimensional: tarifa.factor_dimensional,
+        },
+        input.peso,
+        hasDims ? input.dimensiones : undefined
+      ).costoTotal;
+      tarifaId = tarifa.id;
+    }
 
     const trackingNumber = await generateTrackingNumber(supabase);
 
@@ -265,20 +320,22 @@ router.post(
       input.seguroAdicional
     );
 
+    const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
+
     const envioInsert = {
       tracking_number: trackingNumber,
       cliente_id: clienteId,
       cliente_nombre: clienteNombre,
       codigo_referencia: input.codigoReferencia ?? null,
-      origen: input.origen,
-      destino: input.destino,
+      origen,
+      destino,
       destinatario_nombre: input.destinatarioNombre,
       destinatario_direccion: input.destinatarioDireccion,
       destinatario_telefono: input.destinatarioTelefono,
       destinatario_telefono2: input.destinatarioTelefono2 ?? null,
       destinatario_cedula: input.destinatarioCedula ?? null,
-      destinatario_ciudad: input.destinatarioCiudad,
-      destinatario_departamento: input.destinatarioDepartamento ?? '',
+      destinatario_ciudad: destinatarioCiudad,
+      destinatario_departamento: input.destinatarioDepartamento,
       destinatario_barrio: input.destinatarioBarrio ?? null,
       destinatario_referencia: input.destinatarioReferencia ?? null,
       destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
@@ -286,22 +343,22 @@ router.post(
       cantidad: input.cantidad,
       producto: input.producto ?? '',
       peso: input.peso,
-      dimensiones_largo: input.dimensiones?.largo ?? null,
-      dimensiones_ancho: input.dimensiones?.ancho ?? null,
-      dimensiones_alto: input.dimensiones?.alto ?? null,
+      dimensiones_largo: hasDims ? input.dimensiones!.largo : null,
+      dimensiones_ancho: hasDims ? input.dimensiones!.ancho : null,
+      dimensiones_alto: hasDims ? input.dimensiones!.alto : null,
       fragil: input.fragil,
       valor_declarado: valorDeclarado,
       instrucciones_entrega: input.instruccionesEntrega ?? null,
       horario_entrega: input.horarioEntrega ?? null,
       notas: input.notas ?? null,
       estado: 'pendiente' as const,
-      costo: input.costo,
-      monto_a_cobrar: input.montoACobrar,
-      tipo_pago: input.tipoPago,
+      costo,
+      monto_a_cobrar: 0,
+      tipo_pago: 'cuenta_corriente' as const,
       seguro_adicional: seguroAdicional,
       costo_seguro: costoSeguro,
       tags: input.tags ?? [],
-      tarifa_id: input.tarifaId ?? null,
+      tarifa_id: tarifaId,
       fecha: todayPY(),
     };
 

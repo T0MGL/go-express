@@ -152,6 +152,12 @@ class RepartidorService {
       descripcion: `Repartidor creado: ${repartidor.nombre} (${repartidor.vehiculo} - ${repartidor.placa})`,
     });
 
+    if (input.email) {
+      this.inviteToPortal(repartidor.id, userId).catch((err) => {
+        logger.warn({ err, repartidorId: repartidor.id }, 'Auto-invite to repartidor portal failed (non-blocking)');
+      });
+    }
+
     return repartidor;
   }
 

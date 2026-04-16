@@ -214,7 +214,7 @@ router.post(
 
 const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  portal: z.enum(['cliente', 'repartidor']),
+  portal: z.enum(['cliente', 'repartidor', 'admin']),
   redirectTo: z.string().url(),
 });
 
@@ -231,20 +231,40 @@ router.post(
   asyncHandler(async (req, res) => {
     const { email, portal, redirectTo } = req.body as z.infer<typeof forgotPasswordSchema>;
 
-    const table = portal === 'repartidor' ? 'repartidores' : 'clientes';
-    const nameField = portal === 'repartidor' ? 'nombre' : 'contacto_nombre';
+    let account: (Record<string, unknown> & { email?: string; estado?: string }) | null = null;
+    let accountName = '';
 
-    const { data: row } = await supabase
-      .from(table)
-      .select(`id, email, estado, eliminado, ${nameField}`)
-      .ilike('email', email)
-      .eq('eliminado', false)
-      .maybeSingle();
+    if (portal === 'admin') {
+      const { data: row } = await supabase
+        .from('usuarios')
+        .select('id, email, estado, nombre')
+        .ilike('email', email)
+        .maybeSingle();
 
-    const account = row as (Record<string, unknown> & { email?: string; estado?: string }) | null;
+      const usuarioRow = row as { id: string; email: string; estado: string; nombre: string } | null;
+      if (usuarioRow) {
+        account = usuarioRow as unknown as typeof account;
+        accountName = usuarioRow.nombre;
+      }
+    } else {
+      const table = portal === 'repartidor' ? 'repartidores' : 'clientes';
+      const nameField = portal === 'repartidor' ? 'nombre' : 'contacto_nombre';
+
+      const { data: row } = await supabase
+        .from(table)
+        .select(`id, email, estado, eliminado, ${nameField}`)
+        .ilike('email', email)
+        .eq('eliminado', false)
+        .maybeSingle();
+
+      const portalRow = row as (Record<string, unknown> & { email?: string; estado?: string }) | null;
+      if (portalRow) {
+        account = portalRow;
+        accountName = typeof portalRow[nameField] === 'string' ? (portalRow[nameField] as string) : '';
+      }
+    }
 
     if (!account || account.estado !== 'activo') {
-      // Silent success: do not leak account existence.
       logger.info({ email, portal }, 'Forgot-password request for unknown or inactive account');
       res.json({ ok: true });
       return;
@@ -262,10 +282,8 @@ router.post(
       return;
     }
 
-    const nombre = typeof account[nameField] === 'string' ? (account[nameField] as string) : '';
-
     emailService
-      .sendPasswordReset(email, nombre, linkData.properties.action_link, portal)
+      .sendPasswordReset(email, accountName, linkData.properties.action_link, portal)
       .catch((err) => logger.error({ err, email }, 'Failed to send password reset email'));
 
     res.json({ ok: true });

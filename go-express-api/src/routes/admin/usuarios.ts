@@ -4,6 +4,7 @@ import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
+import { usuarioService } from '../../services/usuario.service.js';
 import type { UsuarioRow, Usuario } from '../../types/index.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
 
@@ -12,13 +13,13 @@ const router = Router();
 
 const createUsuarioSchema = z.object({
   nombre: z.string().min(2).max(200),
-  email: z.string().email().max(320),
+  email: z.string().trim().toLowerCase().email().max(320),
   rol: z.enum(['admin', 'operador']),
 });
 
 const updateUsuarioSchema = z.object({
   nombre: z.string().min(2).max(200).optional(),
-  email: z.string().email().max(320).optional(),
+  email: z.string().trim().toLowerCase().email().max(320).optional(),
   rol: z.enum(['admin', 'operador']).optional(),
   estado: z.enum(['activo', 'inactivo']).optional(),
 });
@@ -37,9 +38,6 @@ function toApi(row: UsuarioRow): Usuario {
   };
 }
 
-/**
- * GET /:List users
- */
 router.get(
   '/',
   asyncHandler(async (_req, res) => {
@@ -56,56 +54,34 @@ router.get(
   })
 );
 
-/**
- * POST /:Create user
- */
 router.post(
   '/',
   validate({ body: createUsuarioSchema }),
   asyncHandler(async (req, res) => {
-    const { data: existingUser } = await supabase
-      .from('usuarios')
-      .select('id')
-      .eq('email', req.body.email)
-      .maybeSingle();
+    const usuario = await usuarioService.createWithInvite(
+      req.body,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+    );
 
-    if (existingUser) {
-      throw AppError.conflict('Ya existe un usuario con ese email');
-    }
-
-    const { data, error } = await supabase
-      .from('usuarios')
-      .insert({
-        auth_id: null,  // Will be linked to Supabase Auth later
-        nombre: req.body.nombre,
-        email: req.body.email,
-        rol: req.body.rol,
-      })
-      .select('id, auth_id, nombre, email, rol, estado, created_at, updated_at')
-      .single();
-
-    if (error || !data) {
-      throw new AppError(`Error creating usuario: ${error?.message}`, 500, 'DB_ERROR');
-    }
-
-    const user = toApi(data as UsuarioRow);
-
-    await auditoriaService.log({
-      usuario: req.userName ?? 'Admin GoExpress',
-      usuarioId: req.userId!,
-      accion: 'crear',
-      entidad: 'usuario',
-      entidadId: user.id,
-      descripcion: `Usuario creado: ${user.nombre} (${user.rol})`,
-    });
-
-    res.status(201).json(user);
+    res.status(201).json(usuario);
   })
 );
 
-/**
- * PUT /:id:Update user
- */
+router.post(
+  '/:id/reinvite',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const usuario = await usuarioService.reinvite(
+      req.params['id'] as string,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+    );
+
+    res.json(usuario);
+  })
+);
+
 router.put(
   '/:id',
   validate({ params: idParamSchema, body: updateUsuarioSchema }),

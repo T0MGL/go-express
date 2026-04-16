@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { CheckCircle } from '@phosphor-icons/react';
 
-type PortalType = 'cliente' | 'repartidor';
+type PortalType = 'cliente' | 'repartidor' | 'admin';
 
 interface ResetPasswordProps {
   portal: PortalType;
@@ -24,6 +24,11 @@ const portalConfig: Record<PortalType, { title: string; successPath: string; log
     title: 'Portal Repartidor',
     successPath: '/repartidor',
     loginPath: '/repartidor/login',
+  },
+  admin: {
+    title: 'Portal Admin',
+    successPath: '/admin',
+    loginPath: '/admin/login',
   },
 };
 

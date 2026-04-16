@@ -300,15 +300,43 @@ ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter
     await this.send(email, 'Bienvenido al Portal GO EXPRESS', html);
   }
 
+  async sendAdminInvite(email: string, temporaryPassword: string, adminName: string): Promise<void> {
+    const safeName = escapeHtml(adminName);
+    const safeEmail = escapeHtml(email);
+    const safePassword = escapeHtml(temporaryPassword);
+
+    const html = baseTemplate({
+      title: 'Tu acceso al panel Admin GO EXPRESS',
+      accent: '#0643F7',
+      tracking: '',
+      ctaText: 'Acceder al panel Admin',
+      ctaUrl: 'https://goexpressparaguay.com/admin/login',
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu acceso al panel Admin</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Se creo tu cuenta con permisos de administrador sobre el panel completo de GO EXPRESS. Entra con estas credenciales y cambia la contrasena apenas ingreses.</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
+<tr><td style="padding:24px">
+${row('Email', safeEmail)}
+${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
+</td></tr></table>
+<p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesion por primera vez.</p>`,
+    });
+
+    await this.send(email, 'Tu acceso al panel Admin GO EXPRESS', html);
+  }
+
   async sendPasswordReset(
     email: string,
     nombre: string,
     resetUrl: string,
-    portal: 'cliente' | 'repartidor',
+    portal: 'cliente' | 'repartidor' | 'admin',
   ): Promise<void> {
     const safeName = escapeHtml(nombre || 'Hola');
     const safeUrl = escapeHtml(resetUrl);
-    const portalLabel = portal === 'repartidor' ? 'Portal Repartidor' : 'Portal de Clientes';
+    const portalLabel =
+      portal === 'repartidor' ? 'Portal Repartidor' :
+      portal === 'admin' ? 'Panel Admin' :
+      'Portal de Clientes';
 
     const html = baseTemplate({
       title: 'Recuperación de contraseña GO EXPRESS',

@@ -72,6 +72,7 @@ const RepartidorEnvioDetail = lazyWithReload(() => import("./pages/repartidor/Re
 const Conciliacion = lazyWithReload(() => import("./pages/admin/Conciliacion"));
 const ResetPasswordCliente = lazyWithReload(() => import("./pages/auth/ResetPasswordCliente"));
 const ResetPasswordRepartidor = lazyWithReload(() => import("./pages/auth/ResetPasswordRepartidor"));
+const ResetPasswordAdmin = lazyWithReload(() => import("./pages/auth/ResetPasswordAdmin"));
 
 // Pull the server-provided message when available, fall back to a generic one
 // per HTTP code so the operator gets something actionable instead of silence.
@@ -186,6 +187,7 @@ const App = () => (
                 {/* Backward compat: old /login bookmark redirects to /admin/login */}
                 <Route path="/login" element={<Navigate to="/admin/login" replace />} />
                 <Route path="/admin/login" element={<Login />} />
+                <Route path="/admin/reset-password" element={<ResetPasswordAdmin />} />
 
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Dashboard />} />

@@ -93,11 +93,11 @@ const ClienteProductos = () => {
 
     const productData = {
       nombre: form.nombre,
-      descripcion: form.descripcion || undefined,
+      descripcion: form.descripcion || null,
       peso: Number(form.peso),
       dimensiones: { largo: Number(form.largo), ancho: Number(form.ancho), alto: Number(form.alto) },
       fragil: form.fragil,
-      valorDeclarado: form.valorDeclarado ? Number(form.valorDeclarado) : undefined,
+      valorDeclarado: form.valorDeclarado ? Number(form.valorDeclarado) : null,
     };
 
     if (editingProduct) {
@@ -186,7 +186,7 @@ const ClienteProductos = () => {
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((producto) => {
-            const pesoVol = (producto.dimensiones.largo * producto.dimensiones.ancho * producto.dimensiones.alto) / 5000;
+            const pesoVol = ((producto.dimensiones.largo ?? 0) * (producto.dimensiones.ancho ?? 0) * (producto.dimensiones.alto ?? 0)) / 5000;
             const pesoTarificado = Math.max(producto.peso, pesoVol);
             return (
               <div key={producto.id} className="surface-card p-4 group">

@@ -78,8 +78,8 @@ const Clientes = () => {
         { label: 'RUC', accessor: (c: Cliente) => c.ruc },
         { label: 'Contacto', accessor: (c: Cliente) => c.contactoNombre },
         { label: 'Teléfono', accessor: (c: Cliente) => c.telefono },
-        { label: 'Email', accessor: (c: Cliente) => c.email },
-        { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad },
+        { label: 'Email', accessor: (c: Cliente) => c.email ?? '' },
+        { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad ?? '' },
         { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
         { label: 'Total Envíos', accessor: (c: Cliente) => c.totalEnvios },
         { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
@@ -511,7 +511,7 @@ const Clientes = () => {
                     <Label className="text-[13px]">Cargo</Label>
                     <Input
                       name="contactoCargo"
-                      defaultValue={selectedCliente?.contactoCargo}
+                      defaultValue={selectedCliente?.contactoCargo ?? ''}
                       placeholder="Ej: Gerente de Logística"
                       className="mt-1.5"
                     />
@@ -541,7 +541,7 @@ const Clientes = () => {
                     <Label className="text-[13px]">Dirección *</Label>
                     <Input
                       name="direccion"
-                      defaultValue={selectedCliente?.direccion}
+                      defaultValue={selectedCliente?.direccion ?? ''}
                       placeholder="Av. Espana 1234"
                       required
                       className="mt-1.5"
@@ -549,7 +549,7 @@ const Clientes = () => {
                   </div>
                   <div>
                     <Label className="text-[13px]">Ciudad *</Label>
-                    <Select name="ciudad" defaultValue={selectedCliente?.ciudad}>
+                    <Select name="ciudad" defaultValue={selectedCliente?.ciudad ?? undefined}>
                       <SelectTrigger className="mt-1.5">
                         <SelectValue placeholder="Seleccionar" />
                       </SelectTrigger>
@@ -577,7 +577,7 @@ const Clientes = () => {
                     <Label className="text-[13px]">Notas internas</Label>
                     <Textarea
                       name="notas"
-                      defaultValue={selectedCliente?.notas}
+                      defaultValue={selectedCliente?.notas ?? ''}
                       placeholder="Observaciones..."
                       className="mt-1.5 resize-none"
                       rows={2}

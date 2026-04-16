@@ -371,8 +371,8 @@ export function EnvioWizard() {
         {/* Indicadores de pasos */}
         <div className="flex justify-between mt-6">
           {PASOS.map((paso) => {
-            const completado = pasoActual > paso.número;
-            const actual = pasoActual === paso.número;
+            const completado = pasoActual > paso.numero;
+            const actual = pasoActual === paso.numero;
             const Icon = paso.icon;
 
             return (

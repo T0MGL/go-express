@@ -36,6 +36,7 @@ const Clientes = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [detailClienteId, setDetailClienteId] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null);
 
 
   const apiFilters = useMemo(() => {
@@ -153,10 +154,15 @@ const Clientes = () => {
   };
 
   const handleInvite = (cliente: Cliente) => {
+    if (!cliente.email) {
+      toast.error('El cliente no tiene email registrado');
+      return;
+    }
     inviteMut.mutate(cliente.id, {
-      onSuccess: () => {
-        toast.success(`Invitacion enviada a ${cliente.email}`);
+      onSuccess: ({ tempPassword }) => {
+        setInviteResult({ email: cliente.email!, tempPassword });
         setDetailClienteId(null);
+        toast.success(`Invitacion enviada a ${cliente.email}`);
       },
       onError: (err) => {
         const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al enviar invitacion';
@@ -166,10 +172,15 @@ const Clientes = () => {
   };
 
   const handleReinvite = (cliente: Cliente) => {
+    if (!cliente.email) {
+      toast.error('El cliente no tiene email registrado');
+      return;
+    }
     reinviteMut.mutate(cliente.id, {
-      onSuccess: () => {
-        toast.success(`Invitacion reenviada a ${cliente.email}`);
+      onSuccess: ({ tempPassword }) => {
+        setInviteResult({ email: cliente.email!, tempPassword });
         setDetailClienteId(null);
+        toast.success(`Invitacion reenviada a ${cliente.email}`);
       },
       onError: (err) => {
         const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al reenviar invitacion';
@@ -733,6 +744,45 @@ const Clientes = () => {
                 </DialogFooter>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!inviteResult} onOpenChange={(o) => !o && setInviteResult(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Invitación enviada</DialogTitle>
+            </DialogHeader>
+            {inviteResult && (
+              <div className="space-y-3">
+                <p className="text-[13px] text-muted-foreground">
+                  Email enviado a <strong>{inviteResult.email}</strong>. Si no llega, podés pasarle estas credenciales por WhatsApp:
+                </p>
+                <div className="rounded-lg bg-muted/40 p-3 space-y-2">
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Email</Label>
+                    <div className="font-data text-[13px]">{inviteResult.email}</div>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Contraseña temporal</Label>
+                    <div className="font-data text-[14px] font-semibold select-all">{inviteResult.tempPassword}</div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`Email: ${inviteResult.email}\nContraseña: ${inviteResult.tempPassword}\n\nIngresá en https://goexpressparaguay.com/portal/login`);
+                    toast.success('Copiado al portapapeles');
+                  }}
+                >
+                  Copiar credenciales
+                </Button>
+              </div>
+            )}
+            <DialogFooter>
+              <Button size="sm" onClick={() => setInviteResult(null)}>Cerrar</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

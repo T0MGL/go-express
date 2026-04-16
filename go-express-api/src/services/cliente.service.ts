@@ -373,7 +373,7 @@ class ClienteService {
     });
   }
 
-  async inviteToPortal(clienteId: string, userId: string): Promise<Cliente> {
+  async inviteToPortal(clienteId: string, userId: string): Promise<{ cliente: Cliente; tempPassword: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -466,10 +466,10 @@ class ClienteService {
       descripcion: `Invitacion al portal enviada a ${email} para ${cliente.razonSocial}`,
     });
 
-    return cliente;
+    return { cliente, tempPassword };
   }
 
-  async reinviteToPortal(clienteId: string, userId: string): Promise<Cliente> {
+  async reinviteToPortal(clienteId: string, userId: string): Promise<{ cliente: Cliente; tempPassword: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -526,7 +526,7 @@ class ClienteService {
       descripcion: `Invitacion reenviada a ${email} para ${cliente.razonSocial}`,
     });
 
-    return cliente;
+    return { cliente, tempPassword };
   }
 
   async resetClientPassword(clienteId: string, userId: string): Promise<{ message: string }> {

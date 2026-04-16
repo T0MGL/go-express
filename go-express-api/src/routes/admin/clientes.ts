@@ -112,8 +112,8 @@ router.post(
   '/:id/invite',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const cliente = await clienteService.inviteToPortal(req.params['id'] as string, req.userId!);
-    res.json(cliente);
+    const result = await clienteService.inviteToPortal(req.params['id'] as string, req.userId!);
+    res.json(result);
   })
 );
 
@@ -124,8 +124,8 @@ router.post(
   '/:id/reinvite',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const cliente = await clienteService.reinviteToPortal(req.params['id'] as string, req.userId!);
-    res.json(cliente);
+    const result = await clienteService.reinviteToPortal(req.params['id'] as string, req.userId!);
+    res.json(result);
   })
 );
 

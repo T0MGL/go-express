@@ -109,20 +109,25 @@ export function useDeleteCliente() {
   });
 }
 
+interface InviteClienteResult {
+  cliente: Cliente;
+  tempPassword: string;
+}
+
 export function useInviteCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      api.post<Cliente>(`/admin/clientes/${id}/invite`, {}),
-    onSuccess: (updated, id) => {
-      qc.setQueryData(clienteKeys.detail(id), updated);
+      api.post<InviteClienteResult>(`/admin/clientes/${id}/invite`, {}),
+    onSuccess: ({ cliente }, id) => {
+      qc.setQueryData(clienteKeys.detail(id), cliente);
       qc.setQueriesData<PaginatedResponse<Cliente>>(
         { queryKey: clienteKeys.lists() },
         (old) => {
           if (!old) return old;
           return {
             ...old,
-            data: old.data.map((c) => (c.id === id ? updated : c)),
+            data: old.data.map((c) => (c.id === id ? cliente : c)),
           };
         },
       );
@@ -134,16 +139,16 @@ export function useReinviteCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      api.post<Cliente>(`/admin/clientes/${id}/reinvite`, {}),
-    onSuccess: (updated, id) => {
-      qc.setQueryData(clienteKeys.detail(id), updated);
+      api.post<InviteClienteResult>(`/admin/clientes/${id}/reinvite`, {}),
+    onSuccess: ({ cliente }, id) => {
+      qc.setQueryData(clienteKeys.detail(id), cliente);
       qc.setQueriesData<PaginatedResponse<Cliente>>(
         { queryKey: clienteKeys.lists() },
         (old) => {
           if (!old) return old;
           return {
             ...old,
-            data: old.data.map((c) => (c.id === id ? updated : c)),
+            data: old.data.map((c) => (c.id === id ? cliente : c)),
           };
         },
       );

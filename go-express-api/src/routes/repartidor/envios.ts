@@ -7,6 +7,7 @@ import { logger } from '../../config/logger.js';
 import { sseService } from '../../services/sse.service.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
 import { nowISO } from '../../lib/datetime.js';
+import { auditoriaService } from '../../services/auditoria.service.js';
 
 const router = Router();
 
@@ -171,6 +172,14 @@ router.patch(
       registrado_por_nombre: repartidorNombre,
     });
 
+    auditoriaService.log({
+      usuario: repartidorNombre,
+      accion: 'cambio_estado',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Repartidor marco recolectado: ${envio.tracking_number}`,
+    });
+
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
@@ -249,6 +258,14 @@ router.patch(
       registrado_por_nombre: repartidorNombre,
     });
 
+    auditoriaService.log({
+      usuario: repartidorNombre,
+      accion: 'cambio_estado',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Repartidor marco entregado: ${envio.tracking_number}`,
+    });
+
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
@@ -308,6 +325,14 @@ router.patch(
       estado: 'problema',
       descripcion: `Incidencia reportada por ${repartidorNombre}: ${nota}`,
       registrado_por_nombre: repartidorNombre,
+    });
+
+    auditoriaService.log({
+      usuario: repartidorNombre,
+      accion: 'nota',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Repartidor reporto incidencia: ${envio.tracking_number}`,
     });
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });

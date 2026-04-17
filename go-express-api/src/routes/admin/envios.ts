@@ -135,7 +135,7 @@ router.post(
 
     const { data: envio, error } = await supabase
       .from('envios')
-      .select('id, tiene_incidencia')
+      .select('id, tiene_incidencia, estado')
       .eq('id', id)
       .eq('eliminado', false)
       .single();
@@ -149,7 +149,7 @@ router.post(
 
     await supabase.from('eventos_envio').insert({
       envio_id: id,
-      estado: 'nota',
+      estado: (envio as { estado: string }).estado,
       descripcion: `Incidencia resuelta por ${userName}${nota ? `: ${nota}` : ''}`,
       registrado_por_nombre: userName,
     });

@@ -174,6 +174,7 @@ router.patch(
 
     auditoriaService.log({
       usuario: repartidorNombre,
+      usuarioId: repartidorId,
       accion: 'cambio_estado',
       entidad: 'envio',
       entidadId: id,
@@ -260,6 +261,7 @@ router.patch(
 
     auditoriaService.log({
       usuario: repartidorNombre,
+      usuarioId: repartidorId,
       accion: 'cambio_estado',
       entidad: 'envio',
       entidadId: id,
@@ -329,6 +331,7 @@ router.patch(
 
     auditoriaService.log({
       usuario: repartidorNombre,
+      usuarioId: repartidorId,
       accion: 'nota',
       entidad: 'envio',
       entidadId: id,

@@ -1,12 +1,10 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { auditoriaService } from './auditoria.service.js';
 import { todayPY } from '../lib/datetime.js';
 import type {
   PagoRow,
   Pago,
-  EstadoPago,
   PaginatedResponse,
 } from '../types/index.js';
 import type { CreatePagoInput, UpdatePagoInput, PagoQuery } from '../lib/validators/pago.schema.js';
@@ -29,13 +27,42 @@ function toApi(row: PagoRow): Pago {
   };
 }
 
-function calcularEstadoPago(montoRecibido: number, montoTotal: number): EstadoPago {
-  if (montoRecibido >= montoTotal) return 'pagado';
-  if (montoRecibido > 0) return 'pago_parcial';
-  return 'pendiente';
+const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
+
+const ADMIN_USER_NAME = 'Admin GoExpress';
+
+interface PgError {
+  code?: string;
+  message?: string;
 }
 
-const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
+function isPgError(err: unknown): err is PgError {
+  return typeof err === 'object' && err !== null && ('code' in err || 'message' in err);
+}
+
+function mapRpcError(err: unknown, context: { envioId?: string; pagoId?: string }): AppError {
+  if (!isPgError(err)) {
+    logger.error({ err, context }, 'Unknown error from pago RPC');
+    return new AppError('Error en operacion de pago', 500, 'DB_ERROR');
+  }
+
+  if (err.code === '23505') {
+    return AppError.conflict('Ya existe un pago para este envio');
+  }
+
+  const msg = err.message ?? '';
+
+  if (msg.includes('pago_no_encontrado')) {
+    return AppError.notFound('Pago', context.pagoId);
+  }
+
+  if (msg.includes('pago_monto_recibido_invalido')) {
+    return AppError.badRequest('El monto recibido no puede exceder el monto total');
+  }
+
+  logger.error({ err, context }, 'Error en RPC de pago');
+  return new AppError('Error en operacion de pago', 500, 'DB_ERROR');
+}
 
 class PagoService {
   async list(query: PagoQuery): Promise<PaginatedResponse<Pago & { trackingNumber?: string; clienteNombre?: string; costoEnvio?: number }>> {
@@ -157,124 +184,83 @@ class PagoService {
       throw AppError.notFound('Envio', input.envioId);
     }
 
-    if ((envioData as { tracking_number: string; eliminado: boolean }).eliminado) {
+    const envio = envioData as { tracking_number: string; eliminado: boolean };
+
+    if (envio.eliminado) {
       throw AppError.badRequest('No se puede crear un pago para un envio eliminado');
     }
 
-    const estadoPago = calcularEstadoPago(input.montoRecibido, input.montoTotal);
-    const today = todayPY();
-
-    const { data, error } = await supabase
-      .from('pagos')
-      .insert({
-        envio_id: input.envioId,
-        monto_total: input.montoTotal,
-        monto_recibido: input.montoRecibido,
-        metodo_pago: input.metodoPago,
-        estado_pago: estadoPago,
-        fecha_pago: input.fechaPago ?? today,
-        referencia: input.referencia ?? null,
-        notas: input.notas ?? null,
-        creado_por: userId,
-      })
-      .select(PAGO_COLUMNS)
-      .single();
+    const { data, error } = await supabase.rpc('create_pago_atomico', {
+      p_envio_id: input.envioId,
+      p_monto_total: input.montoTotal,
+      p_monto_recibido: input.montoRecibido,
+      p_metodo_pago: input.metodoPago,
+      p_fecha_pago: input.fechaPago ?? todayPY(),
+      p_referencia: input.referencia ?? null,
+      p_notas: input.notas ?? null,
+      p_creado_por: userId,
+      p_usuario_nombre: ADMIN_USER_NAME,
+      p_tracking_number: envio.tracking_number,
+      p_ip: ipAddress ?? null,
+      p_user_agent: userAgent ?? null,
+    });
 
     if (error) {
-      const msg = error.message?.toLowerCase() ?? '';
-      if (msg.includes('unique') || msg.includes('duplicate') || error.code === '23505') {
-        throw AppError.conflict('Ya existe un pago para este envio');
-      }
-      logger.error({ error, envioId: input.envioId }, 'Error creating pago');
-      throw new AppError('Error creating pago', 500, 'DB_ERROR');
+      throw mapRpcError(error, { envioId: input.envioId });
     }
 
     if (!data) {
       throw new AppError('Error creating pago', 500, 'DB_ERROR');
     }
 
-    const pago = toApi(data as PagoRow);
+    const row = Array.isArray(data) ? (data[0] as PagoRow | undefined) : (data as PagoRow);
 
-    await auditoriaService.log({
-      usuario: 'Admin GoExpress',
-      usuarioId: userId,
-      accion: 'pago',
-      entidad: 'pago',
-      entidadId: pago.id,
-      descripcion: `Pago creado para envio ${(envioData as { tracking_number: string }).tracking_number}: ${input.montoRecibido}/${input.montoTotal} Gs. (${estadoPago})`,
-      ipAddress,
-      userAgent,
-    });
+    if (!row) {
+      throw new AppError('Error creating pago', 500, 'DB_ERROR');
+    }
 
-    return pago;
+    return toApi(row);
   }
 
   async update(
     id: string,
     input: UpdatePagoInput,
-    userId?: string,
+    userId: string,
     ipAddress?: string,
     userAgent?: string
   ): Promise<Pago> {
-    const { data: existing } = await supabase
-      .from('pagos')
-      .select(PAGO_COLUMNS)
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.rpc('update_pago_atomico', {
+      p_pago_id: id,
+      p_monto_recibido: input.montoRecibido,
+      p_metodo_pago: input.metodoPago ?? null,
+      p_fecha_pago: input.fechaPago ?? null,
+      p_referencia: input.referencia ?? null,
+      p_notas: input.notas ?? null,
+      p_apply_metodo: input.metodoPago !== undefined,
+      p_apply_fecha: input.fechaPago !== undefined,
+      p_apply_referencia: input.referencia !== undefined,
+      p_apply_notas: input.notas !== undefined,
+      p_actualizado_por: userId,
+      p_usuario_nombre: ADMIN_USER_NAME,
+      p_ip: ipAddress ?? null,
+      p_user_agent: userAgent ?? null,
+    });
 
-    if (!existing) {
-      throw AppError.notFound('Pago', id);
+    if (error) {
+      throw mapRpcError(error, { pagoId: id });
     }
 
-    const existingRow = existing as PagoRow;
-    const newMontoRecibido = input.montoRecibido;
-    const montoTotal = existingRow.monto_total;
-
-    if (newMontoRecibido > montoTotal) {
-      throw AppError.badRequest('El monto recibido no puede exceder el monto total');
-    }
-
-    const estadoPago = calcularEstadoPago(newMontoRecibido, montoTotal);
-
-    const updateData: Record<string, unknown> = {
-      monto_recibido: newMontoRecibido,
-      estado_pago: estadoPago,
-    };
-
-    if (input.metodoPago !== undefined) updateData['metodo_pago'] = input.metodoPago;
-    if (input.fechaPago !== undefined) updateData['fecha_pago'] = input.fechaPago;
-    if (input.referencia !== undefined) {
-      updateData['referencia'] = input.referencia ?? null;
-    }
-    if (input.notas !== undefined) updateData['notas'] = input.notas;
-
-    const { data, error } = await supabase
-      .from('pagos')
-      .update(updateData)
-      .eq('id', id)
-      .select(PAGO_COLUMNS)
-      .single();
-
-    if (error || !data) {
+    if (!data) {
       throw new AppError('Error updating pago', 500, 'DB_ERROR');
     }
 
-    const pago = toApi(data as PagoRow);
+    const row = Array.isArray(data) ? (data[0] as PagoRow | undefined) : (data as PagoRow);
 
-    if (userId) {
-      await auditoriaService.log({
-        usuario: 'Admin GoExpress',
-        usuarioId: userId,
-        accion: 'editar',
-        entidad: 'pago',
-        entidadId: id,
-        descripcion: `Pago actualizado: ${pago.montoRecibido}/${pago.montoTotal} Gs. (${pago.estadoPago})`,
-        ipAddress,
-        userAgent,
-      });
+    if (!row) {
+      throw new AppError('Error updating pago', 500, 'DB_ERROR');
     }
 
-    return pago;
+    return toApi(row);
   }
 
   async getStats(): Promise<{ totalCobrado: number; totalPendiente: number; cobradoHoy: number; enviosPendientesCobro: number }> {

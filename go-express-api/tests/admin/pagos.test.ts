@@ -335,3 +335,89 @@ describe('Auditoria de pagos persiste ip_address y user_agent', () => {
     expect(row.user_agent).toBe('pagos-audit-update-test/1.0');
   });
 });
+
+// El RPC create_pago_atomico y update_pago_atomico envuelven INSERT pago/auditoria en
+// una sola transaccion plpgsql. Si cualquier paso falla, Postgres rollbackea todo. El
+// hallazgo 1.2 del hard debug era que antes de estos RPCs la auditoria se escribia
+// fuera de la transaccion del pago, dejando pagos huerfanos cuando la auditoria fallaba.
+//
+// Para forzar un fallo selectivo en el INSERT del audit sin modificar la tabla
+// compartida, usamos el hecho de que auditoria_log.usuario_id tiene FK a usuarios(id).
+// Si pasamos un UUID que no existe en usuarios como p_actualizado_por, el UPDATE de
+// pagos se ejecuta pero el INSERT en audit falla con violacion de FK. El rollback
+// garantiza que el UPDATE tambien se revierta.
+describe('Atomicidad transaccional del RPC update_pago_atomico', () => {
+  it('rolls back pago update when audit insert violates FK on usuario_id', async () => {
+    const payload = makeEnvioPayload(testData.clienteId);
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+    const tmpEnvioId = envioRes.body.id as string;
+
+    const createRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .send({
+        envioId: tmpEnvioId,
+        montoTotal: 70000,
+        montoRecibido: 0,
+        metodoPago: 'contra_entrega',
+      });
+    expect(createRes.status).toBe(201);
+    const pagoId = createRes.body.id as string;
+
+    const orphanUserId = '00000000-0000-4000-b000-0000000000ff';
+
+    const { error } = await supabase.rpc('update_pago_atomico', {
+      p_pago_id: pagoId,
+      p_monto_recibido: 70000,
+      p_metodo_pago: null,
+      p_fecha_pago: null,
+      p_referencia: null,
+      p_notas: null,
+      p_apply_metodo: false,
+      p_apply_fecha: false,
+      p_apply_referencia: false,
+      p_apply_notas: false,
+      p_actualizado_por: orphanUserId,
+      p_usuario_nombre: 'Orphan User',
+      p_ip: null,
+      p_user_agent: 'pagos-rpc-rollback-test/1.0',
+    });
+
+    expect(error).not.toBeNull();
+
+    const { data: pago } = await supabase
+      .from('pagos')
+      .select('id, monto_recibido, estado_pago')
+      .eq('id', pagoId)
+      .single();
+
+    expect(pago).not.toBeNull();
+    const row = pago as { monto_recibido: number; estado_pago: string };
+    expect(row.monto_recibido).toBe(0);
+    expect(row.estado_pago).toBe('pendiente');
+
+    const { data: audits } = await supabase
+      .from('auditoria_log')
+      .select('id')
+      .eq('entidad', 'pago')
+      .eq('entidad_id', pagoId)
+      .eq('accion', 'editar');
+
+    expect(audits ?? []).toHaveLength(0);
+  });
+});
+
+describe('update_pago_atomico: errores mapeados', () => {
+  it('returns 404 with code NOT_FOUND when pago id does not exist', async () => {
+    const res = await request
+      .patch('/api/admin/pagos/00000000-0000-4000-a000-0000000000aa')
+      .set(adminHeaders())
+      .send({ montoRecibido: 1000 });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('code', 'NOT_FOUND');
+  });
+});

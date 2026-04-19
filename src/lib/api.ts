@@ -13,6 +13,24 @@ export class ApiError extends Error {
   }
 }
 
+// Extrae el mensaje de error de un ApiError o cualquier error no tipado, devolviendo
+// el fallback cuando no se puede parsear. El backend devuelve { error, code, details }
+// vía globalErrorHandler en errorHandler.ts.
+export function extractApiError(err: unknown, fallback = 'Ocurrio un error inesperado'): string {
+  if (err instanceof ApiError) {
+    const data = err.data as { error?: string; message?: string } | null;
+    return data?.error || data?.message || err.message || fallback;
+  }
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: { error?: string; message?: string } }).data;
+    return data?.error || data?.message || fallback;
+  }
+  if (err instanceof Error) {
+    return err.message || fallback;
+  }
+  return fallback;
+}
+
 let currentClienteId: string | null = null;
 
 export function setClienteId(id: string) {

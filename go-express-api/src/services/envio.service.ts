@@ -399,6 +399,12 @@ class EnvioService {
     userAgent?: string,
     options: { forzarSobreLimite?: boolean; motivoOverride?: string } = {}
   ): Promise<Envio> {
+    if (options.forzarSobreLimite && (!options.motivoOverride || options.motivoOverride.trim().length < 10)) {
+      throw AppError.badRequest(
+        'forzarSobreLimite requiere motivoOverride con al menos 10 caracteres'
+      );
+    }
+
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
       .select('razon_social, estado')

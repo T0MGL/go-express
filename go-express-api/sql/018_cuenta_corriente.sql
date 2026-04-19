@@ -17,36 +17,11 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- 2) Extender auditoria_accion para soportar ajuste y nota_credito sobre cuenta corriente
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum
-    WHERE enumlabel = 'ajuste' AND enumtypid = 'auditoria_accion'::regtype
-  ) THEN
-    ALTER TYPE auditoria_accion ADD VALUE 'ajuste';
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum
-    WHERE enumlabel = 'nota_credito' AND enumtypid = 'auditoria_accion'::regtype
-  ) THEN
-    ALTER TYPE auditoria_accion ADD VALUE 'nota_credito';
-  END IF;
-END $$;
+ALTER TYPE auditoria_accion ADD VALUE IF NOT EXISTS 'ajuste';
+ALTER TYPE auditoria_accion ADD VALUE IF NOT EXISTS 'nota_credito';
 
 -- 3) Extender auditoria_entidad para identificar al ledger como entidad propia
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum
-    WHERE enumlabel = 'cuenta_corriente' AND enumtypid = 'auditoria_entidad'::regtype
-  ) THEN
-    ALTER TYPE auditoria_entidad ADD VALUE 'cuenta_corriente';
-  END IF;
-END $$;
+ALTER TYPE auditoria_entidad ADD VALUE IF NOT EXISTS 'cuenta_corriente';
 
 -- 4) Tabla de movimientos
 CREATE TABLE IF NOT EXISTS movimientos_cuenta_corriente (

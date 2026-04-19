@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { cn, formatCurrency, formatTimestampSmart } from '@/lib/utils';
+import { extractApiError } from '@/lib/api';
 import {
   useSaldoAdmin,
   useMovimientosAdmin,
@@ -239,8 +240,7 @@ function AjusteDialog({ open, onOpenChange, clienteId, clienteNombre }: DialogPr
           onOpenChange(false);
         },
         onError: (err) => {
-          const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al registrar ajuste';
-          toast.error(msg);
+          toast.error(extractApiError(err, 'Error al registrar ajuste'));
         },
       },
     );
@@ -354,8 +354,7 @@ function NotaCreditoDialog({ open, onOpenChange, clienteId, clienteNombre }: Dia
           onOpenChange(false);
         },
         onError: (err) => {
-          const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al emitir nota de crédito';
-          toast.error(msg);
+          toast.error(extractApiError(err, 'Error al emitir nota de crédito'));
         },
       },
     );
@@ -441,8 +440,7 @@ function LimiteCreditoDialog({ open, onOpenChange, clienteId, clienteNombre, lim
           onOpenChange(false);
         },
         onError: (err) => {
-          const msg = (err as { data?: { error?: string } })?.data?.error || 'Error al actualizar límite';
-          toast.error(msg);
+          toast.error(extractApiError(err, 'Error al actualizar límite'));
         },
       },
     );

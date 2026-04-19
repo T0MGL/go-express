@@ -6,6 +6,7 @@ import { logger } from '../../config/logger.js';
 import { emailService } from '../../services/email.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio } from '../../services/envio.service.js';
+import { cuentaCorrienteService } from '../../services/cuentaCorriente.service.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
@@ -334,6 +335,21 @@ router.post(
     );
 
     const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
+
+    // Cliente portal siempre factura a cuenta corriente, validar limite antes de insertar.
+    // Este check es advisory: la atomicidad real ocurre en el trigger via FOR UPDATE.
+    const montoFacturable = costo + costoSeguro;
+    if (montoFacturable > 0) {
+      const verif = await cuentaCorrienteService.verificarLimiteCredito(clienteId, montoFacturable);
+      if (!verif.permitido) {
+        throw AppError.unprocessable('limite_credito_excedido', {
+          saldoActual: verif.saldoActual,
+          limiteCredito: verif.limiteCredito,
+          montoSolicitado: montoFacturable,
+          disponible: verif.disponible,
+        });
+      }
+    }
 
     const envioInsert = {
       tracking_number: trackingNumber,

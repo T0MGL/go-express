@@ -11,6 +11,7 @@ import warehouseRoutes from './warehouse.js';
 import auditoriaRoutes from './auditoria.js';
 import configuracionRoutes from './configuracion.js';
 import usuarioRoutes from './usuarios.js';
+import cuentaCorrienteRoutes from './cuentaCorriente.js';
 
 const router = Router();
 
@@ -20,6 +21,9 @@ router.use(requireAdmin);
 router.use('/dashboard', dashboardRoutes);
 router.use('/envios', envioRoutes);
 router.use('/clientes', clienteRoutes);
+// Movimientos de cuenta corriente cuelgan de /clientes para preservar el patron
+// /clientes/:id/saldo, /clientes/:id/movimientos, /clientes/:id/ajuste, etc.
+router.use('/clientes', cuentaCorrienteRoutes);
 router.use('/repartidores', repartidorRoutes);
 router.use('/tarifas', tarifaRoutes);
 router.use('/pagos', pagoRoutes);

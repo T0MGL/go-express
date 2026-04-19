@@ -52,11 +52,30 @@ router.get(
   })
 );
 
+// Admin puede pasar forzarSobreLimite=true + motivoOverride en query string para crear
+// envios cuenta_corriente que excederian el limite del cliente. El override queda en
+// auditoria. Sin el flag, el insert falla con 422 limite_credito_excedido.
+const createEnvioBodyWithOverride = createEnvioSchema.extend({
+  forzarSobreLimite: z.boolean().optional(),
+  motivoOverride: z.string().min(10).max(500).optional(),
+});
+
 router.post(
   '/',
-  validate({ body: createEnvioSchema }),
+  validate({ body: createEnvioBodyWithOverride }),
   asyncHandler(async (req, res) => {
-    const envio = await envioService.create(req.body, req.userId!, req.userName!, req.ip ?? undefined, req.headers['user-agent'] ?? undefined);
+    const { forzarSobreLimite, motivoOverride, ...envioInput } = req.body;
+    if (forzarSobreLimite && !motivoOverride) {
+      throw AppError.badRequest('motivoOverride es obligatorio cuando forzarSobreLimite=true');
+    }
+    const envio = await envioService.create(
+      envioInput,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+      { forzarSobreLimite, motivoOverride }
+    );
     sseService.broadcast({ entity: ['envios', 'list'], action: 'created' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
     res.status(201).json(envio);

@@ -28,6 +28,7 @@ import {
   useInviteCliente, useReinviteCliente, useResetClientePassword,
 } from '@/hooks/api/use-clientes';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { AdminCuentaCorriente } from '@/components/admin/AdminCuentaCorriente';
 
 const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -610,7 +611,7 @@ const Clientes = () => {
 
         {/* Detail / Portal management modal */}
         <Dialog open={!!detailClienteId} onOpenChange={(open) => { if (!open) setDetailClienteId(null); }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             {detailCliente && (
               <>
                 <DialogHeader>
@@ -717,6 +718,18 @@ const Clientes = () => {
                         </Button>
                       )}
                     </div>
+                  </div>
+
+                  {/* Cuenta corriente */}
+                  <div className="border-t border-border/50 pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CurrencyDollar size={16} weight="duotone" className="text-primary" />
+                      <h4 className="text-[13px] font-semibold">Cuenta corriente</h4>
+                    </div>
+                    <AdminCuentaCorriente
+                      clienteId={detailCliente.id}
+                      clienteNombre={detailCliente.razonSocial}
+                    />
                   </div>
                 </div>
 

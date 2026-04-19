@@ -61,6 +61,7 @@ const ClienteEnvios = lazyWithReload(() => import("./pages/cliente/ClienteEnvios
 const ClienteNuevoPaquete = lazyWithReload(() => import("./pages/cliente/ClienteNuevoPaquete"));
 const ClienteEtiquetas = lazyWithReload(() => import("./pages/cliente/ClienteEtiquetas"));
 const ClienteCuenta = lazyWithReload(() => import("./pages/cliente/ClienteCuenta"));
+const ClienteCuentaCorriente = lazyWithReload(() => import("./pages/cliente/ClienteCuentaCorriente"));
 const ClienteImportar = lazyWithReload(() => import("./pages/cliente/ClienteImportar"));
 const ClienteCotizador = lazyWithReload(() => import("./pages/cliente/ClienteCotizador"));
 const ClienteProductos = lazyWithReload(() => import("./pages/cliente/ClienteProductos"));
@@ -216,6 +217,7 @@ const App = () => (
                   <Route path="etiquetas" element={<ClienteEtiquetas />} />
                   <Route path="productos" element={<ClienteProductos />} />
                   <Route path="cuenta" element={<ClienteCuenta />} />
+                  <Route path="cuenta-corriente" element={<ClienteCuentaCorriente />} />
                 </Route>
 
                 {/* Backward compat: existing /cliente bookmarks redirect to /portal */}

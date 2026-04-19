@@ -35,7 +35,9 @@ export type AuditoriaAccion =
   | 'asignar'
   | 'importar'
   | 'login'
-  | 'logout';
+  | 'logout'
+  | 'ajuste'
+  | 'nota_credito';
 export type AuditoriaEntidad =
   | 'envio'
   | 'cliente'
@@ -45,7 +47,10 @@ export type AuditoriaEntidad =
   | 'tarifa'
   | 'usuario'
   | 'almacen'
-  | 'sistema';
+  | 'sistema'
+  | 'cuenta_corriente';
+
+export type TipoMovimientoCc = 'debito' | 'credito' | 'ajuste' | 'nota_credito' | 'reverso';
 
 // DB Row types (snake_case, match PostgreSQL column names exactly)
 
@@ -76,6 +81,7 @@ export interface ClienteRow {
   estado: ClienteEstado;
   plan: ClientePlan;
   saldo_cuenta_corriente: number;
+  limite_credito: number;
   total_envios: number;
   envios_activos: number;
   notas: string | null;
@@ -345,6 +351,7 @@ export interface Cliente {
   estado: ClienteEstado;
   plan: ClientePlan;
   saldoCuentaCorriente: number;
+  limiteCredito: number;
   totalEnvios: number;
   enviosActivos: number;
   notas: string | null;
@@ -605,6 +612,43 @@ export interface PagoStats {
   totalPendiente: number;
   cobradoHoy: number;
   enviosPendientesCobro: number;
+}
+
+export interface MovimientoCcRow {
+  id: string;
+  cliente_id: string;
+  envio_id: string | null;
+  pago_id: string | null;
+  tipo: TipoMovimientoCc;
+  monto: number;
+  saldo_posterior: number;
+  descripcion: string;
+  creado_por: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface MovimientoCc {
+  id: string;
+  clienteId: string;
+  envioId: string | null;
+  pagoId: string | null;
+  tipo: TipoMovimientoCc;
+  monto: number;
+  saldoPosterior: number;
+  descripcion: string;
+  creadoPor: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  creadoEn: string;
+}
+
+export interface SaldoCuentaCorriente {
+  saldo: number;
+  limiteCredito: number;
+  disponible: number | null;
+  ultimaActualizacion: string | null;
 }
 
 // Pagination

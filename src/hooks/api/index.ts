@@ -106,6 +106,25 @@ export { useClienteDashboardStats } from './use-cliente-dashboard';
 export { useClienteEnvios, useClienteEnvio, useClienteCreateEnvio, useClienteBulkImport } from './use-cliente-envios';
 export { useCiudadesDisponibles, useDestinosDisponibles, useCotizar } from './use-cotizador';
 export { useCuenta, useUpdateCuenta } from './use-cuenta';
+export {
+  useSaldoCliente,
+  useMovimientosCliente,
+  useSaldoAdmin,
+  useMovimientosAdmin,
+  useCrearAjuste,
+  useCrearNotaCredito,
+  useUpdateLimiteCredito,
+} from './use-cuenta-corriente';
+export type {
+  MovimientoCc,
+  TipoMovimientoCc,
+  SaldoCuentaCorriente,
+  MovimientosFilters,
+  PaginatedMovimientos,
+  CrearAjusteInput,
+  CrearNotaCreditoInput,
+  UpdateLimiteCreditoInput,
+} from './use-cuenta-corriente';
 export { useTags, useCreateTag, useDeleteTag } from './use-tags';
 
 // Global search

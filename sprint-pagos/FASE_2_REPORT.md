@@ -1,9 +1,22 @@
 # FASE 2 REPORT: RPC atomicos pago + auditoria
 
-**Status:** IMPLEMENTADA. Bloqueada en aplicacion de migracion 020 para correr tests.
-**Branch:** `sprint-pagos/fase-2-rpc-atomicos` (base: `sprint-pagos/fase-1-ip-ua-ratelimit`)
-**Fecha:** 2026-04-19
+**Status:** CERRADA. Migracion 020 aplicada en produccion, 211/211 tests PASS (suite full), 19/19 tests de pagos PASS.
+**Branch:** `sprint-pagos/fase-2-rpc-atomicos` (rebased sobre `main` post cierre de Fase 1)
+**Fecha implementacion:** 2026-04-19
+**Fecha cierre:** 2026-04-19
 **Riesgo real:** medio, confirmado. El refactor toca una mutacion critica y requiere que la migracion SQL este aplicada antes de que el service funcione.
+
+## Cierre
+
+Migracion aplicada via `psql $DATABASE_URL -f sql/020_pago_rpc_atomico.sql` directo (conexion funciono sin bloqueo de IPv6 al final). Verificado:
+
+```
+ proname              | has_body
+ create_pago_atomico  | t
+ update_pago_atomico  | t
+```
+
+Suite full: `Test Files 14 passed (14) | Tests 211 passed (211)`. Typecheck PASS. Lint 0 errors (21 warnings preexistentes, no relacionados).
 
 ## Resumen ejecutivo
 

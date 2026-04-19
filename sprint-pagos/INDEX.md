@@ -9,8 +9,8 @@ Cada fase es un archivo `FASE_N_*.md` ejecutable standalone en una sesión Claud
 | # | Fase | Estado | Sesión | Tiempo estimado |
 |---|---|---|---|---|
 | 3 | Ledger Cuenta Corriente | CERRADA (23/23 tests PASS) | sesión inicial | 3-4h |
-| 1 | IP/UA + adminWriteLimiter en pagos | Pendiente | nueva | 30min |
-| 2 | RPC atómicos pago + auditoría | Pendiente | nueva | 1.5h |
+| 1 | IP/UA + adminWriteLimiter en pagos | CERRADA | nueva | 30min |
+| 2 | RPC atómicos pago + auditoría | CERRADA (211/211 suite PASS, RPC aplicado) | nueva | 1.5h |
 | 4 | Anulación de pagos | Pendiente | nueva | 1.5h |
 | 5 | Liquidaciones de repartidor + auto pago COD | Pendiente | nueva | 3-4h |
 

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Timeline } from '@/components/tracking/Timeline';
 import { PaymentModal } from '@/components/admin/PaymentModal';
+import { AnularPagoModal } from '@/components/admin/AnularPagoModal';
 import { ProblemaModal } from '@/components/admin/ProblemaModal';
 import { NotasInternas } from '@/components/admin/NotasInternas';
 import { estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels, departamentosPY } from '@/data/constants';
@@ -57,6 +58,7 @@ const EnvioDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isAnularPagoModalOpen, setIsAnularPagoModalOpen] = useState(false);
   const [isProblemaModalOpen, setIsProblemaModalOpen] = useState(false);
   const [showRepartidorModal, setShowRepartidorModal] = useState(false);
   const [showEstadoModal, setShowEstadoModal] = useState(false);
@@ -557,13 +559,39 @@ const EnvioDetail = () => {
             </div>
 
             {envio.pago?.estadoPago === 'pagado' ? (
-              <div className="flex items-center gap-2 text-success">
-                <CheckCircle size={18} weight="duotone" />
-                <span className="font-medium text-[13px]">Cobro completado</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle size={18} weight="duotone" />
+                  <span className="font-medium text-[13px]">Cobro completado</span>
+                </div>
+                {envio.pago && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setIsAnularPagoModalOpen(true)}
+                  >
+                    Anular cobro
+                  </Button>
+                )}
+              </div>
+            ) : envio.pago?.estadoPago === 'pago_parcial' ? (
+              <div className="flex flex-col gap-2">
+                <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="w-full">
+                  Completar cobro
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setIsAnularPagoModalOpen(true)}
+                >
+                  Anular cobro
+                </Button>
               </div>
             ) : (
               <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="w-full">
-                {envio.pago?.estadoPago === 'pago_parcial' ? 'Completar cobro' : 'Registrar cobro'}
+                Registrar cobro
               </Button>
             )}
           </div>
@@ -619,6 +647,16 @@ const EnvioDetail = () => {
         montoTotal={envio.costo}
         onPaymentRegistered={handlePaymentRegistered}
       />
+
+      {envio.pago && (
+        <AnularPagoModal
+          isOpen={isAnularPagoModalOpen}
+          onClose={() => setIsAnularPagoModalOpen(false)}
+          pagoId={envio.pago.id}
+          montoRecibido={envio.pago.montoRecibido}
+          esCuentaCorriente={envio.tipoPago === 'cuenta_corriente'}
+        />
+      )}
 
       <ProblemaModal
         isOpen={isProblemaModalOpen}

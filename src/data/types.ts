@@ -34,6 +34,10 @@ export interface Pago {
   referencia: string | null;
   notas: string | null;
   creadoPor: string;
+  anulado: boolean;
+  anuladoPor: string | null;
+  anuladoEn: string | null;
+  motivoAnulacion: string | null;
   creadoEn: string;
   updatedAt: string;
   trackingNumber?: string;

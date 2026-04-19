@@ -27,6 +27,10 @@ interface PagoListItem {
   referencia?: string | null;
   notas?: string | null;
   creadoPor: string;
+  anulado: boolean;
+  anuladoPor: string | null;
+  anuladoEn: string | null;
+  motivoAnulacion: string | null;
   creadoEn: string;
   updatedAt: string;
   costo?: number;
@@ -38,6 +42,7 @@ const Pagos = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroMetodo, setFiltroMetodo] = useState<string>('todos');
+  const [mostrarAnulados, setMostrarAnulados] = useState(false);
   const [selectedPago, setSelectedPago] = useState<PagoListItem | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -53,8 +58,9 @@ const Pagos = () => {
     if (filtroEstado !== 'todos') f.estadoPago = filtroEstado;
     if (filtroMetodo !== 'todos') f.metodoPago = filtroMetodo;
     if (debouncedBusqueda) f.search = debouncedBusqueda;
+    if (mostrarAnulados) f.incluirAnulados = 'true';
     return f;
-  }, [filtroEstado, filtroMetodo, page, debouncedBusqueda]);
+  }, [filtroEstado, filtroMetodo, page, debouncedBusqueda, mostrarAnulados]);
 
   const { data: apiPagos, isLoading } = usePagos(apiFilters);
   const { data: apiStats } = usePagoStats();
@@ -192,6 +198,16 @@ const Pagos = () => {
                 <SelectItem value="contra_entrega">Contra entrega</SelectItem>
               </SelectContent>
             </Select>
+
+            <Button
+              type="button"
+              variant={mostrarAnulados ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setMostrarAnulados((v) => !v); resetPage(); }}
+              data-testid="toggle-anulados"
+            >
+              {mostrarAnulados ? 'Ocultar anulados' : 'Mostrar anulados'}
+            </Button>
           </div>
 
           {isLoading ? (
@@ -224,7 +240,7 @@ const Pagos = () => {
                   </thead>
                   <tbody>
                     {pagosFiltrados.map((pago) => (
-                      <tr key={pago.id}>
+                      <tr key={pago.id} className={pago.anulado ? 'opacity-60' : ''}>
                         <td>
                           <Link
                             to={`/admin/envios/${pago.envioId}`}
@@ -235,17 +251,29 @@ const Pagos = () => {
                         </td>
                         <td className="text-[13px]">{pago.clienteNombre ?? 'Sin cliente'}</td>
                         <td className="text-[13px] font-medium font-data text-right">
-                          {formatCurrency(pago.montoTotal)}
+                          <span className={pago.anulado ? 'line-through text-muted-foreground' : ''}>
+                            {formatCurrency(pago.montoTotal)}
+                          </span>
                         </td>
                         <td>
-                          <Badge
-                            variant={estadoPagoColors[pago.estadoPago || 'pendiente'] as "muted" | "default" | "destructive" | "success" | "warning" | "outline" | "secondary"}
-                            className="text-[11px]"
-                          >
-                            {pago.estadoPago === 'pagado' ? 'Cobrado'
-                              : pago.estadoPago === 'pago_parcial' ? 'Cobro parcial'
-                              : 'Sin cobrar'}
-                          </Badge>
+                          {pago.anulado ? (
+                            <Badge
+                              variant="destructive"
+                              className="text-[11px]"
+                              title={pago.motivoAnulacion ?? undefined}
+                            >
+                              Anulado
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={estadoPagoColors[pago.estadoPago || 'pendiente'] as "muted" | "default" | "destructive" | "success" | "warning" | "outline" | "secondary"}
+                              className="text-[11px]"
+                            >
+                              {pago.estadoPago === 'pagado' ? 'Cobrado'
+                                : pago.estadoPago === 'pago_parcial' ? 'Cobro parcial'
+                                : 'Sin cobrar'}
+                            </Badge>
+                          )}
                         </td>
                         <td className="text-[13px]">
                           {pago.metodoPago
@@ -253,10 +281,19 @@ const Pagos = () => {
                             : <span className="text-muted-foreground/60">Sin definir</span>}
                         </td>
                         <td className="text-[12px] text-muted-foreground tabular-nums">
-                          {pago.fechaPago ? formatDateSmart(pago.fechaPago) : 'Sin cobrar'}
+                          {pago.anulado && pago.anuladoEn
+                            ? `Anulado ${formatDateSmart(pago.anuladoEn)}`
+                            : pago.fechaPago ? formatDateSmart(pago.fechaPago) : 'Sin cobrar'}
                         </td>
                         <td className="text-right">
-                          {pago.estadoPago === 'pendiente' || pago.estadoPago === 'pago_parcial' ? (
+                          {pago.anulado ? (
+                            <Link to={`/admin/envios/${pago.envioId}`}>
+                              <Button variant="ghost" size="sm" className="gap-1.5">
+                                <Eye size={14} weight="duotone" />
+                                Ver envío
+                              </Button>
+                            </Link>
+                          ) : pago.estadoPago === 'pendiente' || pago.estadoPago === 'pago_parcial' ? (
                             <Button
                               variant="default"
                               size="sm"

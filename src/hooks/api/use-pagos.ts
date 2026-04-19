@@ -26,6 +26,10 @@ interface PagoItem {
   referencia?: string | null;
   notas?: string | null;
   creadoPor: string;
+  anulado: boolean;
+  anuladoPor: string | null;
+  anuladoEn: string | null;
+  motivoAnulacion: string | null;
   creadoEn: string;
   updatedAt: string;
   costo?: number;
@@ -79,6 +83,19 @@ export function useUpdatePago() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: pagoKeys.all });
       qc.invalidateQueries({ queryKey: envioKeys.all });
+    },
+  });
+}
+
+export function useAnularPago() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo: string }) =>
+      api.post<PagoItem>(`/admin/pagos/${id}/anular`, { motivo }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: pagoKeys.all });
+      qc.invalidateQueries({ queryKey: envioKeys.all });
+      qc.invalidateQueries({ queryKey: ['cuenta-corriente'] });
     },
   });
 }

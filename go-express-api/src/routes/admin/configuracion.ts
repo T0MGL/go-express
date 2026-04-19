@@ -141,6 +141,8 @@ router.put(
       descripcion: 'Configuracion de seguro de envios actualizada',
       valorAnterior: previousValue !== null ? { value: previousValue } : null,
       valorNuevo: { value: cfg },
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     res.json({
@@ -198,6 +200,8 @@ router.put(
       descripcion: `Configuracion "${key}" actualizada`,
       valorAnterior: previousValue !== null ? { value: previousValue } : null,
       valorNuevo: { value },
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     res.json({

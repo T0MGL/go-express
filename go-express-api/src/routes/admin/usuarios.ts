@@ -62,6 +62,8 @@ router.post(
       req.body,
       req.userId!,
       req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
     );
 
     res.status(201).json(usuario);
@@ -76,6 +78,8 @@ router.post(
       req.params['id'] as string,
       req.userId!,
       req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
     );
 
     res.json(usuario);
@@ -127,6 +131,8 @@ router.put(
       entidad: 'usuario',
       entidadId: user.id,
       descripcion: `Usuario actualizado: ${user.nombre}`,
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     res.json(user);

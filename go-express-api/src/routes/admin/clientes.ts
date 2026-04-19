@@ -57,7 +57,12 @@ router.post(
   '/',
   validate({ body: createClienteSchema }),
   asyncHandler(async (req, res) => {
-    const cliente = await clienteService.create(req.body, req.userId!);
+    const cliente = await clienteService.create(
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(201).json(cliente);
   })
 );
@@ -69,7 +74,13 @@ router.put(
   '/:id',
   validate({ params: idParamSchema, body: updateClienteSchema }),
   asyncHandler(async (req, res) => {
-    const cliente = await clienteService.update(req.params['id'] as string, req.body, req.userId!);
+    const cliente = await clienteService.update(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(cliente);
   })
 );
@@ -85,7 +96,9 @@ router.patch(
       req.params['id'] as string,
       req.body.estado,
       req.body.motivo,
-      req.userId!
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
     );
     res.json(cliente);
   })
@@ -98,7 +111,13 @@ router.delete(
   '/:id',
   validate({ params: idParamSchema, body: softDeleteSchema }),
   asyncHandler(async (req, res) => {
-    await clienteService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!);
+    await clienteService.softDelete(
+      req.params['id'] as string,
+      req.body.motivo,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(204).send();
   })
 );
@@ -112,7 +131,12 @@ router.post(
   '/:id/invite',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const result = await clienteService.inviteToPortal(req.params['id'] as string, req.userId!);
+    const result = await clienteService.inviteToPortal(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(result);
   })
 );
@@ -124,7 +148,12 @@ router.post(
   '/:id/reinvite',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const result = await clienteService.reinviteToPortal(req.params['id'] as string, req.userId!);
+    const result = await clienteService.reinviteToPortal(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(result);
   })
 );
@@ -136,7 +165,12 @@ router.post(
   '/:id/reset-password',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const result = await clienteService.resetClientPassword(req.params['id'] as string, req.userId!);
+    const result = await clienteService.resetClientPassword(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(result);
   })
 );

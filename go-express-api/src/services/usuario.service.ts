@@ -34,7 +34,13 @@ export interface CreateAdminInput {
 }
 
 class UsuarioService {
-  async createWithInvite(input: CreateAdminInput, invitedByUserId: string, invitedByName: string): Promise<Usuario> {
+  async createWithInvite(
+    input: CreateAdminInput,
+    invitedByUserId: string,
+    invitedByName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Usuario> {
     const { nombre, email, rol } = input;
 
     const { data: existing } = await supabase
@@ -108,12 +114,20 @@ class UsuarioService {
       entidad: 'usuario',
       entidadId: usuario.id,
       descripcion: `Admin invitado: ${usuario.nombre} (${usuario.rol}) a ${usuario.email}`,
+      ipAddress,
+      userAgent,
     });
 
     return usuario;
   }
 
-  async reinvite(usuarioId: string, invokedByUserId: string, invokedByName: string): Promise<Usuario> {
+  async reinvite(
+    usuarioId: string,
+    invokedByUserId: string,
+    invokedByName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Usuario> {
     const { data: row, error: fetchErr } = await supabase
       .from('usuarios')
       .select(USUARIO_COLUMNS)
@@ -192,6 +206,8 @@ class UsuarioService {
       entidad: 'usuario',
       entidadId: usuarioId,
       descripcion: `Re-invitacion enviada a ${usuario.email}`,
+      ipAddress,
+      userAgent,
     });
 
     return usuario;

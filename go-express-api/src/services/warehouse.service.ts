@@ -108,7 +108,13 @@ class WarehouseService {
     };
   }
 
-  async ingreso(input: IngresoInput, userId: string, usuarioNombre: string): Promise<InventarioAlmacen> {
+  async ingreso(
+    input: IngresoInput,
+    userId: string,
+    usuarioNombre: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<InventarioAlmacen> {
     const volumen =
       input.dimensiones
         ? (input.dimensiones.largo * input.dimensiones.ancho * input.dimensiones.alto) / 1000000
@@ -159,6 +165,8 @@ class WarehouseService {
       entidad: 'almacen',
       entidadId: item.id,
       descripcion: `Ingreso al almacén: ${input.trackingNumber} en ${input.ubicacion}`,
+      ipAddress,
+      userAgent,
     });
 
     return item;
@@ -168,7 +176,9 @@ class WarehouseService {
     paqueteId: string,
     userId: string,
     usuarioNombre: string,
-    notas?: string
+    notas?: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<InventarioAlmacen> {
     const { data: existing } = await supabase
       .from('inventario_almacen')
@@ -216,6 +226,8 @@ class WarehouseService {
       entidad: 'almacen',
       entidadId: paqueteId,
       descripcion: `Despacho: ${row.tracking_number} desde ${row.ubicacion}`,
+      ipAddress,
+      userAgent,
     });
 
     return toInventarioApi(data as unknown as InventarioAlmacenRow);
@@ -226,7 +238,9 @@ class WarehouseService {
     ubicacionDestino: string,
     userId: string,
     usuarioNombre: string,
-    notas?: string
+    notas?: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<InventarioAlmacen> {
     const { data: existing } = await supabase
       .from('inventario_almacen')
@@ -272,6 +286,8 @@ class WarehouseService {
       entidad: 'almacen',
       entidadId: paqueteId,
       descripcion: `Devolución: ${row.tracking_number} a ${ubicacionDestino}`,
+      ipAddress,
+      userAgent,
     });
 
     return toInventarioApi(data as unknown as InventarioAlmacenRow);
@@ -296,7 +312,9 @@ class WarehouseService {
     id: string,
     updateData: { pickeado?: boolean; empaquetado?: boolean },
     userId?: string,
-    usuarioNombre?: string
+    usuarioNombre?: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<PickingItem> {
     const dbUpdate: Record<string, unknown> = {};
     if (updateData.pickeado !== undefined) dbUpdate['pickeado'] = updateData.pickeado;
@@ -327,6 +345,8 @@ class WarehouseService {
         entidad: 'almacen',
         entidadId: id,
         descripcion: `Picking actualizado: ${item.trackingNumber} (pickeado=${item.pickeado}, empaquetado=${item.empaquetado})`,
+        ipAddress,
+        userAgent,
       });
     }
 

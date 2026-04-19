@@ -799,15 +799,32 @@ class EnvioService {
     return envio;
   }
 
-  async reportarProblema(id: string, descripcion: string, userId: string): Promise<Envio> {
+  async reportarProblema(
+    id: string,
+    descripcion: string,
+    userId: string,
+    userName?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Envio> {
     return this.updateEstado(
       id,
       { estado: 'problema', descripcion },
-      userId
+      userId,
+      userName,
+      ipAddress,
+      userAgent,
     );
   }
 
-  async agregarNota(id: string, texto: string, userId: string, usuarioNombre: string): Promise<NotaInterna> {
+  async agregarNota(
+    id: string,
+    texto: string,
+    userId: string,
+    usuarioNombre: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<NotaInterna> {
     const { data: exists, error: checkErr } = await supabase
       .from('envios')
       .select('id')
@@ -840,6 +857,8 @@ class EnvioService {
       entidad: 'nota_interna',
       entidadId: (data as unknown as NotaInternaRow).id,
       descripcion: `Nota interna agregada al envio ${id}`,
+      ipAddress,
+      userAgent,
     });
 
     return mapNotaRow(data as unknown as NotaInternaRow);
@@ -987,7 +1006,14 @@ class EnvioService {
     };
   }
 
-  async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
+  async softDelete(
+    id: string,
+    motivo: string,
+    userId: string,
+    usuarioNombre: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
     const { data: existing, error: checkErr } = await supabase
       .from('envios')
       .select('id, tracking_number, estado')
@@ -1031,6 +1057,8 @@ class EnvioService {
       entidad: 'envio',
       entidadId: id,
       descripcion: `Envio ${trackingNumber} eliminado. Motivo: ${motivo}`,
+      ipAddress,
+      userAgent,
     });
   }
 
@@ -1152,7 +1180,9 @@ class EnvioService {
     envioId: string,
     input: CreateIntentoContactoInput,
     userId: string,
-    userName: string
+    userName: string,
+    ipAddress?: string,
+    userAgent?: string,
   ): Promise<IntentoContacto> {
     const { data: envioCheck, error: checkErr } = await supabase
       .from('envios')
@@ -1204,6 +1234,8 @@ class EnvioService {
       entidad: 'envio',
       entidadId: envioId,
       descripcion: `Intento de contacto (${tipoLabel}) en envio ${trackingNumber}${input.descripcion ? `: ${input.descripcion}` : ''}`,
+      ipAddress,
+      userAgent,
     });
 
     return {

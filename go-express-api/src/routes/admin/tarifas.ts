@@ -31,7 +31,12 @@ router.post(
   '/',
   validate({ body: createTarifaSchema }),
   asyncHandler(async (req, res) => {
-    const tarifa = await tarifaService.create(req.body, req.userId!);
+    const tarifa = await tarifaService.create(
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(201).json(tarifa);
   })
 );
@@ -43,7 +48,13 @@ router.put(
   '/:id',
   validate({ params: idParamSchema, body: updateTarifaSchema }),
   asyncHandler(async (req, res) => {
-    const tarifa = await tarifaService.update(req.params['id'] as string, req.body, req.userId!);
+    const tarifa = await tarifaService.update(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(tarifa);
   })
 );
@@ -55,7 +66,13 @@ router.delete(
   '/:id',
   validate({ params: idParamSchema, body: softDeleteSchema }),
   asyncHandler(async (req, res) => {
-    await tarifaService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!);
+    await tarifaService.softDelete(
+      req.params['id'] as string,
+      req.body.motivo,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(204).send();
   })
 );
@@ -67,7 +84,12 @@ router.patch(
   '/:id/restore',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const tarifa = await tarifaService.restore(req.params['id'] as string, req.userId!);
+    const tarifa = await tarifaService.restore(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(tarifa);
   })
 );

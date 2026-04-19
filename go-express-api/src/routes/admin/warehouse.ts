@@ -46,7 +46,13 @@ router.post(
   '/ingreso',
   validate({ body: ingresoSchema }),
   asyncHandler(async (req, res) => {
-    const item = await warehouseService.ingreso(req.body, req.userId!, req.userName!);
+    const item = await warehouseService.ingreso(
+      req.body,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     sseService.broadcast({ entity: ['warehouse'], action: 'ingreso' });
     res.status(201).json(item);
   })
@@ -59,7 +65,14 @@ router.post(
   '/despacho',
   validate({ body: despachoSchema }),
   asyncHandler(async (req, res) => {
-    const item = await warehouseService.despacho(req.body.paqueteId, req.userId!, req.userName!, req.body.notas);
+    const item = await warehouseService.despacho(
+      req.body.paqueteId,
+      req.userId!,
+      req.userName!,
+      req.body.notas,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     sseService.broadcast({ entity: ['warehouse'], action: 'despacho' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     res.json(item);
@@ -78,7 +91,9 @@ router.post(
       req.body.ubicacionDestino,
       req.userId!,
       req.userName!,
-      req.body.notas
+      req.body.notas,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
     );
     sseService.broadcast({ entity: ['warehouse'], action: 'devolucion' });
     res.json(item);
@@ -103,7 +118,14 @@ router.patch(
   '/picking/:id',
   validate({ params: idParamSchema, body: pickingUpdateSchema }),
   asyncHandler(async (req, res) => {
-    const item = await warehouseService.updatePicking(req.params['id'] as string, req.body, req.userId!, req.userName!);
+    const item = await warehouseService.updatePicking(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(item);
   })
 );

@@ -97,7 +97,12 @@ class TarifaService {
     return toApi(data as unknown as TarifaRow);
   }
 
-  async create(input: CreateTarifaInput, userId: string): Promise<Tarifa> {
+  async create(
+    input: CreateTarifaInput,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Tarifa> {
     const { data: creadorExists } = await supabase
       .from('usuarios')
       .select('id')
@@ -142,12 +147,20 @@ class TarifaService {
       entidadId: tarifa.id,
       descripcion: `Tarifa creada: ${tarifa.origen} → ${tarifa.destino} (${tarifa.tipoServicio})`,
       valorNuevo: data as unknown as Record<string, unknown>,
+      ipAddress,
+      userAgent,
     });
 
     return tarifa;
   }
 
-  async update(id: string, input: UpdateTarifaInput, userId?: string): Promise<Tarifa> {
+  async update(
+    id: string,
+    input: UpdateTarifaInput,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Tarifa> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot update a deleted tarifa');
@@ -183,13 +196,21 @@ class TarifaService {
         entidad: 'tarifa',
         entidadId: id,
         descripcion: `Tarifa actualizada: ${tarifa.origen} → ${tarifa.destino} (${tarifa.tipoServicio})`,
+        ipAddress,
+        userAgent,
       });
     }
 
     return tarifa;
   }
 
-  async softDelete(id: string, motivo: string, userId: string): Promise<void> {
+  async softDelete(
+    id: string,
+    motivo: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Tarifa is already deleted');
@@ -217,10 +238,17 @@ class TarifaService {
       entidad: 'tarifa',
       entidadId: id,
       descripcion: `Tarifa eliminada: ${existing.origen} → ${existing.destino}. Motivo: ${motivo}`,
+      ipAddress,
+      userAgent,
     });
   }
 
-  async restore(id: string, userId?: string): Promise<Tarifa> {
+  async restore(
+    id: string,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Tarifa> {
     const { data: existing } = await supabase
       .from('tarifas')
       .select(TARIFA_COLUMNS)
@@ -263,6 +291,8 @@ class TarifaService {
         entidad: 'tarifa',
         entidadId: id,
         descripcion: `Tarifa restaurada: ${tarifa.origen} → ${tarifa.destino}`,
+        ipAddress,
+        userAgent,
       });
     }
 

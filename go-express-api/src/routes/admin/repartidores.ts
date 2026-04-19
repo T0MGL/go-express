@@ -43,7 +43,12 @@ router.post(
   '/',
   validate({ body: createRepartidorSchema }),
   asyncHandler(async (req, res) => {
-    const repartidor = await repartidorService.create(req.body, req.userId!);
+    const repartidor = await repartidorService.create(
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(201).json(repartidor);
   })
 );
@@ -55,7 +60,13 @@ router.put(
   '/:id',
   validate({ params: idParamSchema, body: updateRepartidorSchema }),
   asyncHandler(async (req, res) => {
-    const repartidor = await repartidorService.update(req.params['id'] as string, req.body, req.userId!);
+    const repartidor = await repartidorService.update(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(repartidor);
   })
 );
@@ -67,7 +78,12 @@ router.patch(
   '/:id/estado',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const repartidor = await repartidorService.toggleEstado(req.params['id'] as string, req.userId!);
+    const repartidor = await repartidorService.toggleEstado(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(repartidor);
   })
 );
@@ -91,7 +107,14 @@ router.delete(
   '/:id',
   validate({ params: idParamSchema, body: softDeleteSchema }),
   asyncHandler(async (req, res) => {
-    await repartidorService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!, req.userName!);
+    await repartidorService.softDelete(
+      req.params['id'] as string,
+      req.body.motivo,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(204).send();
   })
 );
@@ -106,7 +129,12 @@ router.post(
   '/:id/invite',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    const result = await repartidorService.inviteToPortal(req.params['id'] as string, req.userId!);
+    const result = await repartidorService.inviteToPortal(
+      req.params['id'] as string,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.json(result);
   })
 );

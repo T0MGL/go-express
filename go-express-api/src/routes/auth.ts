@@ -423,6 +423,8 @@ router.post(
             entidad: 'usuario',
             entidadId: userData.id,
             descripcion: `Logout: ${user.email}`,
+            ipAddress: req.ip ?? undefined,
+            userAgent: req.headers['user-agent'] ?? undefined,
           });
         }
 

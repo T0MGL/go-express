@@ -141,7 +141,12 @@ class ClienteService {
     return toApi(data as unknown as ClienteRow);
   }
 
-  async create(input: CreateClienteInput, userId: string): Promise<Cliente> {
+  async create(
+    input: CreateClienteInput,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Cliente> {
     const { data: existing } = await supabase
       .from('clientes')
       .select('id')
@@ -213,10 +218,12 @@ class ClienteService {
       entidad: 'cliente',
       entidadId: cliente.id,
       descripcion: `Cliente creado: ${cliente.razonSocial} (ID: ${cliente.id})`,
+      ipAddress,
+      userAgent,
     });
 
     if (input.email) {
-      this.inviteToPortal(cliente.id, userId).catch((err) => {
+      this.inviteToPortal(cliente.id, userId, ipAddress, userAgent).catch((err) => {
         logger.warn({ err, clienteId: cliente.id }, 'Auto-invite to portal failed (non-blocking)');
       });
     }
@@ -224,7 +231,13 @@ class ClienteService {
     return cliente;
   }
 
-  async update(id: string, input: UpdateClienteInput, userId?: string): Promise<Cliente> {
+  async update(
+    id: string,
+    input: UpdateClienteInput,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Cliente> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot update a deleted client');
@@ -292,13 +305,22 @@ class ClienteService {
         entidad: 'cliente',
         entidadId: id,
         descripcion: `Cliente actualizado: ${cliente.razonSocial}`,
+        ipAddress,
+        userAgent,
       });
     }
 
     return cliente;
   }
 
-  async updateEstado(id: string, estado: ClienteEstado, motivo?: string, userId?: string): Promise<Cliente> {
+  async updateEstado(
+    id: string,
+    estado: ClienteEstado,
+    motivo?: string,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Cliente> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot update estado of a deleted client');
@@ -325,13 +347,21 @@ class ClienteService {
         entidad: 'cliente',
         entidadId: id,
         descripcion: `Cliente ${cliente.razonSocial}: estado cambiado a "${estado}"${motivo ? `. Motivo: ${motivo}` : ''}`,
+        ipAddress,
+        userAgent,
       });
     }
 
     return cliente;
   }
 
-  async softDelete(id: string, motivo: string, userId: string): Promise<void> {
+  async softDelete(
+    id: string,
+    motivo: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Client is already deleted');
@@ -372,10 +402,17 @@ class ClienteService {
       entidad: 'cliente',
       entidadId: id,
       descripcion: `Cliente eliminado: ${existing.razonSocial}. Motivo: ${motivo}`,
+      ipAddress,
+      userAgent,
     });
   }
 
-  async inviteToPortal(clienteId: string, userId: string): Promise<{ cliente: Cliente; tempPassword: string }> {
+  async inviteToPortal(
+    clienteId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ cliente: Cliente; tempPassword: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -399,7 +436,7 @@ class ClienteService {
     }
 
     if (clienteRow.auth_id) {
-      return this.reinviteToPortal(clienteId, userId);
+      return this.reinviteToPortal(clienteId, userId, ipAddress, userAgent);
     }
 
     let authUserId: string;
@@ -466,12 +503,19 @@ class ClienteService {
       entidad: 'cliente',
       entidadId: clienteId,
       descripcion: `Invitacion al portal enviada a ${email} para ${cliente.razonSocial}`,
+      ipAddress,
+      userAgent,
     });
 
     return { cliente, tempPassword };
   }
 
-  async reinviteToPortal(clienteId: string, userId: string): Promise<{ cliente: Cliente; tempPassword: string }> {
+  async reinviteToPortal(
+    clienteId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ cliente: Cliente; tempPassword: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -487,7 +531,7 @@ class ClienteService {
     const email = clienteRow.email;
 
     if (!clienteRow.auth_id) {
-      return this.inviteToPortal(clienteId, userId);
+      return this.inviteToPortal(clienteId, userId, ipAddress, userAgent);
     }
 
     const tempPassword = generateTempPassword();
@@ -526,12 +570,19 @@ class ClienteService {
       entidad: 'cliente',
       entidadId: clienteId,
       descripcion: `Invitacion reenviada a ${email} para ${cliente.razonSocial}`,
+      ipAddress,
+      userAgent,
     });
 
     return { cliente, tempPassword };
   }
 
-  async resetClientPassword(clienteId: string, userId: string): Promise<{ message: string }> {
+  async resetClientPassword(
+    clienteId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
@@ -578,6 +629,8 @@ class ClienteService {
       entidad: 'cliente',
       entidadId: clienteId,
       descripcion: `Reset de password solicitado para ${email}`,
+      ipAddress,
+      userAgent,
     });
 
     return { message: `Enlace de recuperacion enviado a ${email}` };

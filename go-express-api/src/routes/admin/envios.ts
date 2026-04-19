@@ -218,7 +218,14 @@ router.patch(
   validate({ params: idParamSchema, body: reportarProblemaSchema }),
   asyncHandler(async (req, res) => {
     const id = req.params['id'] as string;
-    const envio = await envioService.reportarProblema(id, req.body.descripcion, req.userId!);
+    const envio = await envioService.reportarProblema(
+      id,
+      req.body.descripcion,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'detail'], action: 'updated', id });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
@@ -239,7 +246,14 @@ router.post(
   '/:id/notas',
   validate({ params: idParamSchema, body: agregarNotaSchema }),
   asyncHandler(async (req, res) => {
-    const nota = await envioService.agregarNota(req.params['id'] as string, req.body.texto, req.userId!, req.userName!);
+    const nota = await envioService.agregarNota(
+      req.params['id'] as string,
+      req.body.texto,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     res.status(201).json(nota);
   })
 );
@@ -279,7 +293,9 @@ router.post(
       req.params['id'] as string,
       req.body,
       req.userId!,
-      req.userName ?? 'Admin GoExpress'
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
     );
     res.status(201).json(intento);
   })
@@ -289,7 +305,14 @@ router.delete(
   '/:id',
   validate({ params: idParamSchema, body: softDeleteSchema }),
   asyncHandler(async (req, res) => {
-    await envioService.softDelete(req.params['id'] as string, req.body.motivo, req.userId!, req.userName!);
+    await envioService.softDelete(
+      req.params['id'] as string,
+      req.body.motivo,
+      req.userId!,
+      req.userName!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
     sseService.broadcast({ entity: ['envios', 'list'], action: 'deleted' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
     res.status(204).send();

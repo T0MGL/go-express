@@ -123,7 +123,12 @@ class RepartidorService {
     return toApi(data as unknown as RepartidorRow);
   }
 
-  async create(input: CreateRepartidorInput, userId: string): Promise<Repartidor> {
+  async create(
+    input: CreateRepartidorInput,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Repartidor> {
     const { data, error } = await supabase
       .from('repartidores')
       .insert({
@@ -150,10 +155,12 @@ class RepartidorService {
       entidad: 'repartidor',
       entidadId: repartidor.id,
       descripcion: `Repartidor creado: ${repartidor.nombre} (${repartidor.vehiculo} - ${repartidor.placa})`,
+      ipAddress,
+      userAgent,
     });
 
     if (input.email) {
-      this.inviteToPortal(repartidor.id, userId).catch((err) => {
+      this.inviteToPortal(repartidor.id, userId, ipAddress, userAgent).catch((err) => {
         logger.warn({ err, repartidorId: repartidor.id }, 'Auto-invite to repartidor portal failed (non-blocking)');
       });
     }
@@ -161,7 +168,13 @@ class RepartidorService {
     return repartidor;
   }
 
-  async update(id: string, input: UpdateRepartidorInput, userId?: string): Promise<Repartidor> {
+  async update(
+    id: string,
+    input: UpdateRepartidorInput,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Repartidor> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot update a deleted repartidor');
@@ -196,13 +209,20 @@ class RepartidorService {
         entidad: 'repartidor',
         entidadId: id,
         descripcion: `Repartidor actualizado: ${repartidor.nombre}`,
+        ipAddress,
+        userAgent,
       });
     }
 
     return repartidor;
   }
 
-  async toggleEstado(id: string, userId?: string): Promise<Repartidor> {
+  async toggleEstado(
+    id: string,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Repartidor> {
     const existing = await this.getById(id);
     if (existing.eliminado) {
       throw AppError.badRequest('Cannot toggle estado of a deleted repartidor');
@@ -231,13 +251,22 @@ class RepartidorService {
         entidad: 'repartidor',
         entidadId: id,
         descripcion: `Repartidor ${repartidor.nombre}: estado cambiado a "${newEstado}"`,
+        ipAddress,
+        userAgent,
       });
     }
 
     return repartidor;
   }
 
-  async softDelete(id: string, motivo: string, userId: string, usuarioNombre: string): Promise<void> {
+  async softDelete(
+    id: string,
+    motivo: string,
+    userId: string,
+    usuarioNombre: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
     const repartidor = await this.getById(id);
 
     if (repartidor.eliminado) {
@@ -277,10 +306,17 @@ class RepartidorService {
       entidad: 'repartidor',
       entidadId: id,
       descripcion: `Repartidor ${repartidor.nombre} eliminado. Motivo: ${motivo}. Envios activos desasignados.`,
+      ipAddress,
+      userAgent,
     });
   }
 
-  async inviteToPortal(repartidorId: string, userId: string): Promise<{ repartidor: Repartidor; tempPassword: string }> {
+  async inviteToPortal(
+    repartidorId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ repartidor: Repartidor; tempPassword: string }> {
     const { data: row, error: fetchErr } = await supabase
       .from('repartidores')
       .select(REPARTIDOR_COLUMNS)
@@ -371,6 +407,8 @@ class RepartidorService {
       entidad: 'repartidor',
       entidadId: repartidorId,
       descripcion: `Invitacion al portal enviada a ${email} para ${repartidor.nombre}`,
+      ipAddress,
+      userAgent,
     });
 
     return { repartidor, tempPassword };

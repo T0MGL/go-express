@@ -179,6 +179,8 @@ router.patch(
       entidad: 'envio',
       entidadId: id,
       descripcion: `Repartidor marco recolectado: ${envio.tracking_number}`,
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
@@ -266,6 +268,8 @@ router.patch(
       entidad: 'envio',
       entidadId: id,
       descripcion: `Repartidor marco entregado: ${envio.tracking_number}`,
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
@@ -336,6 +340,8 @@ router.patch(
       entidad: 'envio',
       entidadId: id,
       descripcion: `Repartidor reporto incidencia: ${envio.tracking_number}`,
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
     });
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });

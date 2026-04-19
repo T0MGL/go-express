@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-04-19
 **Branch:** `sprint-pagos/fase-3-ledger-cuenta-corriente`
-**Estado:** Implementación COMPLETA + qa-gate PASS. Pendiente: aplicar migración 018 manualmente en Supabase Dashboard antes del merge.
+**Estado:** CERRADA. qa-gate PASS, migraciones 018 y 019 aplicadas en Supabase, 23/23 tests integration PASS, lista para merge a main.
 
 ## Resumen ejecutivo
 
@@ -121,18 +121,35 @@ Iteración 2 (post fixes): **PASS**.
 
 8. **Componente admin embebido en el Dialog de detalle de Clientes** (no página dedicada): el flow del admin es "abrir cliente → ver/operar cuenta corriente sin salir del contexto". Página dedicada quedaría desconectada. Si crece la complejidad, separar a `/admin/clientes/:id/cuenta-corriente`.
 
+## Migración 019 (post-aplicación 018)
+
+Al correr los tests post-aplicación de 018, falló 1/23: el test del bypass admin (`forzarSobreLimite + motivoOverride` esperaba 201, recibía 422). Causa raíz: el fix MAJOR del qa-gate movió la validación de límite al RPC `registrar_movimiento_cc` bajo lock, pero el RPC NO sabía del override admin. Cualquier creación de envío sobre límite, incluyendo override autorizado, era rechazada.
+
+Fix: migración `019_envio_bypass_limite_credito.sql` agrega:
+- Columna `envios.bypass_limite_credito BOOLEAN NOT NULL DEFAULT FALSE` que persiste la decisión técnica
+- Parámetro nuevo `p_bypass_limite BOOLEAN DEFAULT FALSE` en `registrar_movimiento_cc` (signatura cambió de 9 a 10 args, drop+create explícito porque Postgres no permite overload via REPLACE)
+- Trigger `trg_envio_cc_debito_fn` recreado para propagar `NEW.bypass_limite_credito` al RPC
+- Trigger `trg_pago_cc_credito_fn` recreado idéntico (dropeado por dependencia)
+- Triggers de envíos y pagos recreados sobre las nuevas funciones
+
+Service `envio.service.ts.create()` actualizado: cuando `options.forzarSobreLimite === true`, agrega `bypass_limite_credito: true` al INSERT. La justificación textual del override sigue yendo a `auditoria_log` (sin duplicar en columna).
+
+Post 019: 23/23 tests PASS.
+
 ## Definition of Done
 
 - [x] Branch `sprint-pagos/fase-3-ledger-cuenta-corriente` creado desde main
-- [ ] Migración aplicada en Supabase (PENDIENTE: hacer manualmente vía Dashboard)
+- [x] Migración 018 aplicada en Supabase (Dashboard SQL Editor, confirmado por Gaston)
+- [x] Migración 019 aplicada en Supabase (post-fix bypass admin, confirmado por Gaston)
+- [x] Usuario sistema `00000000-0000-4000-a000-000000000001` confirmado en `usuarios`
 - [x] Mapper + ENVIO_COLUMNS o equivalente + TS types + Zod + SQL en commits coherentes (sin schema drift)
-- [ ] Tests integration nuevos pasan (PENDIENTE: requiere migración aplicada)
+- [x] Tests integration nuevos pasan: 23/23 cuenta-corriente PASS
 - [x] `npm run typecheck` PASS (backend)
 - [x] `npm run lint` PASS (frontend, 0 errors)
 - [x] Tests existentes no rotos (24/24 envíos PASS)
-- [ ] E2E Playwright happy path (PENDIENTE: deuda no bloqueante, deuda asentada en CLAUDE.md sección 12 "Known gaps")
+- [ ] E2E Playwright happy path (PENDIENTE: deuda no bloqueante asentada en CLAUDE.md sección 12 "Known gaps")
 - [x] Sin `console.log`, sin `any`, sin em dash, sin comentarios obvios
-- [x] qa-gate invocado, retorna PASS
+- [x] qa-gate invocado, retorna PASS (iter 2 post BLOCKER+MAJOR fixes)
 - [x] FASE_3_REPORT.md creado
 
 ## Próximos pasos

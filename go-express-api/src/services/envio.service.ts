@@ -491,6 +491,7 @@ class EnvioService {
         tags: input.tags ?? [],
         tarifa_id: input.tarifaId ?? null,
         fecha: today,
+        bypass_limite_credito: options.forzarSobreLimite === true,
       })
       .select(ENVIO_COLUMNS)
       .single();

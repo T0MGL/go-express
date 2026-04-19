@@ -9,6 +9,20 @@
 -- saldo_cuenta_corriente positivo = el cliente le debe a GoExpress.
 -- Puede quedar negativo si el cliente paga de mas (saldo a favor).
 
+-- 0) Usuario sistema GoExpress. Identidad fija usada por triggers automaticos
+-- (registrar_movimiento_cc, debito por envio, credito por pago) cuando no hay
+-- usuario humano en el contexto. Insertar antes que los triggers para evitar
+-- FK violation en el primer envio cuenta_corriente.
+INSERT INTO usuarios (id, nombre, email, rol, estado)
+VALUES (
+  '00000000-0000-4000-a000-000000000001',
+  'Sistema GoExpress',
+  'sistema@goexpress.internal',
+  'admin',
+  'activo'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- 1) Enum tipo_movimiento_cc
 DO $$ BEGIN
   CREATE TYPE tipo_movimiento_cc AS ENUM (

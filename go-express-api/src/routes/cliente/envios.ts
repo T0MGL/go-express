@@ -201,8 +201,9 @@ router.get(
         .order('created_at', { ascending: false }),
       supabase
         .from('pagos')
-        .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at')
+        .select('id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, anulado, anulado_por, anulado_en, motivo_anulacion, created_at, updated_at')
         .eq('envio_id', id)
+        .eq('anulado', false)
         .maybeSingle(),
     ]);
 
@@ -230,6 +231,10 @@ router.get(
         referencia: p.referencia,
         notas: p.notas,
         creadoPor: p.creado_por,
+        anulado: p.anulado,
+        anuladoPor: p.anulado_por,
+        anuladoEn: p.anulado_en,
+        motivoAnulacion: p.motivo_anulacion,
         creadoEn: p.created_at,
         updatedAt: p.updated_at,
       };

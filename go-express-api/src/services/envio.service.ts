@@ -146,6 +146,10 @@ function extractListPago(row: Record<string, unknown>): Pago | null {
     referencia: null,
     notas: null,
     creadoPor: '',
+    anulado: false,
+    anuladoPor: null,
+    anuladoEn: null,
+    motivoAnulacion: null,
     creadoEn: '',
     updatedAt: '',
   };
@@ -174,6 +178,10 @@ function mapPagoRow(row: PagoRow): Pago {
     referencia: row.referencia,
     notas: row.notas,
     creadoPor: row.creado_por,
+    anulado: row.anulado,
+    anuladoPor: row.anulado_por,
+    anuladoEn: row.anulado_en,
+    motivoAnulacion: row.motivo_anulacion,
     creadoEn: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -242,7 +250,7 @@ const ENVIO_COLUMNS = [
 const ENVIO_LIST_COLUMNS = ENVIO_COLUMNS + ', pagos(estado_pago)';
 
 const EVENTO_COLUMNS = 'id, envio_id, estado, descripcion, ubicacion, created_at';
-const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, created_at, updated_at';
+const PAGO_COLUMNS = 'id, envio_id, monto_total, monto_recibido, metodo_pago, estado_pago, fecha_pago, referencia, notas, creado_por, anulado, anulado_por, anulado_en, motivo_anulacion, created_at, updated_at';
 const NOTA_COLUMNS = 'id, envio_id, texto, usuario, usuario_id, created_at';
 
 /**
@@ -376,6 +384,7 @@ class EnvioService {
         .from('pagos')
         .select(PAGO_COLUMNS)
         .eq('envio_id', id)
+        .eq('anulado', false)
         .maybeSingle(),
       supabase
         .from('notas_internas')

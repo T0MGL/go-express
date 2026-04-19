@@ -421,3 +421,223 @@ describe('update_pago_atomico: errores mapeados', () => {
     expect(res.body).toHaveProperty('code', 'NOT_FOUND');
   });
 });
+
+describe('POST /api/admin/pagos/:id/anular', () => {
+  async function crearEnvioYPago(
+    overrides: Record<string, unknown> = {},
+    pagoOverrides: Record<string, unknown> = {},
+  ): Promise<{ envioId: string; pagoId: string }> {
+    const payload = makeEnvioPayload(testData.clienteId, overrides);
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+    const newEnvioId = envioRes.body.id as string;
+
+    const pagoRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .send({
+        envioId: newEnvioId,
+        montoTotal: 50000,
+        montoRecibido: 50000,
+        metodoPago: 'efectivo',
+        ...pagoOverrides,
+      });
+    return { envioId: newEnvioId, pagoId: pagoRes.body.id as string };
+  }
+
+  it('marks pago as anulado and writes audit entry with accion=anular', async () => {
+    const { pagoId } = await crearEnvioYPago();
+
+    const res = await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .set('X-Forwarded-For', '203.0.113.99')
+      .set('User-Agent', 'pago-anular-test/1.0')
+      .send({ motivo: 'Cobrador registro el pago en el envio equivocado' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id', pagoId);
+    expect(res.body).toHaveProperty('anulado', true);
+    expect(res.body).toHaveProperty('motivoAnulacion', 'Cobrador registro el pago en el envio equivocado');
+    expect(res.body.anuladoEn).toBeTruthy();
+    expect(res.body.anuladoPor).toBeTruthy();
+
+    const { data: audit } = await supabase
+      .from('auditoria_log')
+      .select('accion, entidad, entidad_id, ip_address, user_agent, descripcion')
+      .eq('entidad', 'pago')
+      .eq('entidad_id', pagoId)
+      .eq('accion', 'anular')
+      .single();
+
+    expect(audit).not.toBeNull();
+    const row = audit as { ip_address: string | null; user_agent: string | null; descripcion: string };
+    expect(row.ip_address).toBe('203.0.113.99');
+    expect(row.user_agent).toBe('pago-anular-test/1.0');
+    expect(row.descripcion).toContain(pagoId);
+  });
+
+  it('rejects motivo shorter than 10 chars with 400 from Zod', async () => {
+    const { pagoId } = await crearEnvioYPago();
+
+    const res = await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'corto' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 409 when pago is already anulado', async () => {
+    const { pagoId } = await crearEnvioYPago();
+
+    const firstRes = await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Primera anulacion por error de cobrador' });
+    expect(firstRes.status).toBe(200);
+
+    const secondRes = await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Intento duplicado de anulacion por bug de UI' });
+
+    expect(secondRes.status).toBe(409);
+    expect(secondRes.body).toHaveProperty('code', 'CONFLICT');
+  });
+
+  it('returns 404 for non-existent pago', async () => {
+    const res = await request
+      .post('/api/admin/pagos/00000000-0000-4000-a000-000000000abc/anular')
+      .set(adminHeaders())
+      .send({ motivo: 'Motivo valido de prueba para 404' });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('code', 'NOT_FOUND');
+  });
+
+  it('reversa el saldo del cliente cuando el envio es cuenta_corriente', async () => {
+    await supabase
+      .from('clientes')
+      .update({ saldo_cuenta_corriente: 0, limite_credito: 0 })
+      .eq('id', testData.clienteId);
+    await supabase.from('movimientos_cuenta_corriente').delete().eq('cliente_id', testData.clienteId);
+
+    const payload = makeEnvioPayload(testData.clienteId, {
+      tipoPago: 'cuenta_corriente' as const,
+      costo: 60000,
+      montoACobrar: 0,
+    });
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+    const ccEnvioId = envioRes.body.id as string;
+
+    const saldoPostEnvio = await request
+      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
+      .set(adminHeaders());
+    expect(saldoPostEnvio.body.saldo).toBe(60000);
+
+    const pagoRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .send({
+        envioId: ccEnvioId,
+        montoTotal: 60000,
+        montoRecibido: 60000,
+        metodoPago: 'transferencia',
+      });
+    const ccPagoId = pagoRes.body.id as string;
+
+    const saldoPostPago = await request
+      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
+      .set(adminHeaders());
+    expect(saldoPostPago.body.saldo).toBe(0);
+
+    const anularRes = await request
+      .post(`/api/admin/pagos/${ccPagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Cliente reclamo cobro duplicado, revertir' });
+    expect(anularRes.status).toBe(200);
+
+    const saldoPostAnular = await request
+      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
+      .set(adminHeaders());
+    expect(saldoPostAnular.body.saldo).toBe(60000);
+
+    const movsRes = await request
+      .get(`/api/admin/clientes/${testData.clienteId}/movimientos`)
+      .set(adminHeaders());
+
+    const reverso = (movsRes.body.data as Array<{ tipo: string; monto: number; pagoId: string | null }>)
+      .find((m) => m.tipo === 'reverso');
+    expect(reverso).toBeDefined();
+    expect(reverso?.monto).toBe(60000);
+    expect(reverso?.pagoId).toBe(ccPagoId);
+  });
+
+  it('permite registrar un nuevo pago sobre el mismo envio despues de anular el previo', async () => {
+    const { envioId: reusedEnvioId, pagoId } = await crearEnvioYPago({}, {
+      montoTotal: 45000,
+      montoRecibido: 45000,
+    });
+
+    const anularRes = await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Liberar envio para recobrar con metodo correcto' });
+    expect(anularRes.status).toBe(200);
+
+    const retryRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .send({
+        envioId: reusedEnvioId,
+        montoTotal: 45000,
+        montoRecibido: 45000,
+        metodoPago: 'transferencia',
+      });
+
+    expect(retryRes.status).toBe(201);
+    expect(retryRes.body).toHaveProperty('id');
+    expect(retryRes.body.id).not.toBe(pagoId);
+    expect(retryRes.body).toHaveProperty('metodoPago', 'transferencia');
+  });
+
+  it('GET /pagos no incluye pagos anulados por default', async () => {
+    const { pagoId } = await crearEnvioYPago();
+    await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Excluir del listado por default' });
+
+    const listRes = await request
+      .get('/api/admin/pagos')
+      .query({ limit: 100 })
+      .set(adminHeaders());
+
+    expect(listRes.status).toBe(200);
+    const ids = (listRes.body.data as Array<{ id: string }>).map((p) => p.id);
+    expect(ids).not.toContain(pagoId);
+  });
+
+  it('GET /pagos?incluirAnulados=true incluye pagos anulados', async () => {
+    const { pagoId } = await crearEnvioYPago();
+    await request
+      .post(`/api/admin/pagos/${pagoId}/anular`)
+      .set(adminHeaders())
+      .send({ motivo: 'Verificar toggle de anulados' });
+
+    const listRes = await request
+      .get('/api/admin/pagos')
+      .query({ limit: 100, incluirAnulados: 'true' })
+      .set(adminHeaders());
+
+    expect(listRes.status).toBe(200);
+    const ids = (listRes.body.data as Array<{ id: string }>).map((p) => p.id);
+    expect(ids).toContain(pagoId);
+  });
+});

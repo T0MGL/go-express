@@ -25,8 +25,22 @@ export const updatePagoSchema = z.object({
 export const pagoQuerySchema = paginationSchema.merge(searchSchema).extend({
   estadoPago: estadoPagoEnum.optional(),
   metodoPago: metodoPagoEnum.optional(),
+  incluirAnulados: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
+});
+
+export const anularPagoSchema = z.object({
+  motivo: z
+    .string()
+    .trim()
+    .min(10, 'El motivo debe tener al menos 10 caracteres')
+    .max(500, 'El motivo no puede exceder 500 caracteres'),
 });
 
 export type CreatePagoInput = z.infer<typeof createPagoSchema>;
 export type UpdatePagoInput = z.infer<typeof updatePagoSchema>;
 export type PagoQuery = z.infer<typeof pagoQuerySchema>;
+export type AnularPagoInput = z.infer<typeof anularPagoSchema>;

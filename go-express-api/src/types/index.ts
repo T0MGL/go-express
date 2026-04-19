@@ -37,7 +37,8 @@ export type AuditoriaAccion =
   | 'login'
   | 'logout'
   | 'ajuste'
-  | 'nota_credito';
+  | 'nota_credito'
+  | 'anular';
 export type AuditoriaEntidad =
   | 'envio'
   | 'cliente'
@@ -178,6 +179,10 @@ export interface PagoRow {
   referencia: string | null;
   notas: string | null;
   creado_por: string;
+  anulado: boolean;
+  anulado_por: string | null;
+  anulado_en: string | null;
+  motivo_anulacion: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -453,6 +458,10 @@ export interface Pago {
   referencia: string | null;
   notas: string | null;
   creadoPor: string;
+  anulado: boolean;
+  anuladoPor: string | null;
+  anuladoEn: string | null;
+  motivoAnulacion: string | null;
   creadoEn: string;
   updatedAt: string;
   trackingNumber?: string;

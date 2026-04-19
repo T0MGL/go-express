@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
+import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { pagoService } from '../../services/pago.service.js';
 import { sseService } from '../../services/sse.service.js';
 import type { PagoQuery } from '../../lib/validators/pago.schema.js';
@@ -8,6 +9,7 @@ import {
   createPagoSchema,
   updatePagoSchema,
   pagoQuerySchema,
+  anularPagoSchema,
 } from '../../lib/validators/pago.schema.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
 
@@ -54,6 +56,7 @@ router.get(
  */
 router.post(
   '/',
+  adminWriteLimiter,
   validate({ body: createPagoSchema }),
   asyncHandler(async (req, res) => {
     const pago = await pagoService.create(
@@ -73,6 +76,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  adminWriteLimiter,
   validate({ params: idParamSchema, body: updatePagoSchema }),
   asyncHandler(async (req, res) => {
     const pago = await pagoService.update(
@@ -83,6 +87,28 @@ router.patch(
       req.headers['user-agent'] ?? undefined
     );
     sseService.broadcast({ entity: ['pagos'], action: 'updated' });
+    res.json(pago);
+  })
+);
+
+// Anulacion logica del pago. Libera el unique parcial sobre envio_id para poder
+// registrar un nuevo pago. Si el envio es cuenta_corriente, el RPC dispara el reverso
+// del saldo del cliente en la misma transaccion.
+router.post(
+  '/:id/anular',
+  adminWriteLimiter,
+  validate({ params: idParamSchema, body: anularPagoSchema }),
+  asyncHandler(async (req, res) => {
+    const pago = await pagoService.anular(
+      req.params['id'] as string,
+      req.body.motivo,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined
+    );
+    sseService.broadcast({ entity: ['pagos'], action: 'anular' });
+    sseService.broadcast({ entity: ['envios', 'detail'], action: 'pago_updated', id: pago.envioId });
+    sseService.broadcast({ entity: ['cuenta-corriente'], action: 'updated' });
     res.json(pago);
   })
 );

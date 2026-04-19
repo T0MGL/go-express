@@ -1,5 +1,12 @@
+import { createClient } from '@supabase/supabase-js';
 import { request, adminHeaders } from '../setup/test-client.js';
 import { seedTestData, cleanupTestData, makeEnvioPayload, type TestData } from '../setup/seed.js';
+
+const supabase = createClient(
+  process.env['SUPABASE_URL']!,
+  process.env['SUPABASE_SERVICE_ROLE_KEY']!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 let testData: TestData;
 let envioId: string;
@@ -245,5 +252,86 @@ describe('PATCH /api/admin/pagos/:id', () => {
       .send({ montoRecibido: 999999999 });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe('Auditoria de pagos persiste ip_address y user_agent', () => {
+  it('create persists ip_address and user_agent in audit log', async () => {
+    const payload = makeEnvioPayload(testData.clienteId);
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+    const tmpEnvioId = envioRes.body.id;
+
+    const createRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .set('X-Forwarded-For', '203.0.113.77')
+      .set('User-Agent', 'pagos-audit-create-test/1.0')
+      .send({
+        envioId: tmpEnvioId,
+        montoTotal: 60000,
+        montoRecibido: 60000,
+        metodoPago: 'efectivo',
+      });
+
+    expect(createRes.status).toBe(201);
+    const pagoId = createRes.body.id as string;
+
+    const { data: audit } = await supabase
+      .from('auditoria_log')
+      .select('ip_address, user_agent, accion, entidad, entidad_id')
+      .eq('entidad', 'pago')
+      .eq('entidad_id', pagoId)
+      .eq('accion', 'pago')
+      .single();
+
+    expect(audit).not.toBeNull();
+    const row = audit as { ip_address: string | null; user_agent: string | null };
+    expect(row.ip_address).toBe('203.0.113.77');
+    expect(row.user_agent).toBe('pagos-audit-create-test/1.0');
+  });
+
+  it('update persists ip_address and user_agent in audit log', async () => {
+    const payload = makeEnvioPayload(testData.clienteId);
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+    const tmpEnvioId = envioRes.body.id;
+
+    const createRes = await request
+      .post('/api/admin/pagos')
+      .set(adminHeaders())
+      .send({
+        envioId: tmpEnvioId,
+        montoTotal: 80000,
+        montoRecibido: 0,
+        metodoPago: 'contra_entrega',
+      });
+    const pagoId = createRes.body.id as string;
+
+    const patchRes = await request
+      .patch(`/api/admin/pagos/${pagoId}`)
+      .set(adminHeaders())
+      .set('X-Forwarded-For', '198.51.100.42')
+      .set('User-Agent', 'pagos-audit-update-test/1.0')
+      .send({ montoRecibido: 80000 });
+
+    expect(patchRes.status).toBe(200);
+
+    const { data: audit } = await supabase
+      .from('auditoria_log')
+      .select('ip_address, user_agent, accion, entidad, entidad_id')
+      .eq('entidad', 'pago')
+      .eq('entidad_id', pagoId)
+      .eq('accion', 'editar')
+      .single();
+
+    expect(audit).not.toBeNull();
+    const row = audit as { ip_address: string | null; user_agent: string | null };
+    expect(row.ip_address).toBe('198.51.100.42');
+    expect(row.user_agent).toBe('pagos-audit-update-test/1.0');
   });
 });

@@ -137,7 +137,12 @@ class PagoService {
     };
   }
 
-  async create(input: CreatePagoInput, userId: string): Promise<Pago> {
+  async create(
+    input: CreatePagoInput,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<Pago> {
     if (input.montoRecibido > input.montoTotal) {
       throw AppError.badRequest('El monto recibido no puede exceder el monto total');
     }
@@ -197,12 +202,20 @@ class PagoService {
       entidad: 'pago',
       entidadId: pago.id,
       descripcion: `Pago creado para envio ${(envioData as { tracking_number: string }).tracking_number}: ${input.montoRecibido}/${input.montoTotal} Gs. (${estadoPago})`,
+      ipAddress,
+      userAgent,
     });
 
     return pago;
   }
 
-  async update(id: string, input: UpdatePagoInput, userId?: string): Promise<Pago> {
+  async update(
+    id: string,
+    input: UpdatePagoInput,
+    userId?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<Pago> {
     const { data: existing } = await supabase
       .from('pagos')
       .select(PAGO_COLUMNS)
@@ -256,6 +269,8 @@ class PagoService {
         entidad: 'pago',
         entidadId: id,
         descripcion: `Pago actualizado: ${pago.montoRecibido}/${pago.montoTotal} Gs. (${pago.estadoPago})`,
+        ipAddress,
+        userAgent,
       });
     }
 

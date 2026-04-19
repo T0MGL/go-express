@@ -56,7 +56,12 @@ router.post(
   '/',
   validate({ body: createPagoSchema }),
   asyncHandler(async (req, res) => {
-    const pago = await pagoService.create(req.body, req.userId!);
+    const pago = await pagoService.create(
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined
+    );
     sseService.broadcast({ entity: ['pagos'], action: 'created' });
     sseService.broadcast({ entity: ['envios', 'detail'], action: 'pago_updated', id: pago.envioId });
     res.status(201).json(pago);
@@ -70,7 +75,13 @@ router.patch(
   '/:id',
   validate({ params: idParamSchema, body: updatePagoSchema }),
   asyncHandler(async (req, res) => {
-    const pago = await pagoService.update(req.params['id'] as string, req.body, req.userId!);
+    const pago = await pagoService.update(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined
+    );
     sseService.broadcast({ entity: ['pagos'], action: 'updated' });
     res.json(pago);
   })

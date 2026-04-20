@@ -286,12 +286,12 @@ const Repartidores = () => {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
-                                  <Link to={`/admin/conciliacion?repartidor=${repartidor.id}`} aria-label={`Conciliación de ${repartidor.nombre}`}>
+                                  <Link to={`/admin/reporte-cod?repartidor=${repartidor.id}`} aria-label={`Reporte COD de ${repartidor.nombre}`}>
                                     <ChartLine size={14} weight="duotone" />
                                   </Link>
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Ver conciliación</TooltipContent>
+                              <TooltipContent>Ver reporte COD</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>

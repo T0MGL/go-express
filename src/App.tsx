@@ -70,7 +70,9 @@ const RepartidorLogin = lazyWithReload(() => import("./pages/repartidor/Repartid
 const RepartidorLayout = lazyWithReload(() => import("./pages/repartidor/RepartidorLayout").then(m => ({ default: m.RepartidorLayout })));
 const RepartidorDashboard = lazyWithReload(() => import("./pages/repartidor/RepartidorDashboard"));
 const RepartidorEnvioDetail = lazyWithReload(() => import("./pages/repartidor/RepartidorEnvioDetail"));
-const Conciliacion = lazyWithReload(() => import("./pages/admin/Conciliacion"));
+const ReporteCOD = lazyWithReload(() => import("./pages/admin/ReporteCOD"));
+const Liquidaciones = lazyWithReload(() => import("./pages/admin/Liquidaciones"));
+const LiquidacionDetalle = lazyWithReload(() => import("./pages/admin/LiquidacionDetalle"));
 const ResetPasswordCliente = lazyWithReload(() => import("./pages/auth/ResetPasswordCliente"));
 const ResetPasswordRepartidor = lazyWithReload(() => import("./pages/auth/ResetPasswordRepartidor"));
 const ResetPasswordAdmin = lazyWithReload(() => import("./pages/auth/ResetPasswordAdmin"));
@@ -198,7 +200,10 @@ const App = () => (
                   <Route path="warehouse" element={<Warehouse />} />
                   <Route path="clientes" element={<Clientes />} />
                   <Route path="repartidores" element={<Repartidores />} />
-                  <Route path="conciliacion" element={<Conciliacion />} />
+                  <Route path="reporte-cod" element={<ReporteCOD />} />
+                  <Route path="conciliacion" element={<Navigate to="/admin/reporte-cod" replace />} />
+                  <Route path="liquidaciones" element={<Liquidaciones />} />
+                  <Route path="liquidaciones/:id" element={<LiquidacionDetalle />} />
                   <Route path="pagos" element={<Pagos />} />
                   <Route path="tarifas" element={<Tarifas />} />
                   <Route path="auditoria" element={<Auditoria />} />

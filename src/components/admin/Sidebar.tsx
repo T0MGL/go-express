@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ChartBar, Package, Warehouse as WarehouseIcon, Users, Truck,
   CurrencyDollar, Tag, ShieldCheck, GearSix, CaretDoubleLeft, CaretDoubleRight,
+  ClipboardText,
 } from '@phosphor-icons/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ const mainNav = [
 
 const secondaryNav = [
   { icon: CurrencyDollar, label: 'Pagos', path: '/admin/pagos' },
+  { icon: ClipboardText, label: 'Liquidaciones', path: '/admin/liquidaciones' },
   { icon: Tag, label: 'Tarifas', path: '/admin/tarifas' },
   { icon: ShieldCheck, label: 'Auditoría', path: '/admin/auditoria' },
   { icon: GearSix, label: 'Configuración', path: '/admin/configuracion' },

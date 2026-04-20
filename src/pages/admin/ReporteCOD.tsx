@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
-import { useConciliacion } from '@/hooks/api/use-conciliacion';
+import { useReporteCOD } from '@/hooks/api/use-conciliacion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Money, MapPin, Warning, Package } from '@phosphor-icons/react';
+import { CheckCircle, Money, MapPin, Warning, Package, Info } from '@phosphor-icons/react';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 
 type RangoRapido = 'hoy' | 'semana' | 'mes' | 'custom';
@@ -29,7 +30,7 @@ function computeRange(r: RangoRapido, customDesde?: string, customHasta?: string
   return { desde: dateYYYYMMDD(desdeDate), hasta: hastaStr };
 }
 
-export default function Conciliacion() {
+export default function ReporteCOD() {
   const [params, setParams] = useSearchParams();
   const [rango, setRango] = useState<RangoRapido>('hoy');
   const [customDesde, setCustomDesde] = useState(dateYYYYMMDD(new Date()));
@@ -51,7 +52,7 @@ export default function Conciliacion() {
     [rango, customDesde, customHasta],
   );
 
-  const { data: resumen, isLoading, error } = useConciliacion(repartidorId || undefined, desde, hasta);
+  const { data: resumen, isLoading, error } = useReporteCOD(repartidorId || undefined, desde, hasta);
 
   const entregas = resumen?.entregas ?? [];
   const totales = resumen?.totales;
@@ -69,7 +70,8 @@ export default function Conciliacion() {
   function updateRepartidor(id: string) {
     setRepartidorId(id);
     const next = new URLSearchParams(params);
-    if (id) next.set('repartidor', id); else next.delete('repartidor');
+    if (id) next.set('repartidor', id);
+    else next.delete('repartidor');
     setParams(next, { replace: true });
   }
 
@@ -77,8 +79,24 @@ export default function Conciliacion() {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-header-title">Conciliación</h1>
-          <p className="page-header-subtitle">Entregas por repartidor y zona para cerrar liquidaciones</p>
+          <h1 className="page-header-title">Reporte COD</h1>
+          <p className="page-header-subtitle">Entregas del repartidor por zona. Vista operativa.</p>
+        </div>
+      </div>
+
+      <div className="surface-card p-4 border-l-4 border-l-primary">
+        <div className="flex items-start gap-3">
+          <Info size={18} weight="duotone" className="text-primary mt-0.5 shrink-0" />
+          <div className="text-[13px] leading-relaxed">
+            <p className="font-medium">Para cierre de caja oficial usar Liquidaciones.</p>
+            <p className="text-muted-foreground mt-0.5">
+              Esta vista es un reporte operativo por repartidor y zona. La{' '}
+              <Link to="/admin/liquidaciones" className="text-primary underline-offset-2 hover:underline font-medium">
+                conciliacion financiera formal
+              </Link>{' '}
+              se hace desde Liquidaciones: crea un rango, cerra con el efectivo fisico y queda asentado con auditoria.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -148,7 +166,7 @@ export default function Conciliacion() {
         </div>
       ) : error ? (
         <div className="surface-card p-6 text-center text-destructive text-[13px]">
-          Error cargando conciliación
+          Error cargando reporte COD
         </div>
       ) : totales ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -176,7 +194,7 @@ export default function Conciliacion() {
           <div className="stat-card">
             <div className="flex items-center gap-2 mb-2">
               <Warning size={16} weight="duotone" className={totales.conIncidencia > 0 ? 'text-amber-500' : 'text-muted-foreground'} />
-              <p className="stat-card-label">Tasa éxito</p>
+              <p className="stat-card-label">Tasa exito</p>
             </div>
             <p className="stat-card-value tabular-nums">{totales.tasaExito}%</p>
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -254,11 +272,11 @@ function ZonaSection({ zona, entregas }: { zona: string; entregas: Array<{
                   {e.tieneIncidencia && <Badge variant="warning" className="text-[10px]">Incidencia</Badge>}
                 </div>
                 <div className="text-muted-foreground mt-0.5 text-[12px]">
-                  {e.clienteNombre} → {e.destinatarioNombre}
+                  {e.clienteNombre} -&gt; {e.destinatarioNombre}
                 </div>
                 <div className="text-muted-foreground mt-0.5 text-[11px]">
                   {e.fechaEntregaReal && formatDate(e.fechaEntregaReal)}
-                  {e.entregadoPorNombre && ` · Recibió ${e.entregadoPorNombre}`}
+                  {e.entregadoPorNombre && ` · Recibio ${e.entregadoPorNombre}`}
                 </div>
               </div>
               {e.tipoPago === 'contra_entrega' && e.montoCobrado != null && (

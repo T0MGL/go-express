@@ -49,9 +49,12 @@ export type AuditoriaEntidad =
   | 'usuario'
   | 'almacen'
   | 'sistema'
-  | 'cuenta_corriente';
+  | 'cuenta_corriente'
+  | 'liquidacion';
 
 export type TipoMovimientoCc = 'debito' | 'credito' | 'ajuste' | 'nota_credito' | 'reverso';
+
+export type EstadoLiquidacion = 'pendiente' | 'cerrada' | 'con_diferencia';
 
 // DB Row types (snake_case, match PostgreSQL column names exactly)
 
@@ -658,6 +661,64 @@ export interface SaldoCuentaCorriente {
   limiteCredito: number;
   disponible: number | null;
   ultimaActualizacion: string | null;
+}
+
+export interface LiquidacionRepartidorRow {
+  id: string;
+  repartidor_id: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  monto_total_esperado: number;
+  monto_total_recibido: number | null;
+  diferencia: number;
+  estado: EstadoLiquidacion;
+  cerrada_por: string | null;
+  cerrada_en: string | null;
+  notas: string | null;
+  creado_por: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LiquidacionEnvioRow {
+  liquidacion_id: string;
+  envio_id: string;
+  monto_esperado: number;
+  monto_cobrado: number;
+  conciliado: boolean;
+  created_at: string;
+}
+
+export interface LiquidacionRepartidor {
+  id: string;
+  repartidorId: string;
+  repartidorNombre?: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  montoTotalEsperado: number;
+  montoTotalRecibido: number | null;
+  diferencia: number;
+  estado: EstadoLiquidacion;
+  cerradaPor: string | null;
+  cerradaEn: string | null;
+  notas: string | null;
+  creadoPor: string;
+  creadoEn: string;
+  updatedAt: string;
+  cantidadEnvios?: number;
+}
+
+export interface LiquidacionEnvio {
+  liquidacionId: string;
+  envioId: string;
+  montoEsperado: number;
+  montoCobrado: number;
+  conciliado: boolean;
+  creadoEn: string;
+  trackingNumber?: string;
+  clienteNombre?: string;
+  destinatarioNombre?: string;
+  fechaEntregaReal?: string | null;
 }
 
 // Pagination

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { repartidorService } from '../../services/repartidor.service.js';
+import { liquidacionService } from '../../services/liquidacion.service.js';
 import type { RepartidorQuery } from '../../lib/validators/repartidor.schema.js';
 import {
   createRepartidorSchema,
@@ -9,6 +10,8 @@ import {
   repartidorQuerySchema,
 } from '../../lib/validators/repartidor.schema.js';
 import { idParamSchema, softDeleteSchema } from '../../lib/validators/common.schema.js';
+import { liquidacionQuerySchema } from '../../lib/validators/liquidacion.schema.js';
+import type { LiquidacionQuery } from '../../lib/validators/liquidacion.schema.js';
 
 const router = Router();
 
@@ -140,19 +143,58 @@ router.post(
 );
 
 /**
- * GET /:id/conciliacion?desde=&hasta=
+ * GET /:id/reporte-cod?desde=&hasta=
  *
- * Returns delivery summary grouped by zone for a repartidor within a date range.
+ * Operative COD report for a repartidor within a date range grouped by zone.
+ * Date filters evaluate fecha_entrega_real in America/Asuncion TZ so late-night
+ * deliveries fall in the correct PY day.
  */
 router.get(
-  '/:id/conciliacion',
+  '/:id/reporte-cod',
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     const repartidorId = req.params['id'] as string;
     const desde = (req.query['desde'] as string | undefined) ?? undefined;
     const hasta = (req.query['hasta'] as string | undefined) ?? undefined;
-    const resumen = await repartidorService.getConciliacion(repartidorId, desde, hasta);
+    const resumen = await repartidorService.getReporteCOD(repartidorId, desde, hasta);
     res.json(resumen);
+  })
+);
+
+/**
+ * GET /:id/conciliacion?desde=&hasta=
+ *
+ * DEPRECATED alias of /:id/reporte-cod. Kept for backwards compatibility with
+ * stale frontend bundles and external links. Emits Deprecation header.
+ */
+router.get(
+  '/:id/conciliacion',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Deprecation', 'true');
+    res.setHeader('Link', '</api/admin/repartidores/:id/reporte-cod>; rel="successor-version"');
+    const repartidorId = req.params['id'] as string;
+    const desde = (req.query['desde'] as string | undefined) ?? undefined;
+    const hasta = (req.query['hasta'] as string | undefined) ?? undefined;
+    const resumen = await repartidorService.getReporteCOD(repartidorId, desde, hasta);
+    res.json(resumen);
+  })
+);
+
+/**
+ * GET /:id/liquidaciones
+ *
+ * Liquidaciones del repartidor, paginadas y filtrables. Redirige al service de
+ * liquidaciones pre-filtrando por repartidor.
+ */
+router.get(
+  '/:id/liquidaciones',
+  validate({ params: idParamSchema, query: liquidacionQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const repartidorId = req.params['id'] as string;
+    const rest = req.query as unknown as LiquidacionQuery;
+    const result = await liquidacionService.listByRepartidor(repartidorId, rest);
+    res.json(result);
   })
 );
 

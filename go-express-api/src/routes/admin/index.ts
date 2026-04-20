@@ -12,6 +12,7 @@ import auditoriaRoutes from './auditoria.js';
 import configuracionRoutes from './configuracion.js';
 import usuarioRoutes from './usuarios.js';
 import cuentaCorrienteRoutes from './cuentaCorriente.js';
+import liquidacionRoutes from './liquidaciones.js';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/clientes', cuentaCorrienteRoutes);
 router.use('/repartidores', repartidorRoutes);
 router.use('/tarifas', tarifaRoutes);
 router.use('/pagos', pagoRoutes);
+router.use('/liquidaciones', liquidacionRoutes);
 router.use('/warehouse', warehouseRoutes);
 router.use('/auditoria', auditoriaRoutes);
 router.use('/configuracion', configuracionRoutes);

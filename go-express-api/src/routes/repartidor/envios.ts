@@ -1,13 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as Sentry from '@sentry/node';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { sseService } from '../../services/sse.service.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
-import { nowISO } from '../../lib/datetime.js';
+import { nowISO, todayPY } from '../../lib/datetime.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
+import { pagoService } from '../../services/pago.service.js';
+import { validarDiferenciaCobroCod, CodValidationError } from '../../lib/cod.js';
+
+// Usuario sistema GoExpress. El repartidor no es entidad usuarios(id), pero el pago y la
+// auditoria viven en tablas con FK a usuarios. Atribuimos al sistema y preservamos la
+// identidad del repartidor en la descripcion y en envios.repartidor_id.
+const SISTEMA_USER_ID = '00000000-0000-4000-a000-000000000001';
 
 const router = Router();
 
@@ -22,6 +30,9 @@ const entregadoBodySchema = z.object({
   montoCobrado: z.number().int().min(0).optional(),
   fotoPath: z.string().max(500).optional(),
   notas: z.string().max(500).optional(),
+  // Nota forzada por el repartidor cuando la diferencia COD supera el 10%. El backend la
+  // exige en ese caso y la deja en pagos.notas ademas de envios.incidencia_nota.
+  notaIncidencia: z.string().trim().min(10).max(500).optional(),
 });
 
 const incidenciaBodySchema = z.object({
@@ -199,9 +210,11 @@ router.patch(
   validate({ params: idParamSchema, body: entregadoBodySchema }),
   asyncHandler(async (req, res) => {
     const { id } = req.params as { id: string };
-    const { nombreRecibe, documento, montoCobrado, fotoPath, notas } = req.body as z.infer<typeof entregadoBodySchema>;
+    const { nombreRecibe, documento, montoCobrado, fotoPath, notas, notaIncidencia } = req.body as z.infer<typeof entregadoBodySchema>;
     const repartidorId = req.repartidorId!;
     const repartidorNombre = req.repartidorNombre ?? 'Repartidor';
+    const ipAddress = req.ip ?? undefined;
+    const userAgent = req.headers['user-agent'] ?? undefined;
 
     const { data: current, error: fetchErr } = await supabase
       .from('envios')
@@ -228,18 +241,51 @@ router.patch(
       throw AppError.badRequest(`No se puede entregar desde estado "${envio.estado}"`);
     }
 
+    // COD: decidir monto cobrado reportado y validar diferencia antes de tocar DB.
+    // Si diferencia > 10% exigimos nota de incidencia. Failsafe para evitar que el
+    // repartidor reporte un monto arbitrario sin justificacion (hallazgo 3.3).
+    const esCod = envio.tipo_pago === 'contra_entrega';
+    const montoCobradoCod = esCod ? (montoCobrado ?? envio.monto_a_cobrar) : null;
+    let hayIncidencia = false;
+
+    if (esCod && montoCobradoCod !== null) {
+      try {
+        const validation = validarDiferenciaCobroCod({
+          montoEsperado: envio.monto_a_cobrar,
+          montoReportado: montoCobradoCod,
+          notaIncidencia,
+        });
+        hayIncidencia = validation.hayIncidencia;
+      } catch (err) {
+        if (err instanceof CodValidationError) {
+          throw AppError.unprocessable(err.message, err.code);
+        }
+        throw err;
+      }
+    }
+
+    // Primero el UPDATE del envio (estado, POD, incidencia). El trigger de pagos se
+    // encarga despues de sincronizar envios.monto_cobrado desde el pago COD que
+    // creamos via RPC. Evitamos el set directo del monto_cobrado (hallazgo 3.2).
     const update: Record<string, unknown> = {
       estado: 'entregado',
       fecha_entrega_real: nowISO(),
       entregado_por_nombre: nombreRecibe,
-      tiene_incidencia: false,
+      tiene_incidencia: hayIncidencia,
     };
     if (documento) update['entregado_por_documento'] = documento;
     if (fotoPath) update['foto_entrega_url'] = fotoPath;
     if (notas) update['entrega_notas'] = notas;
-    if (envio.tipo_pago === 'contra_entrega') {
-      update['monto_cobrado'] = montoCobrado ?? envio.monto_a_cobrar;
-    } else if (montoCobrado !== undefined && montoCobrado > 0) {
+    if (hayIncidencia && notaIncidencia) {
+      update['incidencia_nota'] = notaIncidencia;
+      update['incidencia_reportada_en'] = nowISO();
+      update['incidencia_reportada_por'] = repartidorId;
+    }
+    // Envios no-COD: si el repartidor reporta un monto (anticipado que se cobro en
+    // efectivo), lo reflejamos como cache directo. No hay pago atomico asociado porque
+    // el pago anticipado suele haberse registrado antes. Mantiene compat con el flujo
+    // previo.
+    if (!esCod && montoCobrado !== undefined && montoCobrado > 0) {
       update['monto_cobrado'] = montoCobrado;
     }
 
@@ -250,8 +296,43 @@ router.patch(
       throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
     }
 
-    const descripcion = envio.tipo_pago === 'contra_entrega'
-      ? `Entregado a ${nombreRecibe}. Cobrado Gs. ${(update['monto_cobrado'] as number).toLocaleString('es-PY')}.`
+    // Pago COD atomico via RPC. Falla -> rollback del pago y auditoria en Postgres, pero
+    // el UPDATE del envio no se revierte (no hay transaccion compartida posible entre
+    // supabase-js individual calls). El trigger de sync se dispara al INSERT del pago y
+    // actualiza envios.monto_cobrado. Si el RPC falla, envios queda como entregado sin
+    // pago: estado operativamente correcto, la liquidacion simplemente no podra tomar
+    // este envio hasta que se cree el pago manualmente desde admin.
+    if (esCod && montoCobradoCod !== null && montoCobradoCod > 0) {
+      const notaPago = hayIncidencia && notaIncidencia ? notaIncidencia : null;
+      try {
+        await pagoService.create(
+          {
+            envioId: id,
+            montoTotal: envio.monto_a_cobrar,
+            montoRecibido: montoCobradoCod,
+            metodoPago: 'contra_entrega',
+            fechaPago: todayPY(),
+            ...(notaPago ? { notas: notaPago } : {}),
+          },
+          SISTEMA_USER_ID,
+          ipAddress,
+          userAgent,
+        );
+      } catch (err) {
+        // Si ya existia un pago activo (pago anterior en el envio), ignoramos para no
+        // romper la entrega. Cualquier otro error se loggea pero no rompe: el envio
+        // queda como entregado y el pago se puede crear desde admin.
+        if (err instanceof AppError && err.statusCode === 409) {
+          logger.warn({ envioId: id }, 'Entrega COD: ya existe pago activo, no se crea uno nuevo');
+        } else {
+          logger.error({ err, envioId: id }, 'Entrega COD: fallo el RPC create_pago_atomico, envio queda sin pago asociado');
+          Sentry.captureException(err, { extra: { envioId: id, monto: montoCobradoCod } });
+        }
+      }
+    }
+
+    const descripcion = esCod
+      ? `Entregado a ${nombreRecibe}. Cobrado Gs. ${(montoCobradoCod ?? 0).toLocaleString('es-PY')}.${hayIncidencia ? ' Incidencia: ' + (notaIncidencia ?? '') : ''}`
       : `Entregado a ${nombreRecibe}.`;
 
     await supabase.from('eventos_envio').insert({
@@ -261,22 +342,27 @@ router.patch(
       registrado_por_nombre: repartidorNombre,
     });
 
+    // La auditoria del repartidor usa el sistema user porque usuario_id FK a usuarios.
+    // La identidad real del repartidor queda en la descripcion y en envios.repartidor_id.
     auditoriaService.log({
       usuario: repartidorNombre,
-      usuarioId: repartidorId,
+      usuarioId: SISTEMA_USER_ID,
       accion: 'cambio_estado',
       entidad: 'envio',
       entidadId: id,
-      descripcion: `Repartidor marco entregado: ${envio.tracking_number}`,
-      ipAddress: req.ip ?? undefined,
-      userAgent: req.headers['user-agent'] ?? undefined,
+      descripcion: `Repartidor ${repartidorNombre} marco entregado: ${envio.tracking_number}${esCod ? '. COD Gs. ' + (montoCobradoCod ?? 0).toLocaleString('es-PY') : ''}${hayIncidencia ? ' (incidencia)' : ''}`,
+      ipAddress,
+      userAgent,
     });
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
+    if (esCod) {
+      sseService.broadcast({ entity: ['pagos'], action: 'created' });
+    }
 
-    res.json({ ok: true });
+    res.json({ ok: true, incidencia: hayIncidencia });
   }),
 );
 

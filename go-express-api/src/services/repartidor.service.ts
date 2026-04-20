@@ -423,7 +423,20 @@ class RepartidorService {
       .neq('portal_status', 'activo');
   }
 
-  async getConciliacion(
+  /**
+   * Reporte COD por repartidor en un rango de fechas (operativo, no financiero).
+   *
+   * Para el cierre de caja oficial por repartidor ver `liquidacion.service.ts`. Este
+   * reporte solo agrega lo entregado para consulta rapida por zona. Los filtros de fecha
+   * aplican sobre `fecha_entrega_real` convertido a zona horaria America/Asuncion, de
+   * forma que una entrega registrada a las 22:30 PY (02:30 UTC del dia siguiente) se
+   * cuente en el dia PY en que ocurrio. Cierra el hallazgo 3.4 del hard debug.
+   *
+   * El nombre legacy `getConciliacion` quedaria ambiguo ahora que existe una conciliacion
+   * financiera real con tabla `liquidaciones_repartidor`, por eso renombrado a
+   * `getReporteCOD`.
+   */
+  async getReporteCOD(
     repartidorId: string,
     desde?: string,
     hasta?: string,
@@ -448,6 +461,12 @@ class RepartidorService {
   }> {
     await this.getById(repartidorId);
 
+    // Postgres: (fecha_entrega_real AT TIME ZONE 'America/Asuncion')::date BETWEEN $1 AND $2
+    // se arma con rpc filter sintetico (rango en UTC) porque supabase-js no expone filtros
+    // con funciones en el cliente. Convertimos los limites del dia PY a ISO UTC:
+    //   desde_py 00:00 PY -> 04:00 UTC del mismo dia
+    //   hasta_py 23:59:59.999 PY -> 03:59:59.999 UTC del dia siguiente
+    // Asuncion es UTC-4 fija (sin DST desde 2024) por contrato del repo, ver datetime.ts.
     let q = supabase
       .from('envios')
       .select(
@@ -457,14 +476,18 @@ class RepartidorService {
       .eq('eliminado', false)
       .eq('estado', 'entregado');
 
-    if (desde) q = q.gte('fecha_entrega_real', desde);
-    if (hasta) q = q.lte('fecha_entrega_real', hasta);
+    if (desde) {
+      q = q.gte('fecha_entrega_real', `${desde}T00:00:00-04:00`);
+    }
+    if (hasta) {
+      q = q.lte('fecha_entrega_real', `${hasta}T23:59:59.999-04:00`);
+    }
 
     const { data, error } = await q.order('fecha_entrega_real', { ascending: false });
 
     if (error) {
-      logger.error({ err: error, repartidorId }, 'Error fetching conciliacion');
-      throw new AppError('Error fetching conciliacion', 500, 'DB_ERROR');
+      logger.error({ err: error, repartidorId }, 'Error fetching reporte COD');
+      throw new AppError('Error fetching reporte COD', 500, 'DB_ERROR');
     }
 
     const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({

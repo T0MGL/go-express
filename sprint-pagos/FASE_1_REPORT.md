@@ -88,12 +88,17 @@ Se reutilizo el patron: crear un `supabase` local con service role, hacer el POS
 
 ## Deuda residual
 
-Ninguna bloqueante. Lista de mejoras posibles para futuras fases, no incluidas en este alcance:
+Ninguna.
 
-1. **Test explicito de adminWriteLimiter en pagos.** El spec mencionaba como opcional "POST /pagos respects adminWriteLimiter". No se agrego porque el rate limit esta deshabilitado en `NODE_ENV=test` (ver `app.ts:124`). Para testearlo habria que arrancar un segundo setup de vitest con el limiter activo, o mockear `adminWriteLimiter`. Si se vuelve requerimiento, abrir como tarea separada.
-2. **IP/UA en servicios legacy.** Otras services (`pago.service.ts` fue el unico en el alcance) podrian tener la misma deuda si se agregan en el futuro. `envio.service.ts` ya esta cubierto. Verificar cliente-facing services (`cliente.service.ts`, `clienteUsuario.service.ts`) cuando se haga la proxima fase.
-3. **Normalizacion de IPv6 y proxies en chain.** Railway usa IPv4, pero si en el futuro se mueve a un proxy con IPv6 mapeado (`::ffff:1.2.3.4`), revisar si `trust proxy: 1` es suficiente o hay que subir el nivel. No urgente.
+Los tres issues abiertos al cierre inicial de esta fase fueron resueltos antes del sprint de Fase 5:
+
+1. **Test explicito de `adminWriteLimiter`. RESUELTO.** Archivo: `go-express-api/tests/rate-limit.test.ts`. Como el limiter se aplica a nivel global en `app.ts:123-128` y esta desactivado cuando `NODE_ENV=test`, el test vive self-contained (estilo `tests/trust-proxy.test.ts`): mini-app Express que importa y monta el `adminWriteLimiter` real desde `src/middleware/rateLimit.ts`, supertest burstea POSTs con IPs diferentes por caso para que el store compartido no fugue quota. Asserts: happy path bajo el umbral, 429 con shape `{ error, code: TOO_MANY_REQUESTS }` en la request 31, headers draft-7 correctos (`RateLimit-Policy`, `RateLimit`, `Retry-After`), y cuota por IP (atacante bloqueado, request de otra IP pasa). Si alguien cambia el limite o la ventana del limiter real, este test quiebra.
+2. **IP/UA en servicios legacy. RESUELTO.** Cerrado en commit `40839bd` (`feat(audit): persistir ip_address y user_agent en TODAS las mutaciones admin`). Cubre clientes, configuracion, envios, repartidores, tarifas, usuarios, warehouse y auth. Mismo patron que pago.service.ts.
+3. **Normalizacion de IPv6 y proxies en chain. RESUELTO.** Cerrado en commit `40839bd`. Se agrego `go-express-api/tests/trust-proxy.test.ts` con 5 escenarios: request directa, un hop de XFF, IPv4 mapeado a IPv6 (`::ffff:1.2.3.4`), IPv6 puro (`2001:db8::1`) y chain multi-hop, validando la semantica de `trust proxy: 1` end to end.
 
 ## Commits
 
-Ver `git log sprint-pagos/fase-1-ip-ua-ratelimit ^main --oneline`.
+- `8d17da5` feat(pagos): persistir ip_address y user_agent en auditoria
+- `643b396` docs(sprint-pagos): report de fase 1 cerrada
+- `40839bd` feat(audit): persistir ip_address y user_agent en TODAS las mutaciones admin (cierra issues 2 y 3)
+- (este commit) test(api): cobertura de adminWriteLimiter con mini-app aislado (cierra issue 1)

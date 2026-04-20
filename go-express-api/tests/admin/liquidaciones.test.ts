@@ -15,6 +15,23 @@ beforeAll(async () => {
   testData = await seedTestData();
 });
 
+// Cada caso empieza con cero liquidaciones del repartidor de test. El check de
+// solapamiento agregado en migracion 023 rechaza cualquier liquidacion nueva que solape
+// con una existente del mismo repartidor, asi que compartir estado entre tests haria
+// que cada caso siguiente reciba 409. Limpiamos aca para mantener los casos aislados.
+afterEach(async () => {
+  const { data: existentes } = await supabase
+    .from('liquidaciones_repartidor')
+    .select('id')
+    .eq('repartidor_id', testData.repartidorId);
+  const ids = (existentes ?? []).map((row) => (row as { id: string }).id);
+  if (ids.length > 0) {
+    await supabase.from('liquidacion_envios').delete().in('liquidacion_id', ids);
+    await supabase.from('liquidaciones_repartidor').delete().in('id', ids);
+  }
+  createdLiquidaciones.length = 0;
+});
+
 afterAll(async () => {
   if (createdLiquidaciones.length > 0) {
     await supabase
@@ -358,13 +375,12 @@ describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
 });
 
 describe('Doble liquidacion del mismo envio rechazada', () => {
-  it('un envio ya conciliado en una liquidacion cerrada no entra en una segunda liquidacion', async () => {
+  it('segunda liquidacion con rango solapado es rechazada con 409', async () => {
     const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
     const fechaEntrega = new Date().toISOString();
 
     await crearEnvioCodEntregado({ montoACobrar: 12000, fechaEntregaReal: fechaEntrega });
 
-    // Crea liquidacion A
     const aRes = await request
       .post('/api/admin/liquidaciones')
       .set(adminHeaders())
@@ -377,15 +393,12 @@ describe('Doble liquidacion del mismo envio rechazada', () => {
     const aEsperado = aRes.body.montoTotalEsperado as number;
     createdLiquidaciones.push(aId);
 
-    // Cierra A para que conciliado = TRUE
     const cerrarA = await request
       .patch(`/api/admin/liquidaciones/${aId}/cerrar`)
       .set(adminHeaders())
       .send({ montoRecibido: aEsperado });
     expect(cerrarA.status).toBe(200);
 
-    // Intenta crear liquidacion B para el mismo rango: los envios ya conciliados deben
-    // quedar excluidos. El nuevo snapshot debe venir vacio (o al menos sin esos envios).
     const bRes = await request
       .post('/api/admin/liquidaciones')
       .set(adminHeaders())
@@ -394,19 +407,33 @@ describe('Doble liquidacion del mismo envio rechazada', () => {
         fechaDesde: hoyPy,
         fechaHasta: hoyPy,
       });
+    expect(bRes.status).toBe(409);
+    expect(bRes.body).toHaveProperty('code', 'CONFLICT');
+    expect(String(bRes.body.error ?? '')).toMatch(/solapa/i);
+  });
+
+  it('rangos no solapados del mismo repartidor se permiten', async () => {
+    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+    const ayer = new Date();
+    ayer.setDate(ayer.getDate() - 3);
+    const ayerPy = ayer.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+    const anteayer = new Date();
+    anteayer.setDate(anteayer.getDate() - 6);
+    const anteayerPy = anteayer.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+
+    const aRes = await request
+      .post('/api/admin/liquidaciones')
+      .set(adminHeaders())
+      .send({ repartidorId: testData.repartidorId, fechaDesde: anteayerPy, fechaHasta: anteayerPy });
+    expect(aRes.status).toBe(201);
+    createdLiquidaciones.push(aRes.body.id as string);
+
+    const bRes = await request
+      .post('/api/admin/liquidaciones')
+      .set(adminHeaders())
+      .send({ repartidorId: testData.repartidorId, fechaDesde: ayerPy, fechaHasta: hoyPy });
     expect(bRes.status).toBe(201);
-    const bId = bRes.body.id as string;
-    createdLiquidaciones.push(bId);
-
-    const detB = await request.get(`/api/admin/liquidaciones/${bId}`).set(adminHeaders());
-    const aDet = await request.get(`/api/admin/liquidaciones/${aId}`).set(adminHeaders());
-    const aIds = new Set((aDet.body.envios as Array<{ envioId: string }>).map((e) => e.envioId));
-    const bIds = (detB.body.envios as Array<{ envioId: string }>).map((e) => e.envioId);
-
-    // La interseccion debe ser vacia: ningun envio de A aparece en B.
-    for (const id of bIds) {
-      expect(aIds.has(id)).toBe(false);
-    }
+    createdLiquidaciones.push(bRes.body.id as string);
   });
 });
 

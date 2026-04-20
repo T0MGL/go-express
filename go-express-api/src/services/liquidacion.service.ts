@@ -112,6 +112,12 @@ function mapLiquidacionRpcError(err: unknown, context: { liquidacionId?: string;
     return AppError.conflict('Uno o mas envios ya pertenecen a otra liquidacion cerrada');
   }
 
+  if (msg.includes('liquidacion_rango_solapado')) {
+    return AppError.conflict(
+      'Ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado',
+    );
+  }
+
   if (msg.includes('liquidacion_no_encontrada')) {
     return AppError.notFound('Liquidacion', context.liquidacionId);
   }

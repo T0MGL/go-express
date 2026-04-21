@@ -225,13 +225,12 @@ const Auditoria = () => {
                 <th className="w-[1%]">Acción</th>
                 <th className="w-[1%]">Sobre</th>
                 <th>Detalle</th>
-                <th className="whitespace-nowrap w-[1%]">Cambios</th>
               </tr>
             </thead>
             <tbody>
               {logsFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
+                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
                     No hay registros que coincidan con los filtros
                   </td>
                 </tr>
@@ -267,30 +266,6 @@ const Auditoria = () => {
                   </td>
                   <td className="align-top">
                     <p className="text-[12px] text-foreground leading-relaxed">{log.descripcion}</p>
-                  </td>
-                  <td className="whitespace-nowrap align-top">
-                    {(log.valorAnterior || log.valorNuevo) ? (
-                      <div className="text-[11px] space-y-1">
-                        {log.valorAnterior && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground shrink-0 w-[46px] text-right">Antes:</span>
-                            <span className="bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-data text-[10px]">
-                              {typeof log.valorAnterior === 'string' ? log.valorAnterior : JSON.stringify(log.valorAnterior)}
-                            </span>
-                          </div>
-                        )}
-                        {log.valorNuevo && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground shrink-0 w-[46px] text-right">Después:</span>
-                            <span className="bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100 font-data text-[10px]">
-                              {typeof log.valorNuevo === 'string' ? log.valorNuevo : JSON.stringify(log.valorNuevo)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground/40">Sin cambios</span>
-                    )}
                   </td>
                 </tr>
               ))}

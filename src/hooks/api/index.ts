@@ -86,6 +86,8 @@ export {
   useUsuarios,
   useCreateUsuario,
   useUpdateUsuario,
+  useSetUsuarioPassword,
+  useSendUsuarioPasswordReset,
 } from './use-usuarios';
 
 // Configuracion

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { supabase } from '../config/database.js';
+import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { emailService } from './email.service.js';
@@ -211,6 +212,137 @@ class UsuarioService {
     });
 
     return usuario;
+  }
+
+  /**
+   * Rotates a user's password to an admin-supplied value. Does not email the
+   * user. The admin is expected to communicate the new password out of band
+   * (in-person, secure channel, password manager share). Requires the target
+   * user to have an `auth_id`; otherwise the admin must reinvite first.
+   */
+  async setPassword(
+    usuarioId: string,
+    newPassword: string,
+    invokedByUserId: string,
+    invokedByName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Usuario> {
+    const { data: row, error: fetchErr } = await supabase
+      .from('usuarios')
+      .select(USUARIO_COLUMNS)
+      .eq('id', usuarioId)
+      .single();
+
+    if (fetchErr || !row) {
+      throw AppError.notFound('Usuario', usuarioId);
+    }
+
+    const usuarioRow = row as UsuarioRow;
+
+    if (!usuarioRow.auth_id) {
+      throw AppError.badRequest(
+        'El usuario no tiene cuenta de autenticacion. Reenvia la invitacion primero.',
+      );
+    }
+
+    if (usuarioRow.estado !== 'activo') {
+      throw AppError.badRequest('El usuario esta inactivo. Reactivalo antes de cambiar la contrasena.');
+    }
+
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(usuarioRow.auth_id, {
+      password: newPassword,
+    });
+
+    if (updateErr) {
+      const msg = updateErr.message ?? 'update failed';
+      logger.error({ err: updateErr, usuarioId }, 'Failed to set admin user password');
+      // Supabase returns a 422 when the password fails server-side policy.
+      // Surface it as 400 so the client shows a specific message.
+      if (/password/i.test(msg) && /(weak|short|length|policy|requirements)/i.test(msg)) {
+        throw AppError.badRequest(msg);
+      }
+      throw new AppError(`No se pudo cambiar la contrasena: ${msg}`, 500, 'PASSWORD_UPDATE_ERROR');
+    }
+
+    await auditoriaService.log({
+      usuario: invokedByName,
+      usuarioId: invokedByUserId,
+      accion: 'editar',
+      entidad: 'usuario',
+      entidadId: usuarioId,
+      descripcion: `Contrasena restablecida por admin para ${usuarioRow.email}`,
+      ipAddress,
+      userAgent,
+    });
+
+    return toApi(usuarioRow);
+  }
+
+  /**
+   * Generates a Supabase recovery link and emails it through Resend. Lets an
+   * admin trigger the same self-service reset flow available on the login
+   * page. The target user must have an `auth_id` and be active.
+   */
+  async sendPasswordResetEmail(
+    usuarioId: string,
+    invokedByUserId: string,
+    invokedByName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ email: string }> {
+    const { data: row, error: fetchErr } = await supabase
+      .from('usuarios')
+      .select(USUARIO_COLUMNS)
+      .eq('id', usuarioId)
+      .single();
+
+    if (fetchErr || !row) {
+      throw AppError.notFound('Usuario', usuarioId);
+    }
+
+    const usuarioRow = row as UsuarioRow;
+
+    if (!usuarioRow.auth_id) {
+      throw AppError.badRequest(
+        'El usuario no tiene cuenta de autenticacion. Reenvia la invitacion primero.',
+      );
+    }
+
+    if (usuarioRow.estado !== 'activo') {
+      throw AppError.badRequest('El usuario esta inactivo. Reactivalo antes de enviar el reset.');
+    }
+
+    const origin = env.CORS_ORIGINS.split(',')[0]?.trim() || 'http://localhost:8080';
+    const redirectTo = `${origin}/admin/reset-password`;
+
+    const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+      type: 'recovery',
+      email: usuarioRow.email,
+      options: { redirectTo },
+    });
+
+    if (linkErr || !linkData?.properties?.action_link) {
+      logger.error({ err: linkErr, usuarioId }, 'Failed to generate admin password recovery link');
+      throw new AppError('No se pudo generar el enlace de recuperacion', 500, 'RESET_LINK_ERROR');
+    }
+
+    emailService
+      .sendPasswordReset(usuarioRow.email, usuarioRow.nombre, linkData.properties.action_link, 'admin')
+      .catch((err) => logger.error({ err, email: usuarioRow.email }, 'Failed to send admin password reset email'));
+
+    await auditoriaService.log({
+      usuario: invokedByName,
+      usuarioId: invokedByUserId,
+      accion: 'editar',
+      entidad: 'usuario',
+      entidadId: usuarioId,
+      descripcion: `Email de reset enviado a ${usuarioRow.email}`,
+      ipAddress,
+      userAgent,
+    });
+
+    return { email: usuarioRow.email };
   }
 }
 

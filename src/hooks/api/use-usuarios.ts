@@ -38,3 +38,17 @@ export function useUpdateUsuario() {
     },
   });
 }
+
+export function useSetUsuarioPassword() {
+  return useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      api.post<Usuario>(`/admin/usuarios/${id}/password`, { password }),
+  });
+}
+
+export function useSendUsuarioPasswordReset() {
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      api.post<{ ok: boolean; email: string }>(`/admin/usuarios/${id}/send-password-reset`, {}),
+  });
+}

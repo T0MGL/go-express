@@ -2,9 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
+import { requireOnlyAdmin } from '../../middleware/adminAuth.js';
+import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
 import { usuarioService } from '../../services/usuario.service.js';
+import { sseService } from '../../services/sse.service.js';
 import type { UsuarioRow, Usuario } from '../../types/index.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
 
@@ -22,6 +25,19 @@ const updateUsuarioSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(320).optional(),
   rol: z.enum(['admin', 'operador']).optional(),
   estado: z.enum(['activo', 'inactivo']).optional(),
+});
+
+// Supabase default policy requires at least 6 characters. We require 10 and
+// enforce at least one letter and one digit so admin-set credentials survive
+// a password audit even if the Supabase project policy later tightens.
+const setPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(10, 'La contrasena debe tener al menos 10 caracteres')
+    .max(128, 'La contrasena no puede superar 128 caracteres')
+    .refine((val) => /[A-Za-z]/.test(val) && /[0-9]/.test(val), {
+      message: 'La contrasena debe incluir al menos una letra y un numero',
+    }),
 });
 
 
@@ -136,6 +152,45 @@ router.put(
     });
 
     res.json(user);
+  })
+);
+
+router.post(
+  '/:id/password',
+  requireOnlyAdmin,
+  adminWriteLimiter,
+  validate({ params: idParamSchema, body: setPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    const usuario = await usuarioService.setPassword(
+      req.params['id'] as string,
+      req.body.password,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
+
+    sseService.broadcast({ entity: ['usuarios'], action: 'password_reset', id: usuario.id });
+
+    res.json(usuario);
+  })
+);
+
+router.post(
+  '/:id/send-password-reset',
+  requireOnlyAdmin,
+  adminWriteLimiter,
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await usuarioService.sendPasswordResetEmail(
+      req.params['id'] as string,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
+
+    res.json({ ok: true, email: result.email });
   })
 );
 

@@ -9,8 +9,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { estadoLabels } from '@/data/constants';
-import { UserPlus, ShieldCheck, Warning } from '@phosphor-icons/react';
-import { useUsuarios, useCreateUsuario } from '@/hooks/api/use-usuarios';
+import { UserPlus, ShieldCheck, Warning, DotsThreeVertical, Key, EnvelopeSimple } from '@phosphor-icons/react';
+import { useUsuarios, useCreateUsuario, useSendUsuarioPasswordReset } from '@/hooks/api/use-usuarios';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { UsuarioPasswordDialog } from '@/components/admin/UsuarioPasswordDialog';
+import { extractApiError } from '@/lib/api';
+import type { Usuario } from '@/data/types';
 import { useConfiguracion, useUpdateConfiguracion } from '@/hooks/api/use-configuracion';
 import { useSeguroConfig, useUpdateSeguroConfig } from '@/hooks/api/use-seguro-config';
 import { calcularSeguroAdicional, SEGURO_DEFAULTS, type SeguroConfig } from '@/lib/seguro';
@@ -244,6 +254,7 @@ const SeguroTab = () => {
 
 const Configuracion = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [passwordDialogUsuario, setPasswordDialogUsuario] = useState<Usuario | null>(null);
   const [emailTemplate, setEmailTemplate] = useState(
     'Hola {customer_name},\n\nTu envío con número de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
   );
@@ -254,9 +265,20 @@ const Configuracion = () => {
   const { data: apiUsuarios, isLoading: isLoadingUsuarios } = useUsuarios();
   useConfiguracion();
   const createUsuarioMut = useCreateUsuario();
+  const sendResetMut = useSendUsuarioPasswordReset();
   const updateConfigMut = useUpdateConfiguracion();
 
   const usuarios = apiUsuarios ?? [];
+
+  const handleSendReset = (usuario: Usuario) => {
+    sendResetMut.mutate(
+      { id: usuario.id },
+      {
+        onSuccess: (data) => toast.success(`Email de recuperacion enviado a ${data.email}`),
+        onError: (err) => toast.error(extractApiError(err, 'No se pudo enviar el email de recuperacion')),
+      },
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -503,6 +525,42 @@ const Configuracion = () => {
                       </td>
                       <td>
                         <div className="flex gap-1 justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                aria-label={`Acciones para ${usuario.nombre}`}
+                              >
+                                <DotsThreeVertical size={14} weight="bold" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem
+                                onClick={() => setPasswordDialogUsuario(usuario)}
+                                className="gap-2"
+                              >
+                                <Key size={14} weight="duotone" />
+                                Establecer contrasena
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSendReset(usuario)}
+                                disabled={sendResetMut.isPending}
+                                className="gap-2"
+                              >
+                                <EnvelopeSimple size={14} weight="duotone" />
+                                Enviar email de recuperacion
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled
+                                className="text-[11px] text-muted-foreground"
+                              >
+                                Id: {usuario.id.slice(0, 8)}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
@@ -553,6 +611,14 @@ const Configuracion = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <UsuarioPasswordDialog
+        usuario={passwordDialogUsuario}
+        open={passwordDialogUsuario !== null}
+        onOpenChange={(open) => {
+          if (!open) setPasswordDialogUsuario(null);
+        }}
+      />
     </div>
   );
 };

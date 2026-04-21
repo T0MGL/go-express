@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { estadoLabels } from '@/data/constants';
 import { UserPlus, ShieldCheck, Warning, DotsThreeVertical, Key, EnvelopeSimple } from '@phosphor-icons/react';
+import { useAuth } from '@/lib/auth';
 import { useUsuarios, useCreateUsuario, useSendUsuarioPasswordReset } from '@/hooks/api/use-usuarios';
 import {
   DropdownMenu,
@@ -253,6 +254,7 @@ const SeguroTab = () => {
 };
 
 const Configuracion = () => {
+  const { isAdmin } = useAuth();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [passwordDialogUsuario, setPasswordDialogUsuario] = useState<Usuario | null>(null);
   const [emailTemplate, setEmailTemplate] = useState(
@@ -262,7 +264,10 @@ const Configuracion = () => {
   const [notifReparto, setNotifReparto] = useState(true);
   const [notifEntrega, setNotifEntrega] = useState(true);
 
-  const { data: apiUsuarios, isLoading: isLoadingUsuarios } = useUsuarios();
+  // Gestion de usuarios es estrictamente admin. El backend devuelve 403 a
+  // operadores, asi que deshabilitamos la query y ocultamos la pestana para
+  // evitar ruido en la UI y un 403 log spammy.
+  const { data: apiUsuarios, isLoading: isLoadingUsuarios } = useUsuarios({ enabled: isAdmin });
   useConfiguracion();
   const createUsuarioMut = useCreateUsuario();
   const sendResetMut = useSendUsuarioPasswordReset();
@@ -349,7 +354,7 @@ const Configuracion = () => {
           <TabsTrigger value="estados">Estados de envío</TabsTrigger>
           <TabsTrigger value="seguro">Seguro</TabsTrigger>
           <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
-          <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+          {isAdmin && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="general">
@@ -483,6 +488,7 @@ const Configuracion = () => {
           </div>
         </TabsContent>
 
+        {isAdmin && (
         <TabsContent value="usuarios">
           <div className="surface-card p-6">
             <div className="flex justify-between items-center mb-5">
@@ -577,6 +583,7 @@ const Configuracion = () => {
             )}
           </div>
         </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>

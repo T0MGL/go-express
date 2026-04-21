@@ -32,6 +32,10 @@ router.use('/liquidaciones', liquidacionRoutes);
 router.use('/warehouse', warehouseRoutes);
 router.use('/auditoria', auditoriaRoutes);
 router.use('/configuracion', configuracionRoutes);
-router.use('/usuarios', usuarioRoutes);
+// Gestion de usuarios es estrictamente admin. Operadores reciben 403 explicito
+// para listar, crear, editar, eliminar, reinvitar, o manipular contrasenas.
+// Un operador con escalada de privilegios podria crearse otro admin, asi que
+// el gate vive a nivel de sub-router y no por ruta.
+router.use('/usuarios', requireOnlyAdmin, usuarioRoutes);
 
 export default router;

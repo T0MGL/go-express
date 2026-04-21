@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
-import { requireOnlyAdmin } from '../../middleware/adminAuth.js';
 import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
@@ -157,7 +156,6 @@ router.put(
 
 router.post(
   '/:id/password',
-  requireOnlyAdmin,
   adminWriteLimiter,
   validate({ params: idParamSchema, body: setPasswordSchema }),
   asyncHandler(async (req, res) => {
@@ -178,7 +176,6 @@ router.post(
 
 router.post(
   '/:id/send-password-reset',
-  requireOnlyAdmin,
   adminWriteLimiter,
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {

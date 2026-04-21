@@ -3,11 +3,12 @@ import { api } from '@/lib/api';
 import { usuarioKeys } from './use-envios';
 import type { Usuario } from '@/data/types';
 
-export function useUsuarios() {
+export function useUsuarios(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: usuarioKeys.lists(),
     queryFn: () => api.get<Usuario[]>('/admin/usuarios'),
     staleTime: 10 * 60 * 1000,
+    enabled: options.enabled ?? true,
   });
 }
 

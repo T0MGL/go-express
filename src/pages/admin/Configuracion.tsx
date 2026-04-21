@@ -284,18 +284,24 @@ const Configuracion = () => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const fd = new FormData(form);
+    const nombre = String(fd.get('nombre') ?? '').trim();
+    const email = String(fd.get('email') ?? '').trim();
+    const rol = String(fd.get('rol') ?? '').trim().toLowerCase();
+
+    if (rol !== 'admin' && rol !== 'operador') {
+      toast.error('Selecciona un rol valido');
+      return;
+    }
+
     createUsuarioMut.mutate(
-      {
-        nombre: fd.get('nombre') as string,
-        email: fd.get('email') as string,
-        rol: fd.get('rol') as string,
-      },
+      { nombre, email, rol },
       {
         onSuccess: () => {
           setIsInviteModalOpen(false);
+          form.reset();
           toast.success('Usuario invitado correctamente');
         },
-        onError: () => toast.error('Error al invitar usuario'),
+        onError: (err) => toast.error(extractApiError(err, 'Error al invitar usuario')),
       },
     );
   };
@@ -595,9 +601,8 @@ const Configuracion = () => {
                     <SelectValue placeholder="Seleccionar rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                    <SelectItem value="Operador">Operador</SelectItem>
-                    <SelectItem value="Repartidor">Repartidor</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="operador">Operador</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -16,8 +16,27 @@ export interface TestData {
 
 let seeded: TestData | null = null;
 
+async function ensureAdminUser(): Promise<void> {
+  const { error } = await supabase.from('usuarios').upsert(
+    {
+      id: ADMIN_USER_ID,
+      nombre: 'Admin GoExpress',
+      email: 'admin@goexpress.com.py',
+      rol: 'admin',
+      estado: 'activo',
+    },
+    { onConflict: 'id', ignoreDuplicates: false }
+  );
+
+  if (error) {
+    throw new Error(`Seed: failed to ensure admin user exists: ${error.message}`);
+  }
+}
+
 export async function seedTestData(): Promise<TestData> {
   if (seeded) return seeded;
+
+  await ensureAdminUser();
 
   const clienteId = crypto.randomUUID();
   const repartidorId = crypto.randomUUID();

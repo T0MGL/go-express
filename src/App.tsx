@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
+import { AdminOnlyRoute } from "@/components/admin/AdminOnlyRoute";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 
@@ -198,14 +199,14 @@ const App = () => (
                   <Route path="envios/nuevo" element={<EnvioNew />} />
                   <Route path="envios/:id" element={<EnvioDetail />} />
                   <Route path="warehouse" element={<Warehouse />} />
-                  <Route path="clientes" element={<Clientes />} />
+                  <Route path="clientes" element={<AdminOnlyRoute><Clientes /></AdminOnlyRoute>} />
                   <Route path="repartidores" element={<Repartidores />} />
                   <Route path="reporte-cod" element={<ReporteCOD />} />
                   <Route path="conciliacion" element={<Navigate to="/admin/reporte-cod" replace />} />
                   <Route path="liquidaciones" element={<Liquidaciones />} />
                   <Route path="liquidaciones/:id" element={<LiquidacionDetalle />} />
                   <Route path="pagos" element={<Pagos />} />
-                  <Route path="tarifas" element={<Tarifas />} />
+                  <Route path="tarifas" element={<AdminOnlyRoute><Tarifas /></AdminOnlyRoute>} />
                   <Route path="auditoria" element={<Auditoria />} />
                   <Route path="configuracion" element={<Configuracion />} />
                 </Route>

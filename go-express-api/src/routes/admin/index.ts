@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../../middleware/adminAuth.js';
+import { requireAdmin, requireOnlyAdmin } from '../../middleware/adminAuth.js';
 
 import dashboardRoutes from './dashboard.js';
 import envioRoutes from './envios.js';
@@ -21,12 +21,12 @@ router.use(requireAdmin);
 
 router.use('/dashboard', dashboardRoutes);
 router.use('/envios', envioRoutes);
-router.use('/clientes', clienteRoutes);
-// Movimientos de cuenta corriente cuelgan de /clientes para preservar el patron
-// /clientes/:id/saldo, /clientes/:id/movimientos, /clientes/:id/ajuste, etc.
-router.use('/clientes', cuentaCorrienteRoutes);
+// Tarifas y clientes (incluyendo cuenta corriente, que cuelga de /clientes)
+// quedan restringidos a rol admin. Operadores reciben 403 explicito.
+router.use('/clientes', requireOnlyAdmin, clienteRoutes);
+router.use('/clientes', requireOnlyAdmin, cuentaCorrienteRoutes);
 router.use('/repartidores', repartidorRoutes);
-router.use('/tarifas', tarifaRoutes);
+router.use('/tarifas', requireOnlyAdmin, tarifaRoutes);
 router.use('/pagos', pagoRoutes);
 router.use('/liquidaciones', liquidacionRoutes);
 router.use('/warehouse', warehouseRoutes);

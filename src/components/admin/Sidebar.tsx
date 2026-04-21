@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ChartBar, Package, Warehouse as WarehouseIcon, Users, Truck,
   CurrencyDollar, Tag, ShieldCheck, GearSix, CaretDoubleLeft, CaretDoubleRight,
@@ -6,29 +6,44 @@ import {
 } from '@phosphor-icons/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 
-const mainNav = [
+type NavItem = {
+  icon: typeof ChartBar;
+  label: string;
+  path: string;
+  adminOnly?: boolean;
+};
+
+const mainNav: NavItem[] = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin' },
   { icon: Package, label: 'Envíos', path: '/admin/envios' },
   { icon: WarehouseIcon, label: 'Warehouse', path: '/admin/warehouse' },
-  { icon: Users, label: 'Clientes', path: '/admin/clientes' },
+  { icon: Users, label: 'Clientes', path: '/admin/clientes', adminOnly: true },
   { icon: Truck, label: 'Repartidores', path: '/admin/repartidores' },
 ];
 
-const secondaryNav = [
+const secondaryNav: NavItem[] = [
   { icon: CurrencyDollar, label: 'Pagos', path: '/admin/pagos' },
   { icon: ClipboardText, label: 'Liquidaciones', path: '/admin/liquidaciones' },
-  { icon: Tag, label: 'Tarifas', path: '/admin/tarifas' },
+  { icon: Tag, label: 'Tarifas', path: '/admin/tarifas', adminOnly: true },
   { icon: ShieldCheck, label: 'Auditoría', path: '/admin/auditoria' },
   { icon: GearSix, label: 'Configuración', path: '/admin/configuracion' },
 ];
 
+function filterByRole(items: NavItem[], isAdmin: boolean): NavItem[] {
+  return isAdmin ? items : items.filter((item) => !item.adminOnly);
+}
+
 export const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const { isAdmin } = useAuth();
+  const visibleMain = useMemo(() => filterByRole(mainNav, isAdmin), [isAdmin]);
+  const visibleSecondary = useMemo(() => filterByRole(secondaryNav, isAdmin), [isAdmin]);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -59,7 +74,7 @@ export const Sidebar = () => {
         {/* Main Navigation */}
         <nav className="flex-1 py-2 overflow-y-auto scrollbar-thin">
           <div className={cn('space-y-0.5', collapsed ? 'px-1.5' : 'px-2')}>
-            {mainNav.map((item) => {
+            {visibleMain.map((item) => {
               const link = (
                 <NavLink
                   key={item.path}
@@ -102,7 +117,7 @@ export const Sidebar = () => {
                 Sistema
               </p>
             )}
-            {secondaryNav.map((item) => {
+            {visibleSecondary.map((item) => {
               const link = (
                 <NavLink
                   key={item.path}
@@ -165,6 +180,9 @@ interface MobileSidebarProps {
 }
 
 export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
+  const { isAdmin } = useAuth();
+  const visibleMain = useMemo(() => filterByRole(mainNav, isAdmin), [isAdmin]);
+  const visibleSecondary = useMemo(() => filterByRole(secondaryNav, isAdmin), [isAdmin]);
   const handleNavClick = () => {
     onOpenChange(false);
   };
@@ -181,7 +199,7 @@ export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
 
         <nav className="flex-1 py-2 overflow-y-auto scrollbar-thin">
           <div className="space-y-0.5 px-2">
-            {mainNav.map((item) => (
+            {visibleMain.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -202,7 +220,7 @@ export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
             <p className="px-2.5 mb-1 text-[10px] font-semibold tracking-[0.08em] text-white/15 uppercase">
               Sistema
             </p>
-            {secondaryNav.map((item) => (
+            {visibleSecondary.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}

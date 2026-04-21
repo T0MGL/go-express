@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
@@ -8,15 +8,24 @@ import {
   ChartBar, Package, Warehouse, Users, Truck,
   CurrencyDollar, Tag, ShieldCheck, GearSix, PlusCircle, MagnifyingGlass,
 } from '@phosphor-icons/react';
+import { useAuth } from '@/lib/auth';
 
-const navigation = [
+type NavEntry = {
+  icon: typeof ChartBar;
+  label: string;
+  path: string;
+  group: 'Navegacion' | 'Sistema';
+  adminOnly?: boolean;
+};
+
+const navigation: NavEntry[] = [
   { icon: ChartBar, label: 'Dashboard', path: '/admin', group: 'Navegacion' },
   { icon: Package, label: 'Envíos', path: '/admin/envios', group: 'Navegacion' },
   { icon: Warehouse, label: 'Warehouse', path: '/admin/warehouse', group: 'Navegacion' },
-  { icon: Users, label: 'Clientes', path: '/admin/clientes', group: 'Navegacion' },
+  { icon: Users, label: 'Clientes', path: '/admin/clientes', group: 'Navegacion', adminOnly: true },
   { icon: Truck, label: 'Repartidores', path: '/admin/repartidores', group: 'Navegacion' },
   { icon: CurrencyDollar, label: 'Pagos', path: '/admin/pagos', group: 'Sistema' },
-  { icon: Tag, label: 'Tarifas', path: '/admin/tarifas', group: 'Sistema' },
+  { icon: Tag, label: 'Tarifas', path: '/admin/tarifas', group: 'Sistema', adminOnly: true },
   { icon: ShieldCheck, label: 'Auditoría', path: '/admin/auditoria', group: 'Sistema' },
   { icon: GearSix, label: 'Configuración', path: '/admin/configuracion', group: 'Sistema' },
 ];
@@ -29,6 +38,11 @@ const actions = [
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const visibleNav = useMemo(
+    () => (isAdmin ? navigation : navigation.filter((n) => !n.adminOnly)),
+    [isAdmin]
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -49,8 +63,8 @@ export function CommandPalette() {
 
   const grouped = {
     Acciones: actions,
-    Navegacion: navigation.filter(n => n.group === 'Navegacion'),
-    Sistema: navigation.filter(n => n.group === 'Sistema'),
+    Navegacion: visibleNav.filter(n => n.group === 'Navegacion'),
+    Sistema: visibleNav.filter(n => n.group === 'Sistema'),
   };
 
   return (

@@ -95,3 +95,29 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
     next(AppError.unauthorized('Authentication failed'));
   }
 }
+
+/**
+ * Restricts a route to strictly `rol === 'admin'`. Must be chained after
+ * `requireAdmin`, which populates `req.userRole`. Operadores authenticate
+ * fine via `requireAdmin` but are rejected here with a dedicated error code
+ * so the client can distinguish from a generic 403.
+ */
+export function requireOnlyAdmin(req: Request, _res: Response, next: NextFunction): void {
+  if (req.userRole === 'admin') {
+    next();
+    return;
+  }
+
+  logger.warn(
+    { userId: req.userId, userRole: req.userRole, path: req.path, method: req.method },
+    'Operador attempted to access admin-only resource'
+  );
+
+  next(
+    new AppError(
+      'Only administrators can access this resource',
+      403,
+      'forbidden_operador_cant_access'
+    )
+  );
+}

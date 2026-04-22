@@ -19,7 +19,7 @@ setup('authenticate as admin', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Contrasena').fill(password);
-  await page.getByRole('button', { name: 'Iniciar sesion' }).click();
+  await page.getByRole('button', { name: /Iniciar sesi[oó]n/ }).click();
 
   await page.waitForURL('/admin', { timeout: 15_000 });
   await expect(page.getByText('Dashboard')).toBeVisible();

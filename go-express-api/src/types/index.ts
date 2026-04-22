@@ -93,6 +93,7 @@ export interface ClienteRow {
   portal_activo: boolean;
   portal_status: PortalStatus;
   portal_invited_at: string | null;
+  es_mostrador: boolean;
   eliminado: boolean;
   eliminado_por: string | null;
   eliminado_en: string | null;
@@ -369,6 +370,7 @@ export interface Cliente {
   portalActivo: boolean;
   portalStatus: PortalStatus;
   portalInvitedAt: string | null;
+  esMostrador: boolean;
   eliminado: boolean;
   eliminadoPor: string | null;
   eliminadoEn: string | null;

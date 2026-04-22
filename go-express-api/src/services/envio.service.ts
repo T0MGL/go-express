@@ -453,7 +453,7 @@ class EnvioService {
 
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
-      .select('razon_social, estado')
+      .select('razon_social, estado, es_mostrador')
       .eq('id', input.clienteId)
       .eq('eliminado', false)
       .single();
@@ -462,9 +462,23 @@ class EnvioService {
       throw AppError.notFound('Cliente no encontrado o inactivo');
     }
 
-    if ((clienteData as { razon_social: string; estado: string }).estado !== 'activo') {
+    const cliente = clienteData as { razon_social: string; estado: string; es_mostrador: boolean };
+
+    if (cliente.estado !== 'activo') {
       throw AppError.badRequest('No se pueden crear envios para clientes inactivos o suspendidos');
     }
+
+    // Mostrador exige override para identificar al remitente en el label,
+    // reportes y busquedas. Si no viene el override no hay con que etiquetar.
+    if (cliente.es_mostrador && !input.clienteNombreOverride) {
+      throw AppError.badRequest(
+        'Envios al cliente mostrador requieren clienteNombreOverride con el nombre del remitente'
+      );
+    }
+
+    const clienteNombre = cliente.es_mostrador
+      ? (input.clienteNombreOverride as string)
+      : cliente.razon_social;
 
     const trackingNumber = await generateTrackingNumber(supabase);
 
@@ -502,7 +516,7 @@ class EnvioService {
       .insert({
         tracking_number: trackingNumber,
         cliente_id: input.clienteId,
-        cliente_nombre: (clienteData as { razon_social: string }).razon_social,
+        cliente_nombre: clienteNombre,
         codigo_referencia: input.codigoReferencia ?? null,
         origen: input.origen,
         destino: input.destino,
@@ -941,7 +955,7 @@ class EnvioService {
     const clienteIds = [...new Set(envios.map((e) => e.clienteId))];
     const { data: clientesData, error: clientesError } = await supabase
       .from('clientes')
-      .select('id, razon_social, estado')
+      .select('id, razon_social, estado, es_mostrador')
       .in('id', clienteIds)
       .eq('eliminado', false);
 
@@ -949,9 +963,9 @@ class EnvioService {
       throw new AppError('Error validating clientes for bulk import', 500, 'DB_ERROR');
     }
 
-    const clienteMap = new Map<string, { razon_social: string; estado: string }>();
-    for (const c of (clientesData ?? []) as Array<{ id: string; razon_social: string; estado: string }>) {
-      clienteMap.set(c.id, { razon_social: c.razon_social, estado: c.estado });
+    const clienteMap = new Map<string, { razon_social: string; estado: string; es_mostrador: boolean }>();
+    for (const c of (clientesData ?? []) as Array<{ id: string; razon_social: string; estado: string; es_mostrador: boolean }>) {
+      clienteMap.set(c.id, { razon_social: c.razon_social, estado: c.estado, es_mostrador: c.es_mostrador });
     }
 
     const validEnvios: { input: CreateEnvioInput; index: number; clienteNombre: string }[] = [];
@@ -966,7 +980,14 @@ class EnvioService {
         fallidos.push({ fila: i + 1, errores: ['No se pueden crear envios para clientes inactivos o suspendidos'] });
         continue;
       }
-      validEnvios.push({ input, index: i, clienteNombre: cliente.razon_social });
+      if (cliente.es_mostrador && !input.clienteNombreOverride) {
+        fallidos.push({ fila: i + 1, errores: ['Envios mostrador requieren clienteNombreOverride'] });
+        continue;
+      }
+      const clienteNombre = cliente.es_mostrador
+        ? (input.clienteNombreOverride as string)
+        : cliente.razon_social;
+      validEnvios.push({ input, index: i, clienteNombre });
     }
 
     if (validEnvios.length === 0) {

@@ -101,14 +101,18 @@ router.post(
   asyncHandler(async (req, res) => {
     const input = req.body as CotizarInput;
 
-    // Find matching tarifa (origen, destino, tipoServicio) that is activo and not eliminado
+    // Find matching tarifa. Prefer UUID FK lookup when available (new path), fall back to text match.
     let q = supabase
       .from('tarifas')
       .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, creado_por, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
-      .eq('origen', input.origen)
-      .eq('destino', input.destino)
       .eq('activo', true)
       .eq('eliminado', false);
+
+    if (input.origenCiudadId && input.destinoCiudadId) {
+      q = q.eq('origen_ciudad_id', input.origenCiudadId).eq('destino_ciudad_id', input.destinoCiudadId);
+    } else {
+      q = q.eq('origen', input.origen!).eq('destino', input.destino!);
+    }
 
     if (input.tipoServicio) {
       q = q.eq('tipo_servicio', input.tipoServicio);

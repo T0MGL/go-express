@@ -42,6 +42,7 @@ function toApi(row: ClienteRow): Cliente {
     portalActivo: row.portal_activo,
     portalStatus: row.portal_status,
     portalInvitedAt: row.portal_invited_at,
+    esMostrador: row.es_mostrador,
     eliminado: row.eliminado,
     eliminadoPor: row.eliminado_por,
     eliminadoEn: row.eliminado_en,
@@ -59,6 +60,7 @@ const CLIENTE_COLUMNS = [
   'saldo_cuenta_corriente', 'limite_credito',
   'total_envios', 'envios_activos',
   'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
+  'es_mostrador',
   'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
 ].join(', ');
@@ -71,7 +73,8 @@ class ClienteService {
     let q = supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS, { count: 'exact' })
-      .eq('eliminado', false);
+      .eq('eliminado', false)
+      .eq('es_mostrador', false);
 
     if (estado) q = q.eq('estado', estado);
     if (plan) q = q.eq('plan', plan);
@@ -107,7 +110,8 @@ class ClienteService {
     let q = supabase
       .from('clientes')
       .select(CLIENTE_COLUMNS)
-      .eq('eliminado', false);
+      .eq('eliminado', false)
+      .eq('es_mostrador', false);
 
     if (estado) q = q.eq('estado', estado);
     if (plan) q = q.eq('plan', plan);
@@ -136,6 +140,21 @@ class ClienteService {
 
     if (error || !data) {
       throw AppError.notFound('Cliente', id);
+    }
+
+    return toApi(data as unknown as ClienteRow);
+  }
+
+  async getMostrador(): Promise<Cliente> {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select(CLIENTE_COLUMNS)
+      .eq('es_mostrador', true)
+      .eq('eliminado', false)
+      .single();
+
+    if (error || !data) {
+      throw AppError.notFound('Cliente mostrador no configurado. Aplicar migration 026.');
     }
 
     return toApi(data as unknown as ClienteRow);

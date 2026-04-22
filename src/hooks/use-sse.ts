@@ -58,6 +58,10 @@ export function useSSE() {
         queryClient.invalidateQueries({ queryKey: ['warehouse'] });
         break;
       }
+      case 'ciudad': {
+        queryClient.invalidateQueries({ queryKey: ['ciudades'] });
+        break;
+      }
       default:
         break;
     }

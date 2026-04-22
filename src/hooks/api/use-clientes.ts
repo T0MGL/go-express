@@ -36,6 +36,14 @@ export function useCliente(id: string | undefined) {
   });
 }
 
+export function useClienteMostrador() {
+  return useQuery({
+    queryKey: [...clienteKeys.all, 'mostrador'] as const,
+    queryFn: () => api.get<Cliente>('/admin/clientes/mostrador'),
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
 export function useCreateCliente() {
   const qc = useQueryClient();
   return useMutation({

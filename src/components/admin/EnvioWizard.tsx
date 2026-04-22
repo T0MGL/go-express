@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { departamentosPY } from '@/data/constants';
+import { CiudadPicker } from '@/components/CiudadPicker';
 import {
   CaretLeft,
   CaretRight,
@@ -46,8 +46,8 @@ const paso1Schema = z.object({
 });
 
 const paso2Schema = z.object({
-  origen: z.string().min(1, 'Seleccioná el origen'),
-  destino: z.string().min(1, 'Seleccioná el destino'),
+  origenCiudadId: z.string().min(1, 'Seleccioná la ciudad de origen'),
+  destinoCiudadId: z.string().min(1, 'Seleccioná la ciudad de destino'),
 });
 
 const TALLAS = [
@@ -87,6 +87,8 @@ const paso5Schema = z.object({
 
 interface FormData {
   cliente: string;
+  origenCiudadId: string;
+  destinoCiudadId: string;
   origen: string;
   destino: string;
   peso: string;
@@ -132,6 +134,8 @@ export function EnvioWizard() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const defaultFormData: FormData = {
     cliente: '',
+    origenCiudadId: '',
+    destinoCiudadId: '',
     origen: '',
     destino: '',
     peso: '',
@@ -235,7 +239,7 @@ export function EnvioWizard() {
         break;
       case 2:
         schema = paso2Schema;
-        datosAValidar = { origen: formData.origen, destino: formData.destino };
+        datosAValidar = { origenCiudadId: formData.origenCiudadId, destinoCiudadId: formData.destinoCiudadId };
         break;
       case 3:
         schema = paso3Schema;
@@ -406,15 +410,7 @@ export function EnvioWizard() {
               <div>
                 <h3 className="text-[15px] font-semibold mb-4">Información del Cliente</h3>
                 <Label className="text-[12px]" htmlFor="cliente">Cliente *</Label>
-                <Select value={formData.cliente} onValueChange={(v) => {
-                  handleChange('cliente', v);
-                  const selected = CLIENTES.find(c => c.value === v);
-                  if (selected?.ciudad && !formData.origen) {
-                    const cityLower = selected.ciudad.toLowerCase();
-                    const match = departamentosPY.find(d => d.toLowerCase().startsWith(cityLower));
-                    if (match) handleChange('origen', match);
-                  }
-                }}>
+                <Select value={formData.cliente} onValueChange={(v) => handleChange('cliente', v)}>
                   <SelectTrigger id="cliente" className={errors.cliente ? 'border-destructive' : ''}>
                     <SelectValue placeholder="Selecciona un cliente" />
                   </SelectTrigger>
@@ -457,39 +453,28 @@ export function EnvioWizard() {
               <h3 className="text-[15px] font-semibold mb-4">Ruta de Envío</h3>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-[12px]" htmlFor="origen">Origen *</Label>
-                  <Select value={formData.origen} onValueChange={(v) => handleChange('origen', v)}>
-                    <SelectTrigger id="origen" className={errors.origen ? 'border-destructive' : ''}>
-                      <SelectValue placeholder="Departamento origen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departamentosPY.map((depto) => (
-                        <SelectItem key={`origen-${depto}`} value={depto}>{depto}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.origen && (
-                    <p className="text-[12px] text-destructive mt-1">{errors.origen}</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-[12px]" htmlFor="destino">Destino *</Label>
-                  <Select value={formData.destino} onValueChange={(v) => handleChange('destino', v)}>
-                    <SelectTrigger id="destino" className={errors.destino ? 'border-destructive' : ''}>
-                      <SelectValue placeholder="Departamento destino" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departamentosPY.map((depto) => (
-                        <SelectItem key={`destino-${depto}`} value={depto}>{depto}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.destino && (
-                    <p className="text-[12px] text-destructive mt-1">{errors.destino}</p>
-                  )}
-                </div>
+                <CiudadPicker
+                  value={formData.origenCiudadId || undefined}
+                  onChange={(id, ciudad) => {
+                    handleChange('origenCiudadId', id);
+                    handleChange('origen', ciudad.nombre);
+                  }}
+                  label="Ciudad de origen *"
+                  placeholder="Seleccionar origen"
+                  id="wizard-origen"
+                  error={errors.origenCiudadId}
+                />
+                <CiudadPicker
+                  value={formData.destinoCiudadId || undefined}
+                  onChange={(id, ciudad) => {
+                    handleChange('destinoCiudadId', id);
+                    handleChange('destino', ciudad.nombre);
+                  }}
+                  label="Ciudad de destino *"
+                  placeholder="Seleccionar destino"
+                  id="wizard-destino"
+                  error={errors.destinoCiudadId}
+                />
               </div>
 
               {formData.origen && formData.destino && (
@@ -499,9 +484,9 @@ export function EnvioWizard() {
                     <div className="flex-1">
                       <p className="font-medium text-[13px]">{formData.origen} → {formData.destino}</p>
                       <p className="text-[12px] text-muted-foreground">
-                        {formData.origen === formData.destino
-                          ? 'Envío local (mismo departamento)'
-                          : 'Envío interdepartamental'}
+                        {formData.origenCiudadId === formData.destinoCiudadId
+                          ? 'Envío local (misma ciudad)'
+                          : 'Envío entre ciudades'}
                       </p>
                     </div>
                   </div>

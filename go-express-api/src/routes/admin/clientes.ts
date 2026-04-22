@@ -39,6 +39,18 @@ router.get(
 );
 
 /**
+ * GET /mostrador: Cliente sentinela para envios walk-in (sin cliente registrado).
+ * Declarada antes de /:id para que no matchee contra el UUID schema.
+ */
+router.get(
+  '/mostrador',
+  asyncHandler(async (_req, res) => {
+    const cliente = await clienteService.getMostrador();
+    res.json(cliente);
+  })
+);
+
+/**
  * GET /:id: Detail
  */
 router.get(

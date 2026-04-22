@@ -91,6 +91,46 @@ describe('POST /api/admin/envios', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('creates walk-in envio with clienteNombreOverride under cliente mostrador', async () => {
+    const mostradorRes = await request
+      .get('/api/admin/clientes/mostrador')
+      .set(adminHeaders());
+    expect(mostradorRes.status).toBe(200);
+    expect(mostradorRes.body).toHaveProperty('esMostrador', true);
+
+    const mostradorId = mostradorRes.body.id as string;
+    const payload = makeEnvioPayload(mostradorId, {
+      clienteNombreOverride: 'Kiosco Don Luis',
+      tipoPago: 'anticipado',
+    });
+
+    const res = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('clienteId', mostradorId);
+    expect(res.body).toHaveProperty('clienteNombre', 'Kiosco Don Luis');
+  });
+
+  it('rejects walk-in envio without clienteNombreOverride with 400', async () => {
+    const mostradorRes = await request
+      .get('/api/admin/clientes/mostrador')
+      .set(adminHeaders());
+    const mostradorId = mostradorRes.body.id as string;
+
+    const payload = makeEnvioPayload(mostradorId, { tipoPago: 'anticipado' });
+
+    const res = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('code', 'BAD_REQUEST');
+  });
 });
 
 describe('GET /api/admin/envios', () => {

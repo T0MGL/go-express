@@ -4,20 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { tipoServicioLabels } from '@/data/constants';
 import { formatCurrency } from '@/lib/utils';
 import { Calculator, Package, Truck, Info, CheckCircle, ArrowRight, CircleNotch } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
-import { useCiudadesDisponibles, useCotizar, type CotizarResponse } from '@/hooks/api/use-cotizador';
+import { useCotizar, type CotizarResponse } from '@/hooks/api/use-cotizador';
+import { CiudadPicker } from '@/components/CiudadPicker';
+import type { Ciudad } from '@/hooks/api/use-ciudades';
 
-// Display format for cotizacion results
 interface DisplayResultado {
   tipoServicio: string;
   pesoReal: number;
@@ -34,18 +28,29 @@ interface DisplayResultado {
 
 const ClienteCotizador = () => {
   const navigate = useNavigate();
-  const [origen, setOrigen] = useState('');
-  const [destino, setDestino] = useState('');
+  const [origenId, setOrigenId] = useState('');
+  const [destinoId, setDestinoId] = useState('');
+  const [origenNombre, setOrigenNombre] = useState('');
+  const [destinoNombre, setDestinoNombre] = useState('');
   const [peso, setPeso] = useState('');
   const [largo, setLargo] = useState('');
   const [ancho, setAncho] = useState('');
   const [alto, setAlto] = useState('');
   const [cotizando, setCotizando] = useState(false);
 
-  const { data: apiCiudades } = useCiudadesDisponibles();
   const cotizarMutation = useCotizar();
 
-  const ciudadesDisponibles = apiCiudades ?? [];
+  const handleOrigenChange = (id: string, ciudad: Ciudad) => {
+    setOrigenId(id);
+    setOrigenNombre(ciudad.nombre);
+    setCotizando(false);
+  };
+
+  const handleDestinoChange = (id: string, ciudad: Ciudad) => {
+    setDestinoId(id);
+    setDestinoNombre(ciudad.nombre);
+    setCotizando(false);
+  };
 
   const displayResultados: DisplayResultado[] = useMemo(() => {
     const r = cotizarMutation.data as CotizarResponse | undefined;
@@ -66,7 +71,7 @@ const ClienteCotizador = () => {
   }, [cotizarMutation.data]);
 
   const cotizar = () => {
-    if (!origen || !destino || !peso) return;
+    if (!origenId || !destinoId || !peso) return;
 
     const l = parseFloat(largo) || 0;
     const a = parseFloat(ancho) || 0;
@@ -75,8 +80,8 @@ const ClienteCotizador = () => {
 
     cotizarMutation.mutate(
       {
-        origen,
-        destino,
+        origenCiudadId: origenId,
+        destinoCiudadId: destinoId,
         peso: parseFloat(peso),
         dimensiones: hasDimensions ? { largo: l, ancho: a, alto: al } : undefined,
       },
@@ -90,15 +95,17 @@ const ClienteCotizador = () => {
 
   const resetear = () => {
     setCotizando(false);
-    setOrigen('');
-    setDestino('');
+    setOrigenId('');
+    setDestinoId('');
+    setOrigenNombre('');
+    setDestinoNombre('');
     setPeso('');
     setLargo('');
     setAncho('');
     setAlto('');
+    cotizarMutation.reset();
   };
 
-  // Live volumetric preview
   const pesoVolPreview = useMemo(() => {
     const l = parseFloat(largo) || 0;
     const a = parseFloat(ancho) || 0;
@@ -109,9 +116,7 @@ const ClienteCotizador = () => {
 
   const pesoRealNum = parseFloat(peso) || 0;
   const esTarificadoVol = pesoVolPreview !== null && pesoVolPreview > pesoRealNum;
-
-  const noTarifasDisponibles = false;
-  const canCotizar = !(!origen || !destino || !peso);
+  const canCotizar = !(!origenId || !destinoId || !peso);
 
   return (
     <div>
@@ -125,42 +130,31 @@ const ClienteCotizador = () => {
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">
-        {/* Formulario */}
         <div className="space-y-4">
           <div className="surface-card p-5">
             <h3 className="text-[13px] font-semibold mb-4 flex items-center gap-2">
               <Truck size={16} weight="duotone" className="text-primary" /> Ruta
             </h3>
             <div className="space-y-3">
-              <div>
-                <Label className="text-[11px]">Ciudad de origen *</Label>
-                <Select value={origen} onValueChange={(v) => { setOrigen(v); setCotizando(false); }}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar origen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ciudadesDisponibles.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[11px]">Ciudad de destino *</Label>
-                <Select value={destino} onValueChange={(v) => { setDestino(v); setCotizando(false); }}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar destino..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ciudadesDisponibles.filter((c) => c !== origen).map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {noTarifasDisponibles && (
+              <CiudadPicker
+                value={origenId || undefined}
+                onChange={handleOrigenChange}
+                source="cliente"
+                label="Ciudad de origen *"
+                placeholder="Seleccionar origen..."
+                id="cotizador-origen"
+              />
+              <CiudadPicker
+                value={destinoId || undefined}
+                onChange={handleDestinoChange}
+                source="cliente"
+                label="Ciudad de destino *"
+                placeholder="Seleccionar destino..."
+                id="cotizador-destino"
+              />
+              {cotizarMutation.isError && (
                 <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded p-2">
-                  No tenemos tarifas disponibles para esta ruta. Contacta a Go Express para consultar disponibilidad.
+                  No hay tarifa para esta ruta. Contactá a Go Express para consultar disponibilidad.
                 </p>
               )}
             </div>
@@ -191,7 +185,6 @@ const ClienteCotizador = () => {
                 </div>
               </div>
 
-              {/* Live preview volumetrico */}
               {pesoVolPreview !== null && (
                 <div className={cn(
                   'rounded-lg p-3 text-[12px] border',
@@ -237,7 +230,6 @@ const ClienteCotizador = () => {
           </Button>
         </div>
 
-        {/* Resultados */}
         <div>
           {!cotizando && (
             <div className="surface-card p-8 text-center text-muted-foreground h-full flex flex-col items-center justify-center">
@@ -258,7 +250,7 @@ const ClienteCotizador = () => {
           {cotizando && displayResultados.length > 0 && (
             <div className="space-y-3">
               <p className="section-label mb-3">
-                Cotizacion para {origen} → {destino}
+                Cotizacion para {origenNombre} → {destinoNombre}
               </p>
               {displayResultados
                 .sort((a, b) => a.costoTotal - b.costoTotal)
@@ -277,7 +269,7 @@ const ClienteCotizador = () => {
                         </Badge>
                         {i === 0 && (
                           <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">
-                            Más económico
+                            Mas economico
                           </Badge>
                         )}
                       </div>
@@ -335,7 +327,6 @@ const ClienteCotizador = () => {
         </div>
       </div>
 
-      {/* Info metodo volumetrico */}
       <div className="surface-card p-4 mt-5 bg-muted/30">
         <div className="flex items-start gap-2.5">
           <Info size={14} weight="duotone" className="text-muted-foreground flex-shrink-0 mt-0.5" />

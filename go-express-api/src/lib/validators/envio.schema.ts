@@ -7,6 +7,10 @@ const tipoPagoEnum = z.enum(['anticipado', 'contra_entrega', 'cuenta_corriente']
 
 export const createEnvioSchema = z.object({
   clienteId: uuidSchema,
+  // Override del cliente_nombre denormalizado. Solo se aplica si el clienteId
+  // apunta al cliente mostrador (es_mostrador = true); para otros clientes se
+  // ignora silenciosamente porque cliente_nombre se deriva de razon_social.
+  clienteNombreOverride: z.string().trim().min(3).max(300).optional(),
   codigoReferencia: z.string().max(100).optional(),
   origen: z.string().min(1).max(100),
   destino: z.string().min(1).max(100),

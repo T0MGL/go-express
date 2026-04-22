@@ -205,6 +205,7 @@ export interface Cliente {
   portalActivo: boolean;
   portalStatus: PortalStatus;
   portalInvitedAt: string | null;
+  esMostrador?: boolean;
   eliminado: boolean;
   eliminadoPor: string | null;
   eliminadoEn: string | null;

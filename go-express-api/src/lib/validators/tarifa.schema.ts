@@ -52,18 +52,32 @@ export const tarifaQuerySchema = paginationSchema.merge(searchSchema).extend({
   activo: z.coerce.boolean().optional(),
 });
 
-// Cotizador request
-export const cotizarSchema = z.object({
-  origen: z.string().min(1).max(100),
-  destino: z.string().min(1).max(100),
-  peso: z.number().positive().max(9999),
-  dimensiones: z.object({
-    largo: z.number().positive().max(999),
-    ancho: z.number().positive().max(999),
-    alto: z.number().positive().max(999),
-  }).optional(),
-  tipoServicio: tipoServicioEnum.optional(),
-});
+// Cotizador request. Acepta lookup por UUID (nuevo camino, via ciudad FK) o por nombre
+// de texto (retrocompatibilidad). Al menos una forma requerida por extremo.
+export const cotizarSchema = z
+  .object({
+    origenCiudadId: uuidSchema.optional(),
+    destinoCiudadId: uuidSchema.optional(),
+    origen: z.string().min(1).max(100).optional(),
+    destino: z.string().min(1).max(100).optional(),
+    peso: z.number().positive().max(9999),
+    dimensiones: z
+      .object({
+        largo: z.number().positive().max(999),
+        ancho: z.number().positive().max(999),
+        alto: z.number().positive().max(999),
+      })
+      .optional(),
+    tipoServicio: tipoServicioEnum.optional(),
+  })
+  .refine((v) => v.origenCiudadId || v.origen, {
+    message: 'origen requerido (origenCiudadId o nombre)',
+    path: ['origen'],
+  })
+  .refine((v) => v.destinoCiudadId || v.destino, {
+    message: 'destino requerido (destinoCiudadId o nombre)',
+    path: ['destino'],
+  });
 
 export type CreateTarifaInput = z.infer<typeof createTarifaSchema>;
 export type UpdateTarifaInput = z.infer<typeof updateTarifaSchema>;

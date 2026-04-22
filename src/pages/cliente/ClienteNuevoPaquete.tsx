@@ -11,11 +11,11 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn, formatCurrency } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
-import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch, MapPin, ArrowRight } from '@phosphor-icons/react';
+import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
 import { useClienteSeguroCotizar } from '@/hooks/api/use-seguro-config';
 import { useProductos } from '@/hooks/api/use-productos';
-import { useDestinosDisponibles } from '@/hooks/api/use-cotizador';
+import { CiudadPicker } from '@/components/CiudadPicker';
 import type { SeguroCotizarResponse } from '@/lib/seguro';
 
 interface SizePreset {
@@ -54,15 +54,13 @@ const ClienteNuevoPaquete = () => {
     notas: '',
     valorDeclarado: '',
   });
+  const [ciudadDestinoId, setCiudadDestinoId] = useState('');
   const [seguroAdicional, setSeguroAdicional] = useState(false);
   const [seguroCotizacion, setSeguroCotizacion] = useState<SeguroCotizarResponse | null>(null);
 
   const createEnvioMutation = useClienteCreateEnvio();
   const seguroCotizarMutation = useClienteSeguroCotizar();
   const { data: apiProductos } = useProductos();
-  const { data: destinosData, isLoading: destinosLoading } = useDestinosDisponibles();
-  const origen = destinosData?.origen ?? '';
-  const destinos = destinosData?.destinos ?? [];
 
   // Debounced cotizacion de seguro cuando cambia valorDeclarado.
   // Cliente NO tiene acceso a la config cruda: pregunta al backend por el resultado calculado.
@@ -239,51 +237,16 @@ const ClienteNuevoPaquete = () => {
                 Si lo cargas, el destinatario recibe email en cada cambio de estado.
               </p>
             </div>
-            <div>
-              <Label className="text-[11px]">Ciudad de destino *</Label>
-              <Select
-                value={form.ciudadDestino}
-                onValueChange={(v) => handleChange('ciudadDestino', v)}
-                disabled={destinosLoading || destinos.length === 0}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue
-                    placeholder={
-                      destinosLoading
-                        ? 'Cargando destinos...'
-                        : destinos.length === 0
-                        ? 'No hay destinos con cobertura'
-                        : 'Seleccionar ciudad'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {destinos.map((ciudad) => (
-                    <SelectItem key={ciudad} value={ciudad}>
-                      {ciudad}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {origen && (
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <MapPin size={11} weight="duotone" />
-                  <span>Sale desde</span>
-                  <span className="font-medium text-foreground">{origen}</span>
-                  {form.ciudadDestino && (
-                    <>
-                      <ArrowRight size={11} weight="bold" className="text-muted-foreground/60" />
-                      <span className="font-medium text-foreground">{form.ciudadDestino}</span>
-                    </>
-                  )}
-                </div>
-              )}
-              {!destinosLoading && destinos.length === 0 && (
-                <p className="text-[11px] text-warning mt-1.5">
-                  Aun no hay rutas configuradas desde tu ciudad. Contactá al equipo de GO EXPRESS.
-                </p>
-              )}
-            </div>
+            <CiudadPicker
+              value={ciudadDestinoId || undefined}
+              onChange={(id, ciudad) => {
+                setCiudadDestinoId(id);
+                handleChange('ciudadDestino', ciudad.nombre);
+              }}
+              source="cliente"
+              label="Ciudad de destino *"
+              placeholder="Seleccionar ciudad de entrega"
+            />
             <div>
               <Label className="text-[11px]">Número de pedido (opcional)</Label>
               <Input

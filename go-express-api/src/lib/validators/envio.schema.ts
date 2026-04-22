@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema, paginationSchema, searchSchema, dateRangeSchema, uuidSchema } from './common.schema.js';
 
 // Envio states enum
-const envioEstadoEnum = z.enum(['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'entregado', 'fallido', 'problema']);
+const envioEstadoEnum = z.enum(['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'entregado', 'fallido', 'problema']);
 const tipoPagoEnum = z.enum(['anticipado', 'contra_entrega', 'cuenta_corriente']);
 
 export const createEnvioSchema = z.object({

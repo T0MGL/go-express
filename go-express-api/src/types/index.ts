@@ -6,6 +6,7 @@ export type EnvioEstado =
   | 'pendiente'
   | 'recolectado'
   | 'en_transito'
+  | 'en_deposito'
   | 'en_reparto'
   | 'entregado'
   | 'fallido'

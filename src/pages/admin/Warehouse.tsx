@@ -15,6 +15,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Package,
   TrendUp,
   Warehouse as WarehouseIcon,
@@ -26,6 +33,7 @@ import {
   ClipboardText,
   CheckSquare,
   ArrowCounterClockwise,
+  Truck,
 } from '@phosphor-icons/react';
 import {
   estadoAlmacenLabels,
@@ -45,6 +53,8 @@ import {
   useDespacho,
   useDevolucion,
 } from '@/hooks/api/use-warehouse';
+import { useRepartidores } from '@/hooks/api/use-repartidores';
+import type { PaqueteInventario } from '@/data/types';
 
 type WarehouseTab = 'hoy' | 'deposito' | 'todos';
 
@@ -80,6 +90,8 @@ export default function Warehouse() {
     motivo: ''
   });
 
+  const [dispatchingItem, setDispatchingItem] = useState<PaqueteInventario | null>(null);
+  const [selectedRepartidorId, setSelectedRepartidorId] = useState('');
 
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
 
@@ -91,9 +103,12 @@ export default function Warehouse() {
 
   const { data: apiInventario, isLoading } = useInventario(apiFilters);
   const { data: apiStats } = useWarehouseStats();
+  const { data: repartidoresData } = useRepartidores({ estado: 'activo' });
   const ingresoMut = useIngreso();
   const despachoMut = useDespacho();
   const devolucionMut = useDevolucion();
+
+  const repartidoresActivos = repartidoresData?.data ?? [];
 
   // Resolve data
   const inventario = apiInventario?.data ?? [];
@@ -171,6 +186,25 @@ export default function Warehouse() {
           onError: () => toast.error('Error al despachar paquete'),
         },
       );
+  };
+
+  const handleRowDespacho = () => {
+    if (!dispatchingItem) return;
+    if (!selectedRepartidorId) {
+      toast.error('Seleccioná un repartidor');
+      return;
+    }
+    despachoMut.mutate(
+      { paqueteId: dispatchingItem.id, repartidorId: selectedRepartidorId },
+      {
+        onSuccess: () => {
+          toast.success(`Paquete ${dispatchingItem.trackingNumber} despachado`);
+          setDispatchingItem(null);
+          setSelectedRepartidorId('');
+        },
+        onError: () => toast.error('Error al despachar paquete'),
+      },
+    );
   };
 
   const handleScanEntry = (code: string) => {
@@ -563,12 +597,13 @@ export default function Warehouse() {
                   <th>Estado</th>
                   <th>Peso</th>
                   <th>Entró</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredInventario.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-16">
+                    <td colSpan={7} className="text-center py-16">
                       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                         <Package size={18} weight="duotone" className="text-muted-foreground/50" />
                       </div>
@@ -617,6 +652,27 @@ export default function Warehouse() {
                     <td className="text-[13px] font-data">{item.peso} kg</td>
                     <td className="text-[12px] text-muted-foreground">
                       {formatDateSmart(item.fechaIngreso)}
+                    </td>
+                    <td>
+                      {item.estadoAlmacen !== 'despachado' && item.estadoAlmacen !== 'devuelto' && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 gap-1 text-[12px]"
+                              onClick={() => {
+                                setDispatchingItem(item);
+                                setSelectedRepartidorId('');
+                              }}
+                            >
+                              <Truck size={12} weight="duotone" />
+                              Despachar
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Asignar repartidor y despachar</TooltipContent>
+                        </Tooltip>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -784,6 +840,69 @@ export default function Warehouse() {
                   </div>
                 ))}
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Per-row dispatch dialog */}
+        <Dialog
+          open={!!dispatchingItem}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDispatchingItem(null);
+              setSelectedRepartidorId('');
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Despachar paquete</DialogTitle>
+              <DialogDescription>
+                Asigná un repartidor y confirmá la salida del depósito.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                <p className="text-[11px] text-muted-foreground section-label">Paquete</p>
+                <p className="font-data text-[13px] font-medium">{dispatchingItem?.trackingNumber}</p>
+                <p className="text-[12px] text-muted-foreground">{dispatchingItem?.clienteNombre}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[13px]">Repartidor</Label>
+                <Select value={selectedRepartidorId} onValueChange={setSelectedRepartidorId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccioná un repartidor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {repartidoresActivos.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDispatchingItem(null);
+                  setSelectedRepartidorId('');
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleRowDespacho}
+                disabled={despachoMut.isPending || !selectedRepartidorId}
+                className="gap-1.5"
+              >
+                <Truck size={14} weight="duotone" />
+                Confirmar despacho
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

@@ -63,10 +63,11 @@ export function useIngreso() {
 export function useDespacho() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { paqueteId: string; notas?: string }) =>
+    mutationFn: (body: { paqueteId: string; repartidorId?: string; notas?: string }) =>
       api.post('/admin/warehouse/despacho', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: warehouseKeys.all });
+      qc.invalidateQueries({ queryKey: ['envios'] });
     },
   });
 }

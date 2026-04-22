@@ -44,11 +44,12 @@ export interface IntentoContacto {
 const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
   pendiente: ['recolectado', 'problema'],
   recolectado: ['en_transito', 'problema'],
-  en_transito: ['en_reparto', 'problema'],
+  en_transito: ['en_deposito', 'en_reparto', 'problema'],
+  en_deposito: ['en_reparto', 'problema'],
   en_reparto: ['entregado', 'fallido', 'problema'],
   fallido: ['en_reparto', 'problema'],
   entregado: [],
-  problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
+  problema: ['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'fallido'],
 };
 
 // Row to API mapper
@@ -797,7 +798,7 @@ class EnvioService {
       throw AppError.notFound('Envio no encontrado');
     }
 
-    const allowedStates: EnvioEstado[] = ['pendiente', 'recolectado', 'en_transito', 'en_reparto'];
+    const allowedStates: EnvioEstado[] = ['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto'];
     const envioState = (envioCheck as { id: string; estado: EnvioEstado; tracking_number: string }).estado;
     if (!allowedStates.includes(envioState)) {
       throw AppError.badRequest(`No se puede asignar repartidor a un envio en estado "${envioState}"`);

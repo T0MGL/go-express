@@ -23,6 +23,7 @@ export const ingresoSchema = z.object({
 
 export const despachoSchema = z.object({
   paqueteId: uuidSchema,
+  repartidorId: uuidSchema.optional(),
   notas: z.string().max(1000).optional(),
 });
 

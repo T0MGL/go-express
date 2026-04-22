@@ -2,6 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
+import { envioService } from './envio.service.js';
 import { nowISO, startOfTodayPY } from '../lib/datetime.js';
 import type {
   InventarioAlmacenRow,
@@ -158,6 +159,21 @@ class WarehouseService {
       notas: input.notas ?? null,
     });
 
+    if (input.envioId) {
+      try {
+        await envioService.updateEstado(
+          input.envioId,
+          { estado: 'en_deposito', descripcion: `Paquete ingresado al almacén en ${input.ubicacion}` },
+          userId,
+          usuarioNombre,
+          ipAddress,
+          userAgent,
+        );
+      } catch (err) {
+        logger.warn({ err, envioId: input.envioId }, 'Could not transition envio to en_deposito on warehouse ingreso');
+      }
+    }
+
     await auditoriaService.log({
       usuario: usuarioNombre,
       usuarioId: userId,
@@ -177,6 +193,7 @@ class WarehouseService {
     userId: string,
     usuarioNombre: string,
     notas?: string,
+    repartidorId?: string,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<InventarioAlmacen> {
@@ -219,13 +236,28 @@ class WarehouseService {
       notas: notas ?? null,
     });
 
+    if (repartidorId && row.envio_id) {
+      try {
+        await envioService.updateEstado(
+          row.envio_id,
+          { estado: 'en_reparto', descripcion: 'Despachado desde almacén', repartidorId },
+          userId,
+          usuarioNombre,
+          ipAddress,
+          userAgent,
+        );
+      } catch (err) {
+        logger.warn({ err, envioId: row.envio_id }, 'Could not transition envio to en_reparto on warehouse despacho');
+      }
+    }
+
     await auditoriaService.log({
       usuario: usuarioNombre,
       usuarioId: userId,
       accion: 'cambio_estado',
       entidad: 'almacen',
       entidadId: paqueteId,
-      descripcion: `Despacho: ${row.tracking_number} desde ${row.ubicacion}`,
+      descripcion: `Despacho: ${row.tracking_number} desde ${row.ubicacion}${repartidorId ? ' con repartidor asignado' : ''}`,
       ipAddress,
       userAgent,
     });

@@ -70,6 +70,7 @@ router.post(
       req.userId!,
       req.userName!,
       req.body.notas,
+      req.body.repartidorId,
       req.ip ?? undefined,
       req.headers['user-agent'] ?? undefined,
     );

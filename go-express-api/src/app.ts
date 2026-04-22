@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
 import trackingRoutes from './routes/public/tracking.js';
 import publicTarifaRoutes from './routes/public/tarifas.js';
+import publicCiudadRoutes from './routes/public/ciudades.js';
 import repartidorRoutes from './routes/repartidor/index.js';
 import authRoutes from './routes/auth.js';
 import sseRoutes from './routes/sse.js';
@@ -129,6 +130,7 @@ app.use('/api/admin', (req, res, next) => {
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/repartidor', repartidorRoutes);
 app.use('/api/public/tarifas', publicTarifaRoutes);
+app.use('/api/public/ciudades', publicCiudadRoutes);
 app.use('/api/public', trackingRoutes);
 
 app.use((_req, res) => {

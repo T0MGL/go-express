@@ -13,6 +13,7 @@ import configuracionRoutes from './configuracion.js';
 import usuarioRoutes from './usuarios.js';
 import cuentaCorrienteRoutes from './cuentaCorriente.js';
 import liquidacionRoutes from './liquidaciones.js';
+import ciudadRoutes from './ciudades.js';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/clientes', requireOnlyAdmin, clienteRoutes);
 router.use('/clientes', requireOnlyAdmin, cuentaCorrienteRoutes);
 router.use('/repartidores', repartidorRoutes);
 router.use('/tarifas', requireOnlyAdmin, tarifaRoutes);
+router.use('/ciudades', ciudadRoutes);
 router.use('/pagos', pagoRoutes);
 router.use('/liquidaciones', liquidacionRoutes);
 router.use('/warehouse', warehouseRoutes);

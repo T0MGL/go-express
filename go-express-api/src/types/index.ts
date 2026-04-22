@@ -620,6 +620,68 @@ export interface Configuracion {
   updatedBy: string | null;
 }
 
+// Ciudades / departamentos catalogo (Paraguay oficial, 18 + 262)
+
+export interface DepartamentoRow {
+  id: string;
+  nombre: string;
+  capital: string;
+  orden: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CiudadRow {
+  id: string;
+  nombre: string;
+  departamento_id: string;
+  es_capital: boolean;
+  orden: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Departamento {
+  id: string;
+  nombre: string;
+  capital: string;
+  orden: number;
+}
+
+export interface Ciudad {
+  id: string;
+  nombre: string;
+  departamentoId: string;
+  departamentoNombre: string;
+  esCapital: boolean;
+  orden: number;
+  habilitada: boolean;
+}
+
+export interface CoberturaCiudad {
+  id: string;
+  nombre: string;
+  esCapital: boolean;
+  orden: number;
+  habilitada: boolean;
+}
+
+export interface CoberturaDepartamento {
+  id: string;
+  nombre: string;
+  totalCiudades: number;
+  ciudadesHabilitadas: number;
+  ciudades: CoberturaCiudad[];
+}
+
+export interface CoberturaResumen {
+  totalCiudades: number;
+  ciudadesHabilitadas: number;
+  totalDepartamentos: number;
+  departamentosConCobertura: number;
+  departamentos: CoberturaDepartamento[];
+}
+
 export interface PagoStats {
   totalCobrado: number;
   totalPendiente: number;

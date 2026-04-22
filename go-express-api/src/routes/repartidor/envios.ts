@@ -507,22 +507,28 @@ router.patch(
         ? { largo: envio.dimensiones_largo, ancho: envio.dimensiones_ancho, alto: envio.dimensiones_alto }
         : undefined;
 
-    await warehouseService.ingreso(
-      {
-        envioId: id,
-        trackingNumber: envio.tracking_number,
-        clienteNombre: envio.cliente_nombre,
-        ubicacion: 'Depósito - Sin asignar',
-        zona: 'A',
-        peso: envio.peso ?? 0,
-        dimensiones,
-        prioridad: envio.fragil ? 'urgente' : 'normal',
-      },
-      SISTEMA_USER_ID,
-      repartidorNombre,
-      req.ip ?? undefined,
-      req.headers['user-agent'] ?? undefined,
-    );
+    // Warehouse ingreso is best-effort: the state transition above is the critical
+    // operation. If the inventario record fails, the admin can ingest manually.
+    try {
+      await warehouseService.ingreso(
+        {
+          envioId: id,
+          trackingNumber: envio.tracking_number,
+          clienteNombre: envio.cliente_nombre,
+          ubicacion: 'Depósito - Sin asignar',
+          zona: 'A',
+          peso: envio.peso ?? 0.1,
+          dimensiones,
+          prioridad: envio.fragil ? 'urgente' : 'normal',
+        },
+        SISTEMA_USER_ID,
+        repartidorNombre,
+        req.ip ?? undefined,
+        req.headers['user-agent'] ?? undefined,
+      );
+    } catch (warehouseErr) {
+      logger.error({ err: warehouseErr, envioId: id, tracking: envio.tracking_number }, 'Warehouse ingreso from repartidor failed, envio still marked en_transito');
+    }
 
     await supabase.from('eventos_envio').insert({
       envio_id: id,

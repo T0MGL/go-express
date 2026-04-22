@@ -380,10 +380,6 @@ const Clientes = () => {
                           <strong className="text-foreground">{cliente.enviosActivos}</strong> activos · {cliente.totalEnvios} total
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Buildings size={14} weight="duotone" className="flex-shrink-0 text-muted-foreground/60" />
-                        <span className="capitalize">{cliente.plan || 'basico'}</span>
-                      </div>
                       {(cliente.saldoCuentaCorriente ?? 0) < 0 && (
                         <div className="flex items-center gap-1.5 text-amber-500">
                           <CurrencyDollar size={14} weight="duotone" className="flex-shrink-0" />
@@ -665,10 +661,6 @@ const Clientes = () => {
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Ciudad</p>
                       <p>{detailCliente.ciudad}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Plan</p>
-                      <p className="capitalize">{detailCliente.plan || 'basico'}</p>
                     </div>
                   </div>
 

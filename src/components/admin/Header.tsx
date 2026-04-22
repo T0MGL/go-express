@@ -86,10 +86,6 @@ export const Header = ({ scrolled, onMenuClick }: HeaderProps) => {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/admin/configuracion')}>
-              <UserCircle size={16} weight="duotone" className="mr-2" />
-              Perfil
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/admin/configuracion')}>
               <GearSix size={16} weight="duotone" className="mr-2" />
               Configuración
             </DropdownMenuItem>

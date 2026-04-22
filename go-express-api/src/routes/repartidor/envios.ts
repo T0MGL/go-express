@@ -11,6 +11,7 @@ import { nowISO, todayPY } from '../../lib/datetime.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
 import { pagoService } from '../../services/pago.service.js';
 import { validarDiferenciaCobroCod, CodValidationError } from '../../lib/cod.js';
+import { warehouseService } from '../../services/warehouse.service.js';
 
 // Usuario sistema GoExpress. El repartidor no es entidad usuarios(id), pero el pago y la
 // auditoria viven en tablas con FK a usuarios. Atribuimos al sistema y preservamos la
@@ -237,8 +238,12 @@ router.patch(
       throw AppError.badRequest('El envio ya esta marcado como entregado');
     }
 
-    if (envio.estado !== 'pendiente' && envio.estado !== 'recolectado' && envio.estado !== 'en_transito' && envio.estado !== 'en_reparto') {
-      throw AppError.badRequest(`No se puede entregar desde estado "${envio.estado}"`);
+    if (envio.estado !== 'recolectado' && envio.estado !== 'en_transito' && envio.estado !== 'en_reparto') {
+      throw AppError.badRequest(
+        envio.estado === 'pendiente'
+          ? 'Debes recolectar el paquete antes de marcarlo como entregado'
+          : `No se puede marcar como entregado desde estado "${envio.estado}"`,
+      );
     }
 
     // COD: decidir monto cobrado reportado y validar diferencia antes de tocar DB.
@@ -432,6 +437,114 @@ router.patch(
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
+    sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
+
+    res.json({ ok: true });
+  }),
+);
+
+/**
+ * PATCH /api/repartidor/mis-envios/:id/almacen
+ * El repartidor deposita el paquete en el almacén tras recolectarlo del cliente.
+ * Transiciona estado a en_transito y crea registro en inventario_almacen.
+ */
+router.patch(
+  '/mis-envios/:id/almacen',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params as { id: string };
+    const repartidorId = req.repartidorId!;
+    const repartidorNombre = req.repartidorNombre ?? 'Repartidor';
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('envios')
+      .select('id, estado, repartidor_id, tracking_number, cliente_nombre, peso, dimensiones_largo, dimensiones_ancho, dimensiones_alto, fragil')
+      .eq('id', id)
+      .eq('eliminado', false)
+      .single();
+
+    if (fetchErr || !current) {
+      throw AppError.notFound('Envio', id);
+    }
+
+    const envio = current as {
+      id: string;
+      estado: string;
+      repartidor_id: string | null;
+      tracking_number: string;
+      cliente_nombre: string;
+      peso: number | null;
+      dimensiones_largo: number | null;
+      dimensiones_ancho: number | null;
+      dimensiones_alto: number | null;
+      fragil: boolean;
+    };
+
+    if (envio.repartidor_id !== repartidorId) {
+      throw AppError.forbidden('Este envio no esta asignado a vos');
+    }
+
+    if (envio.estado !== 'recolectado') {
+      throw AppError.badRequest(
+        envio.estado === 'pendiente'
+          ? 'Debes recolectar el paquete antes de depositarlo en almacén'
+          : `No se puede depositar en almacén desde estado "${envio.estado}"`,
+      );
+    }
+
+    const { error: updateErr } = await supabase
+      .from('envios')
+      .update({ estado: 'en_transito' })
+      .eq('id', id);
+
+    if (updateErr) {
+      logger.error({ err: updateErr, id }, 'Error transitioning to en_transito');
+      throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
+    }
+
+    const dimensiones =
+      envio.dimensiones_largo && envio.dimensiones_ancho && envio.dimensiones_alto
+        ? { largo: envio.dimensiones_largo, ancho: envio.dimensiones_ancho, alto: envio.dimensiones_alto }
+        : undefined;
+
+    await warehouseService.ingreso(
+      {
+        envioId: id,
+        trackingNumber: envio.tracking_number,
+        clienteNombre: envio.cliente_nombre,
+        ubicacion: 'Depósito - Sin asignar',
+        zona: 'A',
+        peso: envio.peso ?? 0,
+        dimensiones,
+        prioridad: envio.fragil ? 'urgente' : 'normal',
+      },
+      SISTEMA_USER_ID,
+      repartidorNombre,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
+
+    await supabase.from('eventos_envio').insert({
+      envio_id: id,
+      estado: 'en_transito',
+      descripcion: `Paquete depositado en almacén por ${repartidorNombre}`,
+      registrado_por_nombre: repartidorNombre,
+    });
+
+    auditoriaService.log({
+      usuario: repartidorNombre,
+      usuarioId: SISTEMA_USER_ID,
+      accion: 'cambio_estado',
+      entidad: 'envio',
+      entidadId: id,
+      descripcion: `Repartidor ${repartidorNombre} deposito en almacen: ${envio.tracking_number}`,
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
+    });
+
+    sseService.broadcast({ entity: ['envios', id], action: 'updated' });
+    sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
+    sseService.broadcast({ entity: ['almacen'], action: 'updated' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
 
     res.json({ ok: true });

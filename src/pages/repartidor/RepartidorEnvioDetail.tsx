@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useRepartidorEnvio, useMarcarRecolectado } from '@/hooks/api/use-repartidor-envios';
+import { useRepartidorEnvio, useMarcarRecolectado, useDepositarAlmacen } from '@/hooks/api/use-repartidor-envios';
 import { useRepartidorPodDownloadUrl } from '@/hooks/api/use-repartidor-envios';
 import { Button } from '@/components/ui/button';
 import { EntregaSheet } from '@/components/repartidor/EntregaSheet';
@@ -17,6 +17,7 @@ import {
   User,
   Package,
   ChatCircle,
+  Warehouse,
 } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -42,6 +43,7 @@ export default function RepartidorEnvioDetail() {
   const navigate = useNavigate();
   const { data: envio, isLoading, error } = useRepartidorEnvio(id);
   const recolectarMut = useMarcarRecolectado();
+  const almacenMut = useDepositarAlmacen();
   const [entregaOpen, setEntregaOpen] = useState(false);
   const [incidenciaOpen, setIncidenciaOpen] = useState(false);
   const [waSheetOpen, setWaSheetOpen] = useState(false);
@@ -81,6 +83,17 @@ export default function RepartidorEnvioDetail() {
       toast.success('Paquete marcado como recolectado');
     } catch {
       toast.error('No se pudo marcar. Intentá de nuevo.');
+    }
+  }
+
+  async function handleDepositarAlmacen() {
+    if (!envio) return;
+    try {
+      await almacenMut.mutateAsync(envio.id);
+      toast.success('Paquete depositado en almacén');
+      navigate('/repartidor');
+    } catch {
+      toast.error('No se pudo depositar. Intentá de nuevo.');
     }
   }
 
@@ -240,6 +253,7 @@ export default function RepartidorEnvioDetail() {
       {/* Action buttons for pendientes */}
       {isPendiente && (
         <div className="space-y-2">
+          {/* Paso 1: recolectar */}
           {envio.estado === 'pendiente' && (
             <Button
               type="button"
@@ -252,24 +266,44 @@ export default function RepartidorEnvioDetail() {
             </Button>
           )}
 
-          <Button
-            type="button"
-            className="w-full h-14 text-[15px] gap-2"
-            onClick={() => setEntregaOpen(true)}
-          >
-            <CheckCircle size={20} weight="fill" />
-            Marcar como entregado
-          </Button>
+          {/* Paso 2 (después de recolectar): depositar en almacén o entregar directo */}
+          {envio.estado === 'recolectado' && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 gap-2 border-primary/40 text-primary hover:bg-primary/5 text-[14px]"
+              onClick={handleDepositarAlmacen}
+              disabled={almacenMut.isPending}
+            >
+              <Warehouse size={18} weight="duotone" />
+              {almacenMut.isPending ? 'Depositando...' : 'Depositar en almacén'}
+            </Button>
+          )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full h-12 gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
-            onClick={() => setIncidenciaOpen(true)}
-          >
-            <Warning size={18} weight="fill" />
-            Reportar incidencia
-          </Button>
+          {/* Entregar al cliente: desde recolectado (entrega directa) o en_reparto */}
+          {(envio.estado === 'recolectado' || envio.estado === 'en_reparto') && (
+            <Button
+              type="button"
+              className="w-full h-14 text-[15px] gap-2"
+              onClick={() => setEntregaOpen(true)}
+            >
+              <CheckCircle size={20} weight="fill" />
+              Entregar al cliente
+            </Button>
+          )}
+
+          {/* Reportar incidencia: disponible en cualquier estado activo excepto pendiente */}
+          {envio.estado !== 'pendiente' && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+              onClick={() => setIncidenciaOpen(true)}
+            >
+              <Warning size={18} weight="fill" />
+              Reportar incidencia
+            </Button>
+          )}
         </div>
       )}
 

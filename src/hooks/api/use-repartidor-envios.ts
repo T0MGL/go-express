@@ -92,6 +92,17 @@ export function useMarcarEntregado() {
   });
 }
 
+export function useDepositarAlmacen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.patch(`/repartidor/mis-envios/${id}/almacen`, {}),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['repartidor', 'mis-envios'] });
+      qc.invalidateQueries({ queryKey: ['repartidor', 'envio', id] });
+    },
+  });
+}
+
 export function useReportarIncidencia() {
   const qc = useQueryClient();
   return useMutation({

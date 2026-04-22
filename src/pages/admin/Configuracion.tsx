@@ -411,80 +411,99 @@ const Configuracion = () => {
         </TabsContent>
 
         <TabsContent value="notificaciones">
-          <div className="surface-card p-6">
-            <form className="space-y-6" onSubmit={handleSaveNotificaciones}>
-              <div>
-                <h3 className="section-label mb-4">Cuando enviar emails al destinatario</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="email-create"
-                      checked={notifCreate}
-                      onCheckedChange={(val) => setNotifCreate(Boolean(val))}
-                    />
-                    <Label htmlFor="email-create" className="font-normal text-[13px]">
-                      Cuando se crea el envío
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="email-reparto"
-                      checked={notifReparto}
-                      onCheckedChange={(val) => setNotifReparto(Boolean(val))}
-                    />
-                    <Label htmlFor="email-reparto" className="font-normal text-[13px]">
-                      Cuando el repartidor sale a entregar
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="email-entrega"
-                      checked={notifEntrega}
-                      onCheckedChange={(val) => setNotifEntrega(Boolean(val))}
-                    />
-                    <Label htmlFor="email-entrega" className="font-normal text-[13px]">
-                      Cuando el paquete es entregado
-                    </Label>
-                  </div>
+          <div className="space-y-4">
+            <div className="surface-card p-4 border-l-2 border-l-warning/50 bg-warning/[0.04] flex items-start gap-2.5">
+              <Warning size={16} weight="duotone" className="text-warning flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="section-label text-warning">Proximamente</span>
+                  <Badge variant="outline" className="text-[10px]">Deshabilitado temporalmente</Badge>
                 </div>
-              </div>
-
-              <div className="border-t pt-6">
-                <h3 className="section-label mb-4">Otros canales</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="sms" disabled />
-                    <Label htmlFor="sms" className="font-normal text-[13px] text-muted-foreground">
-                      Notificar por SMS (disponible proximamente)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="whatsapp" disabled />
-                    <Label htmlFor="whatsapp" className="font-normal text-[13px] text-muted-foreground">
-                      Avisar al repartidor por WhatsApp (disponible proximamente)
-                    </Label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-6">
-                <Label htmlFor="template" className="text-[13px]">Texto del email</Label>
-                <p className="text-[12px] text-muted-foreground mt-1 mb-3">
-                  Podés usar estas variables que se reemplazan solas: {'{tracking_number}'} (número de seguimiento), {'{customer_name}'} (nombre del cliente), {'{status}'} (estado actual).
+                <p className="text-[12px] text-muted-foreground leading-relaxed">
+                  El backend de notificaciones por email por evento todavia no esta conectado. Esta vista queda visible como preview, se reactiva cuando el servicio de email este listo.
                 </p>
-                <Textarea
-                  id="template"
-                  value={emailTemplate}
-                  onChange={(e) => setEmailTemplate(e.target.value)}
-                  rows={6}
-                  className="font-data text-[13px]"
-                />
               </div>
+            </div>
 
-              <div className="flex justify-end pt-4">
-                <Button type="submit" size="sm" disabled={updateConfigMut.isPending}>Guardar configuración</Button>
-              </div>
-            </form>
+            <div className="surface-card p-6 opacity-60 pointer-events-none select-none" aria-disabled="true">
+              <form className="space-y-6" onSubmit={handleSaveNotificaciones}>
+                <div>
+                  <h3 className="section-label mb-4">Cuando enviar emails al destinatario</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="email-create"
+                        checked={notifCreate}
+                        onCheckedChange={(val) => setNotifCreate(Boolean(val))}
+                        disabled
+                      />
+                      <Label htmlFor="email-create" className="font-normal text-[13px]">
+                        Cuando se crea el envío
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="email-reparto"
+                        checked={notifReparto}
+                        onCheckedChange={(val) => setNotifReparto(Boolean(val))}
+                        disabled
+                      />
+                      <Label htmlFor="email-reparto" className="font-normal text-[13px]">
+                        Cuando el repartidor sale a entregar
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="email-entrega"
+                        checked={notifEntrega}
+                        onCheckedChange={(val) => setNotifEntrega(Boolean(val))}
+                        disabled
+                      />
+                      <Label htmlFor="email-entrega" className="font-normal text-[13px]">
+                        Cuando el paquete es entregado
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-6">
+                  <h3 className="section-label mb-4">Otros canales</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="sms" disabled />
+                      <Label htmlFor="sms" className="font-normal text-[13px] text-muted-foreground">
+                        Notificar por SMS (disponible proximamente)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="whatsapp" disabled />
+                      <Label htmlFor="whatsapp" className="font-normal text-[13px] text-muted-foreground">
+                        Avisar al repartidor por WhatsApp (disponible proximamente)
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-6">
+                  <Label htmlFor="template" className="text-[13px]">Texto del email</Label>
+                  <p className="text-[12px] text-muted-foreground mt-1 mb-3">
+                    Podés usar estas variables que se reemplazan solas: {'{tracking_number}'} (número de seguimiento), {'{customer_name}'} (nombre del cliente), {'{status}'} (estado actual).
+                  </p>
+                  <Textarea
+                    id="template"
+                    value={emailTemplate}
+                    onChange={(e) => setEmailTemplate(e.target.value)}
+                    rows={6}
+                    className="font-data text-[13px]"
+                    disabled
+                  />
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <Button type="submit" size="sm" disabled>Guardar configuración</Button>
+                </div>
+              </form>
+            </div>
           </div>
         </TabsContent>
 

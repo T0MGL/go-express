@@ -69,6 +69,7 @@ export const updateEnvioEstadoSchema = z.object({
   estado: envioEstadoEnum,
   descripcion: z.string().min(1).max(500),
   ubicacion: z.string().max(200).optional(),
+  repartidorId: uuidSchema.optional(),
 });
 
 export const asignarRepartidorSchema = z.object({

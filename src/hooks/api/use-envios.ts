@@ -134,12 +134,14 @@ export function useUpdateEnvioEstado() {
       estado,
       descripcion,
       ubicacion,
+      repartidorId,
     }: {
       id: string;
       estado: string;
       descripcion: string;
       ubicacion?: string;
-    }) => api.patch<Envio>(`/admin/envios/${id}/estado`, { estado, descripcion, ubicacion }),
+      repartidorId?: string;
+    }) => api.patch<Envio>(`/admin/envios/${id}/estado`, { estado, descripcion, ubicacion, repartidorId }),
     onSuccess: (updatedEnvio, vars) => {
       qc.setQueryData(envioKeys.detail(vars.id), updatedEnvio);
       qc.setQueriesData<PaginatedResponse<Envio>>(

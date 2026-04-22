@@ -65,6 +65,7 @@ const EnvioDetail = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState('');
   const [estadoDescripcion, setEstadoDescripcion] = useState('');
+  const [estadoRepartidorId, setEstadoRepartidorId] = useState('');
 
   const { data: apiEnvio, isLoading } = useEnvio(id);
   const { data: apiRepartidores, isLoading: loadingRepartidores } = useRepartidores();
@@ -239,13 +240,19 @@ const EnvioDetail = () => {
   const handleUpdateStatus = () => {
     if (!id || !nuevoEstado) return;
     updateEstadoMut.mutate(
-      { id, estado: nuevoEstado, descripcion: estadoDescripcion.trim() || 'Estado actualizado manualmente' },
+      {
+        id,
+        estado: nuevoEstado,
+        descripcion: estadoDescripcion.trim() || 'Estado actualizado manualmente',
+        repartidorId: nuevoEstado === 'en_reparto' && estadoRepartidorId ? estadoRepartidorId : undefined,
+      },
       {
         onSuccess: () => {
           toast.success('Estado actualizado');
           setShowEstadoModal(false);
           setNuevoEstado('');
           setEstadoDescripcion('');
+          setEstadoRepartidorId('');
         },
         onError: () => toast.error('Error al actualizar estado'),
       },
@@ -695,7 +702,7 @@ const EnvioDetail = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEstadoModal} onOpenChange={(open) => { setShowEstadoModal(open); if (!open) { setNuevoEstado(''); setEstadoDescripcion(''); } }}>
+      <Dialog open={showEstadoModal} onOpenChange={(open) => { setShowEstadoModal(open); if (!open) { setNuevoEstado(''); setEstadoDescripcion(''); setEstadoRepartidorId(''); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Actualizar Estado del Envío</DialogTitle>
@@ -716,6 +723,26 @@ const EnvioDetail = () => {
                 </SelectContent>
               </Select>
             </div>
+            {nuevoEstado === 'en_reparto' && (
+              <div>
+                <label className="text-[12px] font-medium mb-1.5 block">
+                  Repartidor para entrega
+                  <span className="text-muted-foreground font-normal ml-1">(opcional, puede ser distinto al original)</span>
+                </label>
+                <Select value={estadoRepartidorId} onValueChange={setEstadoRepartidorId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mantener repartidor actual" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {repartidoresList.filter(r => r.estado === 'activo').map((rep) => (
+                      <SelectItem key={rep.id} value={rep.id}>
+                        {rep.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <label className="text-[12px] font-medium mb-1.5 block">Descripción (opcional)</label>
               <textarea

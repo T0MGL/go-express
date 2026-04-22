@@ -729,6 +729,11 @@ class EnvioService {
       updateData['problema_fecha'] = null;
     }
 
+    if (newEstado === 'en_reparto' && input.repartidorId) {
+      updateData['repartidor_id'] = input.repartidorId;
+      updateData['repartidor_asignado_en'] = nowISO();
+    }
+
     const { data, error } = await supabase
       .from('envios')
       .update(updateData)

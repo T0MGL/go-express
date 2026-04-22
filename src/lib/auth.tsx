@@ -13,6 +13,54 @@ interface AuthUser {
   vehiculo?: string;
 }
 
+// Profile cache eliminates the race where INITIAL_SESSION sets loading=false
+// before /auth/me resolves: AdminOnlyRoute saw isAdmin=false and redirected.
+// Cached entries are scoped to the Supabase user id, so a new login or signout
+// cannot leak a previous user's profile. Server still re-validates estado/rol
+// on every admin request via adminAuth middleware, so stale rol cannot grant
+// real privilege: the worst case is a momentary UI render before the real
+// API call rejects.
+const PROFILE_CACHE_PREFIX = 'goexpress:profile:';
+
+function profileCacheKey(userId: string): string {
+  return `${PROFILE_CACHE_PREFIX}${userId}`;
+}
+
+function readCachedProfile(userId: string): AuthUser | null {
+  try {
+    const raw = localStorage.getItem(profileCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AuthUser;
+    if (parsed.id && parsed.rol && parsed.email) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfile(userId: string, user: AuthUser): void {
+  try {
+    localStorage.setItem(profileCacheKey(userId), JSON.stringify(user));
+  } catch {
+    // Storage unavailable (private mode, quota): cache is best-effort
+  }
+}
+
+function clearProfileCache(userId?: string): void {
+  try {
+    if (userId) {
+      localStorage.removeItem(profileCacheKey(userId));
+      return;
+    }
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(PROFILE_CACHE_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch {
+    // Storage unavailable
+  }
+}
+
 interface AuthState {
   user: AuthUser | null;
   session: Session | null;
@@ -58,11 +106,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadProfile = useCallback(async (session: Session, retryCount = 0, skipLoadingState = false) => {
-    // When loading from a cached session (INITIAL_SESSION), set loading false
-    // immediately so the UI doesn't block. Profile loads in background.
+    // On the fast path (INITIAL_SESSION / TOKEN_REFRESHED), hydrate from cache
+    // synchronously so AdminOnlyRoute sees isAdmin=true before the network
+    // round-trip resolves. Cache is keyed by the Supabase user id, so it only
+    // applies to the same user.
+    const cached = readCachedProfile(session.user.id);
     if (skipLoadingState) {
       setState(prev => ({
-        user: prev.user,
+        user: cached ?? prev.user,
         session,
         loading: false,
         error: null,
@@ -74,20 +125,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!mountedRef.current) return;
 
     if (profile && profile !== 'rate_limited') {
+      writeCachedProfile(session.user.id, profile);
       setState({ user: profile, session, loading: false, error: null });
       return;
     }
 
-    // Profile fetch failed but session is valid: mark as authenticated anyway.
+    // Profile fetch failed (429 or transient): keep cached user if any,
+    // otherwise leave the previous state. Session stays valid.
     setState(prev => ({
-      user: prev.user,
+      user: cached ?? prev.user,
       session,
       loading: false,
       error: null,
     }));
 
-    // Don't retry on 429 — retrying immediately makes the loop worse.
-    // The next natural auth event (TOKEN_REFRESHED) will reload the profile.
+    // Don't retry on 429, the next TOKEN_REFRESHED (or a manual action) will
+    // try again. Retrying immediately only amplifies the limit.
     if (profile !== 'rate_limited' && retryCount < 3) {
       const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
       profileRetryRef.current = setTimeout(() => {
@@ -133,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           message: 'Auth state cleared',
           data: { event, hasSession: !!session },
         });
+        clearProfileCache();
         setState({ user: null, session: null, loading: false, error: null });
         return;
       }
@@ -203,12 +257,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginHandledRef.current = true;
 
       const profile = await fetchProfile(data.session.access_token);
+      const resolvedProfile = profile && profile !== 'rate_limited' ? profile : null;
+
+      if (resolvedProfile) {
+        writeCachedProfile(data.session.user.id, resolvedProfile);
+      }
 
       setState({
-        user: profile,
+        user: resolvedProfile,
         session: data.session,
         loading: false,
-        error: profile ? null : 'No se pudo cargar el perfil',
+        error: resolvedProfile ? null : 'No se pudo cargar el perfil',
       });
     } catch (err) {
       setState(prev => ({
@@ -223,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = state.session;
 
     // Clear state immediately for instant UI feedback
+    clearProfileCache();
     setState({ user: null, session: null, loading: false, error: null });
     clearTimeout(profileRetryRef.current);
 

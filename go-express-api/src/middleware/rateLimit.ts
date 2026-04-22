@@ -41,6 +41,24 @@ export const authLimiter = rateLimit({
 });
 
 /**
+ * Auth read-only endpoints rate limiter (/auth/me, /auth/refresh, /auth/logout).
+ * High: 300 requests per minute per IP. These endpoints fire on every Supabase
+ * auth event (INITIAL_SESSION, TOKEN_REFRESHED) and on multi-tab admins the
+ * count scales per-tab. Treating them like mutations caused 429 cascades where
+ * the UI lost the profile and AdminOnlyRoute redirected to the dashboard.
+ * Still IP-scoped for safety, but loose enough to absorb legitimate bursts.
+ */
+export const authReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many auth read requests, please try again later',
+  keyGenerator: (req) => req.ip ?? 'unknown',
+});
+
+/**
  * Public tracking rate limiter.
  * Moderate: 30 requests per minute per IP to prevent enumeration.
  */

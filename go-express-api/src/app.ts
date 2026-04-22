@@ -11,7 +11,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
-import { generalLimiter, authLimiter, sseLimiter, adminWriteLimiter } from './middleware/rateLimit.js';
+import { generalLimiter, authLimiter, authReadLimiter, sseLimiter, adminWriteLimiter } from './middleware/rateLimit.js';
 
 import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
@@ -104,8 +104,15 @@ if (env.NODE_ENV !== 'test') {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Global limiter covers the non-auth surface. /api/auth has its own tuned
+// limiters below (strict for credentials, loose for reads); skipping it here
+// prevents double-counting requests against the same IP bucket, which
+// previously halved the effective budget for /auth/me.
 if (env.NODE_ENV !== 'test') {
-  app.use(generalLimiter);
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/auth/')) return next();
+    return generalLimiter(req, res, next);
+  });
 }
 
 app.get('/health', async (_req, res) => {
@@ -119,14 +126,16 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-// Login/forgot-password: strict limit (brute-force protection, 5/min).
-// /me, /refresh, /logout: general limit (100/min) — called on every page load
-// and token refresh, the strict limit caused 429 cascade loops.
+// Credential-bearing endpoints: 5/min per IP for brute-force protection.
 const authStrictPaths = ['/api/auth/login', '/api/auth/portal/login', '/api/auth/repartidor/login', '/api/auth/forgot-password'];
+// Read-only session endpoints: 300/min per IP. Fired on every INITIAL_SESSION
+// and TOKEN_REFRESHED event, and per tab in multi-tab admins.
+const authReadPaths = ['/api/auth/me', '/api/auth/refresh', '/api/auth/logout'];
 if (env.NODE_ENV !== 'test') {
   authStrictPaths.forEach((p) => app.use(p, authLimiter));
+  authReadPaths.forEach((p) => app.use(p, authReadLimiter));
 }
-app.use('/api/auth', env.NODE_ENV !== 'test' ? generalLimiter : (_r, _s, n) => n(), authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/events', env.NODE_ENV !== 'test' ? sseLimiter : (_r, _s, n) => n(), sseRoutes);
 app.use('/api/admin', (req, res, next) => {
   if (env.NODE_ENV !== 'test' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {

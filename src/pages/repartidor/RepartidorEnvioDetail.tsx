@@ -189,7 +189,7 @@ export default function RepartidorEnvioDetail() {
           <div className="min-w-0 flex-1">
             <div className="text-[13px]">{envio.destinatario_direccion}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {envio.destinatario_ciudad}
+              {envio.destinatario_ciudad || envio.destino}
             </div>
             {envio.destinatario_referencia && (
               <div className="text-[11px] text-muted-foreground mt-0.5 italic">

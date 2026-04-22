@@ -93,7 +93,7 @@ router.get(
     if (filtro === 'entregados') {
       q = q.eq('estado', 'entregado');
     } else if (filtro === 'pendientes') {
-      q = q.in('estado', ['pendiente', 'recolectado', 'en_transito', 'en_reparto']);
+      q = q.in('estado', ['pendiente', 'recolectado', 'en_reparto']);
     } else if (filtro === 'incidencias') {
       q = q.eq('tiene_incidencia', true);
     }

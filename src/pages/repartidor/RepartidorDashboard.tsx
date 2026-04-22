@@ -67,7 +67,7 @@ function EnvioCard({ envio }: { envio: RepartidorEnvio }) {
               {envio.destinatario_direccion}
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-              {envio.destinatario_ciudad || 'Sin ciudad'}
+              {envio.destinatario_ciudad || envio.destino || 'Sin ciudad'}
               {isEntregado && envio.fecha_entrega_real && (
                 <>
                   <span>·</span>

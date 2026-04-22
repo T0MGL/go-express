@@ -87,15 +87,18 @@ router.get(
       .from('envios')
       .select(ENVIO_SELECT_COLS)
       .eq('repartidor_id', repartidorId)
-      .eq('eliminado', false)
-      .gte('repartidor_asignado_en', since);
+      .eq('eliminado', false);
 
     if (filtro === 'entregados') {
-      q = q.eq('estado', 'entregado');
+      // Fecha de entrega real, no de asignacion: el paquete puede haber sido
+      // asignado hace dias pero entregado hoy.
+      q = q.eq('estado', 'entregado').gte('fecha_entrega_real', since);
     } else if (filtro === 'pendientes') {
-      q = q.in('estado', ['pendiente', 'recolectado', 'en_reparto']);
+      q = q.in('estado', ['pendiente', 'recolectado', 'en_reparto']).gte('repartidor_asignado_en', since);
     } else if (filtro === 'incidencias') {
-      q = q.eq('tiene_incidencia', true);
+      q = q.eq('tiene_incidencia', true).gte('repartidor_asignado_en', since);
+    } else {
+      q = q.gte('repartidor_asignado_en', since);
     }
 
     const { data, error } = await q.order('repartidor_asignado_en', { ascending: false }).limit(200);

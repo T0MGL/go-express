@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Checkbox } from '@/components/ui/checkbox';
 import { departamentosPY } from '@/data/constants';
-import { useClientes } from '@/hooks/api/use-clientes';
+import { CiudadPicker } from '@/components/CiudadPicker';
+import { useClientes, useClienteMostrador } from '@/hooks/api/use-clientes';
 import { useCreateEnvio } from '@/hooks/api/use-envios';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { cn } from '@/lib/utils';
@@ -21,6 +23,8 @@ interface QuickCreateEnvioProps {
 
 interface QuickForm {
   clienteId: string;
+  walkIn: boolean;
+  walkInNombre: string;
   destinatarioNombre: string;
   destinatarioTelefono: string;
   destinatarioDireccion: string;
@@ -37,6 +41,8 @@ interface QuickForm {
 
 const INITIAL: QuickForm = {
   clienteId: '',
+  walkIn: false,
+  walkInNombre: '',
   destinatarioNombre: '',
   destinatarioTelefono: '',
   destinatarioDireccion: '',
@@ -66,6 +72,8 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
   });
   const clientes = useMemo(() => clientesData?.data ?? [], [clientesData]);
 
+  const { data: mostradorCliente } = useClienteMostrador();
+
   const selectedCliente = useMemo(
     () => clientes.find((c) => c.id === form.clienteId) ?? null,
     [clientes, form.clienteId],
@@ -93,8 +101,23 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
     setClienteOpen(false);
   };
 
+  const toggleWalkIn = (checked: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      walkIn: checked,
+      clienteId: checked ? (mostradorCliente?.id ?? '') : '',
+      walkInNombre: checked ? prev.walkInNombre : '',
+      // cuenta corriente no aplica a walk-in, forzar anticipado
+      tipoPago: checked && prev.tipoPago === 'cuenta_corriente' ? 'anticipado' : prev.tipoPago,
+    }));
+    setClienteSearch('');
+    setClienteOpen(false);
+  };
+
   const canSubmit =
-    form.clienteId &&
+    (form.walkIn
+      ? Boolean(mostradorCliente?.id) && form.walkInNombre.trim().length >= 3
+      : Boolean(form.clienteId)) &&
     form.destinatarioNombre.trim().length > 0 &&
     form.destinatarioTelefono.trim().length > 0 &&
     form.destinatarioDireccion.trim().length > 0 &&
@@ -104,10 +127,20 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
     !createEnvioMut.isPending;
 
   const handleSubmit = () => {
-    if (!form.clienteId) {
+    if (form.walkIn) {
+      if (!mostradorCliente?.id) {
+        toast.error('No se pudo cargar el cliente mostrador. Refrescá la página.');
+        return;
+      }
+      if (form.walkInNombre.trim().length < 3) {
+        toast.error('Ingresá el nombre del remitente (mínimo 3 caracteres)');
+        return;
+      }
+    } else if (!form.clienteId) {
       toast.error('Elegí un cliente antes de crear el envío');
       return;
     }
+
     if (!isValidPhone(form.destinatarioTelefono)) {
       toast.error(`Teléfono debe tener formato ${PHONE_PLACEHOLDER}`);
       return;
@@ -124,14 +157,17 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
       return;
     }
 
+    const clienteId = form.walkIn ? (mostradorCliente?.id ?? '') : form.clienteId;
     const body = {
-      clienteId: form.clienteId,
+      clienteId,
+      ...(form.walkIn ? { clienteNombreOverride: form.walkInNombre.trim() } : {}),
       origen: form.origen,
       destino: form.destino,
       destinatarioNombre: form.destinatarioNombre.trim(),
       destinatarioDireccion: form.destinatarioDireccion.trim(),
       destinatarioTelefono: normalizePhone(form.destinatarioTelefono),
       destinatarioCiudad: form.destinatarioCiudad.trim() || undefined,
+      destinatarioDepartamento: form.destino.trim() || undefined,
       cantidad: 1,
       peso: pesoNum,
       fragil: false,
@@ -178,40 +214,73 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
           onKeyDown={handleFormKeyDown}
         >
           <div className="relative">
-            <Label className="text-[12px]">Cliente</Label>
-            <Input
-              ref={clienteInputRef}
-              value={clienteSearch}
-              onChange={(e) => {
-                setClienteSearch(e.target.value);
-                setField('clienteId', '');
-                setClienteOpen(true);
-              }}
-              onFocus={() => setClienteOpen(true)}
-              onBlur={() => window.setTimeout(() => setClienteOpen(false), 150)}
-              placeholder="Buscá por razón social o RUC"
-              className="mt-1"
-              autoComplete="off"
-            />
-            {clienteOpen && clientes.length > 0 && !selectedCliente && (
-              <div className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md max-h-56 overflow-y-auto">
-                {clientes.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => handleSelectCliente(c.id, c.razonSocial)}
-                    className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
-                  >
-                    <p className="text-[13px] font-medium">{c.razonSocial}</p>
-                    <p className="text-[11px] text-muted-foreground">RUC {c.ruc}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedCliente && (
-              <p className="text-[11px] text-muted-foreground mt-1">
-                RUC {selectedCliente.ruc}
-              </p>
+            <div className="flex items-center justify-between">
+              <Label className="text-[12px]">
+                {form.walkIn ? 'Nombre del remitente' : 'Cliente'}
+              </Label>
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+                <Checkbox
+                  checked={form.walkIn}
+                  onCheckedChange={(v) => toggleWalkIn(Boolean(v))}
+                  disabled={!mostradorCliente}
+                  className="h-3.5 w-3.5"
+                />
+                No es cliente registrado
+              </label>
+            </div>
+
+            {form.walkIn ? (
+              <>
+                <Input
+                  ref={clienteInputRef}
+                  value={form.walkInNombre}
+                  onChange={(e) => setField('walkInNombre', e.target.value)}
+                  placeholder="Ej: Juan Pérez, Kiosco Don Luis"
+                  className="mt-1"
+                  autoComplete="off"
+                  maxLength={300}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Envío de mostrador. Queda registrado bajo el cliente sentinela "Mostrador" con este nombre como referencia.
+                </p>
+              </>
+            ) : (
+              <>
+                <Input
+                  ref={clienteInputRef}
+                  value={clienteSearch}
+                  onChange={(e) => {
+                    setClienteSearch(e.target.value);
+                    setField('clienteId', '');
+                    setClienteOpen(true);
+                  }}
+                  onFocus={() => setClienteOpen(true)}
+                  onBlur={() => window.setTimeout(() => setClienteOpen(false), 150)}
+                  placeholder="Buscá por razón social o RUC"
+                  className="mt-1"
+                  autoComplete="off"
+                />
+                {clienteOpen && clientes.length > 0 && !selectedCliente && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md max-h-56 overflow-y-auto">
+                    {clientes.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectCliente(c.id, c.razonSocial)}
+                        className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
+                      >
+                        <p className="text-[13px] font-medium">{c.razonSocial}</p>
+                        <p className="text-[11px] text-muted-foreground">RUC {c.ruc}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedCliente && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    RUC {selectedCliente.ruc}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -250,30 +319,23 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-[12px]">Ciudad</Label>
-              <Input
-                value={form.destinatarioCiudad}
-                onChange={(e) => setField('destinatarioCiudad', e.target.value)}
-                placeholder="Ej: Asunción"
-                className="mt-1"
-                autoComplete="off"
-              />
-            </div>
-            <div>
-              <Label className="text-[12px]">Departamento destino</Label>
-              <Select value={form.destino} onValueChange={(v) => setField('destino', v)}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Elegí un departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departamentosPY.map((d) => (
-                    <SelectItem key={`qc-${d}`} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <CiudadPicker
+              label="Ciudad de destino"
+              value={undefined}
+              onChange={(_id, ciudad) => {
+                setField('destinatarioCiudad', ciudad.nombre);
+                setField('destino', ciudad.departamentoNombre);
+              }}
+              placeholder="Elegi una ciudad"
+              id="qc-destinatario-ciudad"
+            />
+            {form.destinatarioCiudad && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Seleccionada: <span className="font-medium text-foreground">{form.destinatarioCiudad}</span>
+                {form.destino && <> (<span>{form.destino}</span>)</>}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -351,7 +413,9 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
                     <SelectContent>
                       <SelectItem value="anticipado">Anticipado</SelectItem>
                       <SelectItem value="contra_entrega">Contra entrega</SelectItem>
-                      <SelectItem value="cuenta_corriente">Cuenta corriente</SelectItem>
+                      <SelectItem value="cuenta_corriente" disabled={form.walkIn}>
+                        Cuenta corriente
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

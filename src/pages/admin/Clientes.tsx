@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react';
-import { estadoClienteLabels, estadoClienteColors, ciudadesPYNombres } from '@/data/constants';
+import { useState, useMemo, useEffect } from 'react';
+import { estadoClienteLabels, estadoClienteColors } from '@/data/constants';
+import { CiudadPicker } from '@/components/CiudadPicker';
+import { useCiudades } from '@/hooks/api/use-ciudades';
 import { portalStatusLabels, portalStatusColors } from '@/data/types';
 import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
@@ -38,7 +40,24 @@ const Clientes = () => {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [detailClienteId, setDetailClienteId] = useState<string | null>(null);
   const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [ciudadSeleccionada, setCiudadSeleccionada] = useState<{ id: string; nombre: string } | null>(null);
 
+  const { data: ciudades } = useCiudades();
+
+  // Al abrir el modal de edicion, sincronizamos el state con la ciudad del cliente
+  // (match por nombre para resolver el id del catalogo).
+  useEffect(() => {
+    if (!isModalOpen) {
+      setCiudadSeleccionada(null);
+      return;
+    }
+    if (selectedCliente?.ciudad && ciudades) {
+      const match = ciudades.find((c) => c.nombre === selectedCliente.ciudad);
+      if (match) {
+        setCiudadSeleccionada({ id: match.id, nombre: match.nombre });
+      }
+    }
+  }, [isModalOpen, selectedCliente, ciudades]);
 
   const apiFilters = useMemo(() => {
     const f: Record<string, string | undefined> = {};
@@ -112,6 +131,11 @@ const Clientes = () => {
       return;
     }
 
+    if (!ciudadSeleccionada) {
+      toast.error('Seleccioná la ciudad del cliente');
+      return;
+    }
+
     if (!isValidPhone(telefonoRaw)) {
       toast.error(`Formato de teléfono invalido. Ej: ${PHONE_PLACEHOLDER}`);
       return;
@@ -127,7 +151,7 @@ const Clientes = () => {
       telefono,
       email,
       direccion,
-      ciudad: fd.get('ciudad'),
+      ciudad: ciudadSeleccionada.nombre,
       estado: fd.get('estado') || 'activo',
       notas: (fd.get('notas') as string || '').trim() || undefined,
     };
@@ -560,17 +584,13 @@ const Clientes = () => {
                     />
                   </div>
                   <div>
-                    <Label className="text-[13px]">Ciudad *</Label>
-                    <Select name="ciudad" defaultValue={selectedCliente?.ciudad ?? undefined}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="Seleccionar ciudad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ciudadesPYNombres.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CiudadPicker
+                      label="Ciudad *"
+                      value={ciudadSeleccionada?.id}
+                      onChange={(id, c) => setCiudadSeleccionada({ id, nombre: c.nombre })}
+                      placeholder="Seleccionar ciudad"
+                      id="cliente-ciudad"
+                    />
                   </div>
                   <div>
                     <Label className="text-[13px]">Estado</Label>

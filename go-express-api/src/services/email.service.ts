@@ -173,6 +173,134 @@ ${row('Estado', badge('Pendiente', '#EEF2FF', '#0643F7'), true)}`,
     await this.send(to, `Tu pedido esta en camino, ${envio.trackingNumber}`, html);
   }
 
+  async sendRecolectado(envio: Envio): Promise<void> {
+    const to = this.destinatarioEmail(envio);
+    if (!to) {
+      logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping recolectado');
+      return;
+    }
+
+    const tn = escapeHtml(envio.trackingNumber);
+    const nombre = escapeHtml(envio.destinatarioNombre);
+    const remitente = escapeHtml(envio.clienteNombre);
+    const dest = escapeHtml(envio.destino);
+
+    const html = baseTemplate({
+      title: 'Tu paquete fue retirado del remitente',
+      accent: '#0643F7',
+      tracking: envio.trackingNumber,
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete fue retirado</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Pasamos a buscar el paquete donde ${remitente}. Ya esta en nuestras manos y se esta preparando para el envio.</p>
+${trackingBox(tn, '#0643F7')}
+${row('Remitente', remitente)}
+${row('Destino', dest)}
+${row('Estado', badge('Retirado del remitente', '#EEF2FF', '#0643F7'), true)}`,
+    });
+
+    await this.send(to, `Tu paquete esta en camino, ${envio.trackingNumber}`, html);
+  }
+
+  async sendEnTransito(envio: Envio): Promise<void> {
+    const to = this.destinatarioEmail(envio);
+    if (!to) {
+      logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping en_transito');
+      return;
+    }
+
+    const tn = escapeHtml(envio.trackingNumber);
+    const nombre = escapeHtml(envio.destinatarioNombre);
+    const dest = escapeHtml(envio.destino);
+
+    const html = baseTemplate({
+      title: 'Tu paquete esta en transito',
+      accent: '#0643F7',
+      tracking: envio.trackingNumber,
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete esta en transito</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tu paquete ya salio hacia el centro de distribucion. Pronto llegara a tu zona.</p>
+${trackingBox(tn, '#0643F7')}
+${row('Destino', dest)}
+${row('Estado', badge('En transito', '#EEF2FF', '#0643F7'), true)}`,
+    });
+
+    await this.send(to, `Tu paquete esta en transito, ${envio.trackingNumber}`, html);
+  }
+
+  async sendEnReparto(envio: Envio): Promise<void> {
+    const to = this.destinatarioEmail(envio);
+    if (!to) {
+      logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping en_reparto');
+      return;
+    }
+
+    const tn = escapeHtml(envio.trackingNumber);
+    const nombre = escapeHtml(envio.destinatarioNombre);
+    const dest = escapeHtml(envio.destino);
+    const instrucciones = envio.instruccionesEntrega ? escapeHtml(envio.instruccionesEntrega) : null;
+
+    const html = baseTemplate({
+      title: 'Tu paquete sale a entrega hoy',
+      accent: '#97D700',
+      tracking: envio.trackingNumber,
+      body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete sale a entrega hoy</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor ya tiene tu paquete. Estate atento porque lo llevan a tu direccion.</p>
+${trackingBox(tn, '#5C8A00', '#F4FADA', '#D4EF85', '#A3C840')}
+${row('Destino', dest)}
+${instrucciones ? row('Instrucciones', instrucciones) : ''}
+${row('Estado', badge('En reparto', '#F4FADA', '#5C8A00'), true)}`,
+    });
+
+    await this.send(to, `Tu paquete esta en reparto hoy, ${envio.trackingNumber}`, html);
+  }
+
+  async sendFallido(envio: Envio): Promise<void> {
+    const destinatarioTo = this.destinatarioEmail(envio);
+    const clienteTo = await this.resolveClienteEmail(envio);
+
+    const tn = escapeHtml(envio.trackingNumber);
+    const nombre = escapeHtml(envio.destinatarioNombre);
+    const dest = escapeHtml(envio.destino);
+    const remitente = escapeHtml(envio.clienteNombre);
+
+    if (destinatarioTo) {
+      const htmlDestinatario = baseTemplate({
+        title: 'No pudimos entregar tu paquete',
+        accent: '#EF4444',
+        tracking: envio.trackingNumber,
+        body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, no pudimos entregarte el paquete</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor intento entregar el paquete pero no fue posible completar la entrega. Nuestro equipo coordinara un nuevo intento.</p>
+${trackingBox(tn, '#EF4444', '#FEF2F2', '#FECACA', '#FCA5A5')}
+${row('Destino', dest)}
+${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}
+<p style="font-size:13px;line-height:1.7;color:#6b7280;margin:24px 0 0">Si tenes alguna duda o queres reprogramar, escribinos por WhatsApp.</p>`,
+      });
+      await this.send(destinatarioTo, `Intento de entrega fallido, ${envio.trackingNumber}`, htmlDestinatario);
+    } else {
+      logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email on fallido');
+    }
+
+    if (clienteTo) {
+      const htmlCliente = baseTemplate({
+        title: 'Entrega fallida',
+        accent: '#EF4444',
+        tracking: envio.trackingNumber,
+        body: `
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">No se pudo completar la entrega</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola ${remitente}, el repartidor no pudo entregar el paquete. Se coordinara un nuevo intento.</p>
+${trackingBox(tn, '#EF4444', '#FEF2F2', '#FECACA', '#FCA5A5')}
+${row('Destinatario', nombre)}
+${row('Destino', dest)}
+${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}`,
+      });
+      await this.send(clienteTo, `Entrega fallida: ${envio.trackingNumber}`, htmlCliente);
+    } else {
+      logger.info({ envioId: envio.id, clienteId: envio.clienteId }, '[EMAIL] No cliente email on fallido');
+    }
+  }
+
   async sendCambioEstado(envio: Envio, previousEstado: string): Promise<void> {
     const to = this.destinatarioEmail(envio);
     if (!to) {

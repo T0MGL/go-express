@@ -244,18 +244,15 @@ function triggerNotification(event: NotificationEvent, envio: Envio, previousEst
       return;
     }
 
-    if (envio.estado === 'entregado') {
-      await emailService.sendEntregado(envio);
-      return;
-    }
-
-    if (envio.estado === 'problema') {
-      await emailService.sendProblema(envio);
-      return;
-    }
-
-    if (previousEstado) {
-      await emailService.sendCambioEstado(envio, previousEstado);
+    switch (envio.estado) {
+      case 'recolectado':  await emailService.sendRecolectado(envio); break;
+      case 'en_transito':  await emailService.sendEnTransito(envio);  break;
+      case 'en_reparto':   await emailService.sendEnReparto(envio);   break;
+      case 'entregado':    await emailService.sendEntregado(envio);   break;
+      case 'fallido':      await emailService.sendFallido(envio);     break;
+      case 'problema':     await emailService.sendProblema(envio);    break;
+      default:
+        logger.info({ estado: envio.estado }, '[NOTIF] No email template for this state');
     }
   })();
 }

@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { estadoLabels } from '@/data/constants';
-import { UserPlus, ShieldCheck, Warning, DotsThreeVertical, Key, EnvelopeSimple } from '@phosphor-icons/react';
+import { UserPlus, ShieldCheck, Warning, DotsThreeVertical, Key, EnvelopeSimple, SpinnerGap, Check } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth';
 import { useUsuarios, useCreateUsuario, useSendUsuarioPasswordReset } from '@/hooks/api/use-usuarios';
 import {
@@ -284,22 +284,28 @@ const NotificacionesTab = () => {
   const { data, isLoading } = useNotificacionesConfig();
   const updateMut = useUpdateNotificacionesConfig();
   const [form, setForm] = useState<NotificacionesConfig>(NOTIFICACIONES_DEFAULTS);
+  const [savingKey, setSavingKey] = useState<keyof NotificacionesConfig | null>(null);
+  const [savedKey, setSavedKey] = useState<keyof NotificacionesConfig | null>(null);
 
   useEffect(() => {
     if (data?.config) setForm(data.config);
   }, [data]);
 
   const handleToggle = (key: keyof NotificacionesConfig, value: boolean) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateMut.mutate(form, {
-      onSuccess: () => toast.success('Notificaciones actualizadas'),
-      onError: (err: unknown) => {
-        const msg = (err as { data?: { error?: string } })?.data?.error ?? 'Error al guardar notificaciones';
-        toast.error(msg);
+    const prev = form;
+    const next = { ...form, [key]: value };
+    setForm(next);
+    setSavingKey(key);
+    setSavedKey(null);
+    updateMut.mutate(next, {
+      onSuccess: () => {
+        setSavingKey(null);
+        setSavedKey(key);
+      },
+      onError: () => {
+        setSavingKey(null);
+        setForm(prev);
+        toast.error('No se pudo guardar. Intentá de nuevo.');
       },
     });
   };
@@ -311,13 +317,13 @@ const NotificacionesTab = () => {
           <EnvelopeSimple size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
           <div className="text-[12px] text-muted-foreground leading-relaxed">
             Elegí en qué momentos del ciclo del envío GO EXPRESS envía un email al destinatario.
-            Los cambios impactan a envíos nuevos y a transiciones futuras. Si desactivás un evento,
-            el sistema deja de enviar ese email aunque la transición ocurra.
+            Los cambios se guardan al instante. Si desactivás un evento, el sistema deja de enviar
+            ese email aunque la transición ocurra.
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="surface-card p-6 space-y-6">
+      <div className="surface-card p-6 space-y-6">
         <div>
           <h3 className="section-label mb-4">Eventos que disparan email al destinatario</h3>
           <div className="space-y-3">
@@ -331,12 +337,20 @@ const NotificacionesTab = () => {
                   id={`notif-${toggle.key}`}
                   checked={form[toggle.key]}
                   onCheckedChange={(val) => handleToggle(toggle.key, Boolean(val))}
-                  disabled={isLoading}
+                  disabled={isLoading || savingKey === toggle.key}
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-medium">{toggle.label}</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">{toggle.description}</div>
+                </div>
+                <div className="flex-shrink-0 w-4 h-4 mt-0.5">
+                  {savingKey === toggle.key && (
+                    <SpinnerGap size={14} className="text-muted-foreground animate-spin" />
+                  )}
+                  {savedKey === toggle.key && savingKey !== toggle.key && (
+                    <Check size={14} className="text-success" />
+                  )}
                 </div>
               </label>
             ))}
@@ -379,13 +393,7 @@ const NotificacionesTab = () => {
             disabled
           />
         </div>
-
-        <div className="flex justify-end pt-2">
-          <Button type="submit" size="sm" disabled={updateMut.isPending || isLoading}>
-            Guardar configuración
-          </Button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 };
@@ -482,7 +490,7 @@ const Configuracion = () => {
               <div>
                 <Label htmlFor="telefono" className="text-[13px]">Teléfono de contacto</Label>
                 <Input id="telefono" name="telefono" type="tel" defaultValue="+595211234567" className="mt-1.5 font-data" />
-                <p className="text-[11px] text-muted-foreground mt-1">El número que los clientes ven en recibos y emails</p>
+                <p className="text-[11px] text-muted-foreground mt-1">El número que aparece en la landing y en los emails de seguimiento</p>
               </div>
               <div>
                 <Label htmlFor="email-config" className="text-[13px]">Email de contacto</Label>

@@ -66,13 +66,22 @@ class CiudadService {
       if (t.destino_ciudad_id) habilitadasSet.add(t.destino_ciudad_id);
     }
 
+    // Asunción is a capital district stored as its own departamento in the DB,
+    // but operationally it belongs under Central for display purposes.
+    const asuncionDepto = deptosRows.find((d) => d.nombre === 'Asunción');
+    const centralDepto = deptosRows.find((d) => d.nombre === 'Central');
+
     const ciudades = ciudadesRows
       .map<Ciudad>((row) => {
-        const depto = deptoById.get(row.departamento_id);
+        const deptId =
+          asuncionDepto && centralDepto && row.departamento_id === asuncionDepto.id
+            ? centralDepto.id
+            : row.departamento_id;
+        const depto = deptoById.get(deptId);
         return {
           id: row.id,
           nombre: row.nombre,
-          departamentoId: row.departamento_id,
+          departamentoId: deptId,
           departamentoNombre: depto?.nombre ?? '',
           esCapital: row.es_capital,
           orden: row.orden,
@@ -170,6 +179,20 @@ class CiudadService {
       };
     });
 
+    // Merge Asunción (capital district) into Central so it doesn't appear as its own department.
+    const asuncionDeptoIdx = departamentos.findIndex((d) => d.nombre === 'Asunción');
+    const centralDeptoIdx = departamentos.findIndex((d) => d.nombre === 'Central');
+    if (asuncionDeptoIdx !== -1 && centralDeptoIdx !== -1) {
+      const asuncionEntry = departamentos[asuncionDeptoIdx]!;
+      const centralEntry = departamentos[centralDeptoIdx]!;
+      centralEntry.ciudades = [...centralEntry.ciudades, ...asuncionEntry.ciudades].sort(
+        (a, b) => a.orden - b.orden,
+      );
+      centralEntry.totalCiudades = centralEntry.ciudades.length;
+      centralEntry.ciudadesHabilitadas = centralEntry.ciudades.filter((c) => c.habilitada).length;
+      departamentos.splice(asuncionDeptoIdx, 1);
+    }
+
     // Orden: menor cobertura primero (asc por habilitadas/total), con depto sin ciudades al final.
     departamentos.sort((a, b) => {
       const ratioA = a.totalCiudades === 0 ? 2 : a.ciudadesHabilitadas / a.totalCiudades;
@@ -180,7 +203,7 @@ class CiudadService {
 
     const totalCiudades = ciudadesRows.length;
     const ciudadesHabilitadas = ciudadesRows.filter((c) => habilitadasSet.has(c.id)).length;
-    const totalDepartamentos = deptosRows.length;
+    const totalDepartamentos = departamentos.length;
     const departamentosConCobertura = departamentos.filter((d) => d.ciudadesHabilitadas > 0).length;
 
     return {

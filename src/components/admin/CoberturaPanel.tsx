@@ -27,7 +27,7 @@ function DepartamentoCard({
   depto: CoberturaDepartamento;
   onCiudadSinCobertura?: (ciudadId: string, ciudadNombre: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(depto.ciudadesHabilitadas === 0);
+  const [expanded, setExpanded] = useState(false);
   const tone = ratioTone(depto.ciudadesHabilitadas, depto.totalCiudades);
   const pct = depto.totalCiudades === 0 ? 0 : (depto.ciudadesHabilitadas / depto.totalCiudades) * 100;
 

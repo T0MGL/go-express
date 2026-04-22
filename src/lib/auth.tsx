@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   const loginHandledRef = useRef(false);
 
-  const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null> => {
+  const fetchProfile = useCallback(async (accessToken: string): Promise<AuthUser | null | 'rate_limited'> => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      if (response.status === 429) return 'rate_limited';
       if (!response.ok) return null;
       return (await response.json()) as AuthUser;
     } catch {
@@ -72,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!mountedRef.current) return;
 
-    if (profile) {
+    if (profile && profile !== 'rate_limited') {
       setState({ user: profile, session, loading: false, error: null });
       return;
     }
@@ -85,7 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error: null,
     }));
 
-    if (retryCount < 3) {
+    // Don't retry on 429 — retrying immediately makes the loop worse.
+    // The next natural auth event (TOKEN_REFRESHED) will reload the profile.
+    if (profile !== 'rate_limited' && retryCount < 3) {
       const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
       profileRetryRef.current = setTimeout(() => {
         if (mountedRef.current) {

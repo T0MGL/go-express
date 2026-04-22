@@ -119,7 +119,14 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-app.use('/api/auth', env.NODE_ENV !== 'test' ? authLimiter : (_r, _s, n) => n(), authRoutes);
+// Login/forgot-password: strict limit (brute-force protection, 5/min).
+// /me, /refresh, /logout: general limit (100/min) — called on every page load
+// and token refresh, the strict limit caused 429 cascade loops.
+const authStrictPaths = ['/api/auth/login', '/api/auth/portal/login', '/api/auth/repartidor/login', '/api/auth/forgot-password'];
+if (env.NODE_ENV !== 'test') {
+  authStrictPaths.forEach((p) => app.use(p, authLimiter));
+}
+app.use('/api/auth', env.NODE_ENV !== 'test' ? generalLimiter : (_r, _s, n) => n(), authRoutes);
 app.use('/api/events', env.NODE_ENV !== 'test' ? sseLimiter : (_r, _s, n) => n(), sseRoutes);
 app.use('/api/admin', (req, res, next) => {
   if (env.NODE_ENV !== 'test' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { tipoServicioLabels, ciudadesPYNombres } from '@/data/constants';
+import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { tipoServicioLabels } from '@/data/constants';
 import type { Tarifa } from '@/data/types';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Plus } from 'lucide-react';
@@ -25,30 +26,41 @@ import {
   useDeleteTarifa,
   useRestoreTarifa,
 } from '@/hooks/api/use-tarifas';
+import { ciudadKeys } from '@/hooks/api/use-ciudades';
+import { CiudadPicker } from '@/components/CiudadPicker';
+import { CoberturaPanel } from '@/components/admin/CoberturaPanel';
 import { toast as sonnerToast } from 'sonner';
 
-const ciudadesUnicas = [...ciudadesPYNombres].sort();
+interface FormState {
+  origenCiudadId: string;
+  destinoCiudadId: string;
+  tipoServicio: Tarifa['tipoServicio'];
+  precioBase: number;
+  pesoBase: number;
+  precioPorKgExtra: number;
+  factorDimensional: number;
+}
 
-const emptyForm: Partial<Tarifa> = {
-  origen: '',
-  destino: '',
+const emptyForm: FormState = {
+  origenCiudadId: '',
+  destinoCiudadId: '',
   tipoServicio: 'estandar',
   precioBase: 0,
   pesoBase: 3,
   precioPorKgExtra: 0,
   factorDimensional: 5000,
-  activo: true,
 };
 
 const Tarifas = () => {
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   const [busqueda, setBusqueda] = useState('');
   const [mostrarEliminadas, setMostrarEliminadas] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<Tarifa | null>(null);
-  const [form, setForm] = useState<Partial<Tarifa>>(emptyForm);
+  const [form, setForm] = useState<FormState>(emptyForm);
 
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; tarifa: Tarifa | null }>({ open: false, tarifa: null });
   const [motivoEliminacion, setMotivoEliminacion] = useState('');
@@ -66,7 +78,6 @@ const Tarifas = () => {
   const deleteMut = useDeleteTarifa();
   const restoreMut = useRestoreTarifa();
 
-  // Resolve data
   const tarifas = apiTarifas?.data ?? [];
 
   const tarifasFiltradas = tarifas.filter((t) => {
@@ -79,32 +90,49 @@ const Tarifas = () => {
     );
   });
 
-  const abrirNueva = () => {
+  // Invalidar cobertura cuando cambia la lista (cualquier tarifa habilita o no ciudades).
+  useEffect(() => {
+    qc.invalidateQueries({ queryKey: ciudadKeys.cobertura() });
+    qc.invalidateQueries({ queryKey: ciudadKeys.list() });
+  }, [tarifas.length, qc]);
+
+  const abrirNueva = (prefillDestinoCiudadId?: string) => {
     setEditando(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, destinoCiudadId: prefillDestinoCiudadId ?? '' });
     setModalOpen(true);
   };
 
   const abrirEditar = (t: Tarifa) => {
     setEditando(t);
-    setForm({ ...t });
+    setForm({
+      origenCiudadId: t.origenCiudadId ?? '',
+      destinoCiudadId: t.destinoCiudadId ?? '',
+      tipoServicio: t.tipoServicio,
+      precioBase: t.precioBase,
+      pesoBase: t.pesoBase,
+      precioPorKgExtra: t.precioPorKgExtra,
+      factorDimensional: t.factorDimensional,
+    });
     setModalOpen(true);
   };
 
   const guardar = () => {
-    if (!form.origen || !form.destino || !form.tipoServicio) {
-      toast({ title: 'Completa los campos obligatorios', variant: 'destructive' });
+    if (!form.origenCiudadId || !form.destinoCiudadId) {
+      toast({ title: 'Elegi origen y destino', variant: 'destructive' });
       return;
     }
-
-    if (form.precioBase == null || form.precioBase <= 0) {
+    if (form.origenCiudadId === form.destinoCiudadId) {
+      toast({ title: 'Origen y destino deben ser distintos', variant: 'destructive' });
+      return;
+    }
+    if (form.precioBase <= 0) {
       toast({ title: 'El precio base debe ser mayor a 0', variant: 'destructive' });
       return;
     }
 
     const body = {
-      origen: form.origen,
-      destino: form.destino,
+      origenCiudadId: form.origenCiudadId,
+      destinoCiudadId: form.destinoCiudadId,
       tipoServicio: form.tipoServicio,
       precioBase: form.precioBase,
       pesoBase: form.pesoBase,
@@ -119,6 +147,8 @@ const Tarifas = () => {
           onSuccess: () => {
             sonnerToast.success('Tarifa actualizada correctamente');
             setModalOpen(false);
+            qc.invalidateQueries({ queryKey: ciudadKeys.cobertura() });
+            qc.invalidateQueries({ queryKey: ciudadKeys.list() });
           },
           onError: () => sonnerToast.error('Error al actualizar tarifa'),
         },
@@ -128,6 +158,8 @@ const Tarifas = () => {
         onSuccess: () => {
           sonnerToast.success('Tarifa creada correctamente');
           setModalOpen(false);
+          qc.invalidateQueries({ queryKey: ciudadKeys.cobertura() });
+          qc.invalidateQueries({ queryKey: ciudadKeys.list() });
         },
         onError: () => sonnerToast.error('Error al crear tarifa'),
       });
@@ -136,7 +168,7 @@ const Tarifas = () => {
 
   const confirmarEliminar = () => {
     if (!deleteModal.tarifa || !motivoEliminacion.trim()) {
-      toast({ title: 'Indicá el motivo de desactivación', variant: 'destructive' });
+      toast({ title: 'Indica el motivo de desactivacion', variant: 'destructive' });
       return;
     }
 
@@ -144,9 +176,11 @@ const Tarifas = () => {
       { id: deleteModal.tarifa.id, motivo: motivoEliminacion.trim() },
       {
         onSuccess: () => {
-          sonnerToast.success('Tarifa desactivada. Registro conservado en el sistema.');
+          sonnerToast.success('Tarifa desactivada. Registro conservado.');
           setDeleteModal({ open: false, tarifa: null });
           setMotivoEliminacion('');
+          qc.invalidateQueries({ queryKey: ciudadKeys.cobertura() });
+          qc.invalidateQueries({ queryKey: ciudadKeys.list() });
         },
         onError: () => sonnerToast.error('Error al desactivar tarifa'),
       },
@@ -155,9 +189,17 @@ const Tarifas = () => {
 
   const restaurar = (id: string) => {
     restoreMut.mutate(id, {
-      onSuccess: () => sonnerToast.success('Tarifa restaurada'),
+      onSuccess: () => {
+        sonnerToast.success('Tarifa restaurada');
+        qc.invalidateQueries({ queryKey: ciudadKeys.cobertura() });
+        qc.invalidateQueries({ queryKey: ciudadKeys.list() });
+      },
       onError: () => sonnerToast.error('Error al restaurar tarifa'),
     });
+  };
+
+  const handleCiudadSinCobertura = (ciudadId: string) => {
+    abrirNueva(ciudadId);
   };
 
   const activas = tarifas.filter((t) => !t.eliminado).length;
@@ -174,12 +216,13 @@ const Tarifas = () => {
               : 'Precios por ruta y tipo de servicio'}
           </p>
         </div>
-        <Button size="sm" onClick={abrirNueva} className="gap-1.5">
+        <Button size="sm" onClick={() => abrirNueva()} className="gap-1.5">
           <Plus className="w-3.5 h-3.5" /> Nueva tarifa
         </Button>
       </div>
 
-      {/* Info volumetrico */}
+      <CoberturaPanel onCiudadSinCobertura={handleCiudadSinCobertura} />
+
       <div className="surface-card p-4 bg-primary/5 border-primary/20 flex items-start gap-3">
         <Calculator size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
         <div className="text-[13px]">
@@ -190,7 +233,6 @@ const Tarifas = () => {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-3">
         <SearchInput
           value={busqueda}
@@ -208,11 +250,10 @@ const Tarifas = () => {
           )}
         >
           <Warning size={14} weight="duotone" />
-          {mostrarEliminadas ? 'Ocultar desactivadas' : 'Ver también desactivadas'}
+          {mostrarEliminadas ? 'Ocultar desactivadas' : 'Ver tambien desactivadas'}
         </Button>
       </div>
 
-      {/* Tabla */}
       <div className="surface-card overflow-hidden">
         {isLoading ? (
           <div className="p-4 space-y-3">
@@ -247,8 +288,8 @@ const Tarifas = () => {
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-[13px]">
                       {busqueda
-                        ? 'Ninguna tarifa coincide con la búsqueda'
-                        : 'Aún no hay tarifas cargadas. Crea la primera con el botón de arriba'}
+                        ? 'Ninguna tarifa coincide con la busqueda'
+                        : 'Aun no hay tarifas cargadas. Crea la primera con el boton de arriba'}
                     </td>
                   </tr>
                 )}
@@ -318,7 +359,6 @@ const Tarifas = () => {
         )}
       </div>
 
-      {/* Modal nueva/editar */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -326,28 +366,22 @@ const Tarifas = () => {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-[13px]">Origen *</Label>
-                <Select value={form.origen} onValueChange={(v) => setForm((f) => ({ ...f, origen: v }))}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ciudadesUnicas.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[13px]">Destino *</Label>
-                <Select value={form.destino} onValueChange={(v) => setForm((f) => ({ ...f, destino: v }))}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Seleccionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ciudadesUnicas.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <CiudadPicker
+                label="Origen *"
+                value={form.origenCiudadId}
+                onChange={(id) => setForm((f) => ({ ...f, origenCiudadId: id }))}
+                allowDisabled
+                placeholder="Seleccionar..."
+                id="tarifa-origen"
+              />
+              <CiudadPicker
+                label="Destino *"
+                value={form.destinoCiudadId}
+                onChange={(id) => setForm((f) => ({ ...f, destinoCiudadId: id }))}
+                allowDisabled
+                placeholder="Seleccionar..."
+                id="tarifa-destino"
+              />
             </div>
             <div>
               <Label className="text-[13px]">Tipo de servicio *</Label>
@@ -359,9 +393,9 @@ const Tarifas = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="estandar">Estándar</SelectItem>
+                  <SelectItem value="estandar">Estandar</SelectItem>
                   <SelectItem value="express">Express</SelectItem>
-                  <SelectItem value="economico">Económico</SelectItem>
+                  <SelectItem value="economico">Economico</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -426,7 +460,6 @@ const Tarifas = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal confirmar eliminacion */}
       <Dialog open={deleteModal.open} onOpenChange={(v) => setDeleteModal({ open: v, tarifa: v ? deleteModal.tarifa : null })}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -437,7 +470,7 @@ const Tarifas = () => {
           </DialogHeader>
           <div className="py-2 space-y-3">
             <p className="text-[13px] text-muted-foreground">
-              La tarifa <strong>{deleteModal.tarifa?.origen} → {deleteModal.tarifa?.destino}</strong> sera desactivada.
+              La tarifa <strong>{deleteModal.tarifa?.origen} a {deleteModal.tarifa?.destino}</strong> sera desactivada.
               El registro se conserva en el sistema para trazabilidad.
             </p>
             <div>

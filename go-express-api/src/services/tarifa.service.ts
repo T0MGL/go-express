@@ -2,11 +2,13 @@ import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../config/logger.js';
 import { auditoriaService } from './auditoria.service.js';
+import { sseService } from './sse.service.js';
 import { nowISO } from '../lib/datetime.js';
 import type {
   TarifaRow,
   Tarifa,
   PaginatedResponse,
+  CiudadRow,
 } from '../types/index.js';
 import type { CreateTarifaInput, UpdateTarifaInput, TarifaQuery } from '../lib/validators/tarifa.schema.js';
 import { escapeLikePattern } from '../lib/validators/common.schema.js';
@@ -16,6 +18,8 @@ function toApi(row: TarifaRow): Tarifa {
     id: row.id,
     origen: row.origen,
     destino: row.destino,
+    origenCiudadId: row.origen_ciudad_id,
+    destinoCiudadId: row.destino_ciudad_id,
     tipoServicio: row.tipo_servicio,
     precioBase: row.precio_base,
     pesoBase: row.peso_base,
@@ -33,12 +37,45 @@ function toApi(row: TarifaRow): Tarifa {
 }
 
 const TARIFA_COLUMNS = [
-  'id', 'origen', 'destino', 'tipo_servicio',
-  'precio_base', 'peso_base', 'precio_por_kg_extra', 'factor_dimensional',
+  'id', 'origen', 'destino', 'origen_ciudad_id', 'destino_ciudad_id',
+  'tipo_servicio', 'precio_base', 'peso_base', 'precio_por_kg_extra', 'factor_dimensional',
   'activo', 'creado_por',
   'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
 ].join(', ');
+
+/**
+ * Resuelve ciudadId y nombre canonico a partir del input del cliente. Si viene
+ * ciudadId, lo usamos (fuente de verdad). Si solo viene nombre, no creamos
+ * ciudades nuevas: el nombre se persiste tal cual en la columna text legacy y
+ * ciudadId queda NULL. Esto solo aplica a tarifas que vengan del cotizador viejo;
+ * todas las creadas desde el nuevo UI de Tarifas traen ciudadId siempre.
+ */
+async function resolveCiudad(
+  ciudadId: string | undefined,
+  nombreFallback: string | undefined,
+): Promise<{ id: string | null; nombre: string }> {
+  if (ciudadId) {
+    const { data, error } = await supabase
+      .from('ciudades')
+      .select('id, nombre')
+      .eq('id', ciudadId)
+      .single();
+
+    if (error || !data) {
+      throw AppError.badRequest(`Ciudad no encontrada: ${ciudadId}`);
+    }
+
+    const row = data as unknown as Pick<CiudadRow, 'id' | 'nombre'>;
+    return { id: row.id, nombre: row.nombre };
+  }
+
+  if (nombreFallback) {
+    return { id: null, nombre: nombreFallback };
+  }
+
+  throw AppError.badRequest('ciudadId o nombre requerido');
+}
 
 class TarifaService {
   async list(query: TarifaQuery): Promise<PaginatedResponse<Tarifa>> {
@@ -114,11 +151,22 @@ class TarifaService {
       throw AppError.forbidden('Tu sesion admin no corresponde a un usuario activo. Volve a iniciar sesion.');
     }
 
+    const origen = await resolveCiudad(input.origenCiudadId, input.origen);
+    const destino = await resolveCiudad(input.destinoCiudadId, input.destino);
+
+    // Antes de crear, chequeamos si alguna de las dos ciudades pasa de 0 a >0 tarifas activas.
+    // Si es asi, la crear va a "habilitar" esa ciudad, y emitimos un broadcast post-insert.
+    const previouslyEnabled = await this.getEnabledCiudadIds(
+      origen.id && destino.id ? [origen.id, destino.id] : [],
+    );
+
     const { data, error } = await supabase
       .from('tarifas')
       .insert({
-        origen: input.origen,
-        destino: input.destino,
+        origen: origen.nombre,
+        destino: destino.nombre,
+        origen_ciudad_id: origen.id,
+        destino_ciudad_id: destino.id,
         tipo_servicio: input.tipoServicio,
         precio_base: input.precioBase,
         peso_base: input.pesoBase,
@@ -145,11 +193,20 @@ class TarifaService {
       accion: 'crear',
       entidad: 'tarifa',
       entidadId: tarifa.id,
-      descripcion: `Tarifa creada: ${tarifa.origen} → ${tarifa.destino} (${tarifa.tipoServicio})`,
+      descripcion: `Tarifa creada: ${tarifa.origen} a ${tarifa.destino} (${tarifa.tipoServicio})`,
       valorNuevo: data as unknown as Record<string, unknown>,
       ipAddress,
       userAgent,
     });
+
+    // Si origen/destino tienen ciudadId y antes estaban sin tarifas activas,
+    // esta creacion las habilita. Broadcast para refrescar el panel de cobertura.
+    if (origen.id && !previouslyEnabled.has(origen.id)) {
+      sseService.broadcast({ entity: ['ciudad'], action: 'habilitada', id: origen.id });
+    }
+    if (destino.id && origen.id !== destino.id && !previouslyEnabled.has(destino.id)) {
+      sseService.broadcast({ entity: ['ciudad'], action: 'habilitada', id: destino.id });
+    }
 
     return tarifa;
   }
@@ -167,8 +224,17 @@ class TarifaService {
     }
 
     const updateData: Record<string, unknown> = {};
-    if (input.origen !== undefined) updateData['origen'] = input.origen;
-    if (input.destino !== undefined) updateData['destino'] = input.destino;
+
+    if (input.origenCiudadId !== undefined || input.origen !== undefined) {
+      const origen = await resolveCiudad(input.origenCiudadId, input.origen);
+      updateData['origen'] = origen.nombre;
+      updateData['origen_ciudad_id'] = origen.id;
+    }
+    if (input.destinoCiudadId !== undefined || input.destino !== undefined) {
+      const destino = await resolveCiudad(input.destinoCiudadId, input.destino);
+      updateData['destino'] = destino.nombre;
+      updateData['destino_ciudad_id'] = destino.id;
+    }
     if (input.tipoServicio !== undefined) updateData['tipo_servicio'] = input.tipoServicio;
     if (input.precioBase !== undefined) updateData['precio_base'] = input.precioBase;
     if (input.pesoBase !== undefined) updateData['peso_base'] = input.pesoBase;
@@ -195,7 +261,7 @@ class TarifaService {
         accion: 'editar',
         entidad: 'tarifa',
         entidadId: id,
-        descripcion: `Tarifa actualizada: ${tarifa.origen} → ${tarifa.destino} (${tarifa.tipoServicio})`,
+        descripcion: `Tarifa actualizada: ${tarifa.origen} a ${tarifa.destino} (${tarifa.tipoServicio})`,
         ipAddress,
         userAgent,
       });
@@ -237,10 +303,28 @@ class TarifaService {
       accion: 'eliminar',
       entidad: 'tarifa',
       entidadId: id,
-      descripcion: `Tarifa eliminada: ${existing.origen} → ${existing.destino}. Motivo: ${motivo}`,
+      descripcion: `Tarifa eliminada: ${existing.origen} a ${existing.destino}. Motivo: ${motivo}`,
       ipAddress,
       userAgent,
     });
+
+    // Si esta era la unica tarifa activa para alguna ciudad, esa ciudad queda
+    // deshabilitada. Broadcast para refrescar el panel de cobertura.
+    const stillEnabled = await this.getEnabledCiudadIds(
+      existing.origenCiudadId && existing.destinoCiudadId
+        ? [existing.origenCiudadId, existing.destinoCiudadId]
+        : [],
+    );
+    if (existing.origenCiudadId && !stillEnabled.has(existing.origenCiudadId)) {
+      sseService.broadcast({ entity: ['ciudad'], action: 'deshabilitada', id: existing.origenCiudadId });
+    }
+    if (
+      existing.destinoCiudadId &&
+      existing.origenCiudadId !== existing.destinoCiudadId &&
+      !stillEnabled.has(existing.destinoCiudadId)
+    ) {
+      sseService.broadcast({ entity: ['ciudad'], action: 'deshabilitada', id: existing.destinoCiudadId });
+    }
   }
 
   async restore(
@@ -290,13 +374,46 @@ class TarifaService {
         accion: 'editar',
         entidad: 'tarifa',
         entidadId: id,
-        descripcion: `Tarifa restaurada: ${tarifa.origen} → ${tarifa.destino}`,
+        descripcion: `Tarifa restaurada: ${tarifa.origen} a ${tarifa.destino}`,
         ipAddress,
         userAgent,
       });
     }
 
     return tarifa;
+  }
+
+  /**
+   * Devuelve el subset de ciudadIds que actualmente tienen al menos una tarifa
+   * activa referenciandolas. Usado para decidir si la mutacion actual cambia el
+   * estado "habilitada" de una ciudad y amerita broadcast.
+   */
+  private async getEnabledCiudadIds(candidates: string[]): Promise<Set<string>> {
+    if (candidates.length === 0) return new Set();
+
+    const { data, error } = await supabase
+      .from('tarifas')
+      .select('origen_ciudad_id, destino_ciudad_id')
+      .eq('activo', true)
+      .eq('eliminado', false)
+      .or(
+        candidates
+          .flatMap((id) => [`origen_ciudad_id.eq.${id}`, `destino_ciudad_id.eq.${id}`])
+          .join(','),
+      );
+
+    if (error) {
+      logger.warn({ error, candidates }, 'Error checking enabled ciudades, skipping broadcast');
+      return new Set(candidates);
+    }
+
+    const rows = (data ?? []) as Array<{ origen_ciudad_id: string | null; destino_ciudad_id: string | null }>;
+    const enabled = new Set<string>();
+    for (const r of rows) {
+      if (r.origen_ciudad_id) enabled.add(r.origen_ciudad_id);
+      if (r.destino_ciudad_id) enabled.add(r.destino_ciudad_id);
+    }
+    return enabled;
   }
 }
 

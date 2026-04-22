@@ -224,6 +224,8 @@ export interface TarifaRow {
   id: string;
   origen: string;
   destino: string;
+  origen_ciudad_id: string | null;
+  destino_ciudad_id: string | null;
   tipo_servicio: TipoServicio;
   precio_base: number;
   peso_base: number;
@@ -506,6 +508,8 @@ export interface Tarifa {
   id: string;
   origen: string;
   destino: string;
+  origenCiudadId: string | null;
+  destinoCiudadId: string | null;
   tipoServicio: TipoServicio;
   precioBase: number;
   pesoBase: number;

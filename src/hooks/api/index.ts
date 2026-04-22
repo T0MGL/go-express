@@ -56,6 +56,22 @@ export {
   useRestoreTarifa,
 } from './use-tarifas';
 
+// Ciudades catalogo
+export {
+  ciudadKeys,
+  useCiudades,
+  useDepartamentos,
+  useCobertura,
+  useCiudadesCliente,
+} from './use-ciudades';
+export type {
+  Ciudad,
+  Departamento,
+  CoberturaCiudad,
+  CoberturaDepartamento,
+  CoberturaResumen,
+} from './use-ciudades';
+
 // Pagos
 export {
   usePagos,

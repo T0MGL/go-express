@@ -268,6 +268,8 @@ export interface Tarifa {
   id: string;
   origen: string;
   destino: string;
+  origenCiudadId: string | null;
+  destinoCiudadId: string | null;
   tipoServicio: 'estandar' | 'express' | 'economico';
   precioBase: number;
   pesoBase: number;

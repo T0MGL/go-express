@@ -4,6 +4,8 @@ import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { cuentaCorrienteService } from './cuentaCorriente.service.js';
 import { emailService } from './email.service.js';
+import { notificacionesConfigService } from './notificacionesConfig.service.js';
+import type { NotificacionesConfigKey } from '../lib/notificaciones.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
@@ -198,29 +200,63 @@ function mapNotaRow(row: NotaInternaRow): NotaInterna {
   };
 }
 
+// Mapea event -> flag en la config de notificaciones. Si el flag esta en false,
+// el email no se envia. La key `envio_creado` cubre la creacion del envio
+// (siempre con estado pendiente), las demas cubren cada transicion.
+function notifKeyFor(event: NotificationEvent, newEstado: EnvioEstado): NotificacionesConfigKey | null {
+  if (event === 'envio_creado') return 'envio_creado';
+  switch (newEstado) {
+    case 'recolectado': return 'recolectado';
+    case 'en_transito': return 'en_transito';
+    case 'en_reparto': return 'en_reparto';
+    case 'entregado': return 'entregado';
+    case 'fallido': return 'fallido';
+    case 'problema': return 'problema';
+    case 'pendiente': return null;
+    default: return null;
+  }
+}
+
 function triggerNotification(event: NotificationEvent, envio: Envio, previousEstado?: EnvioEstado): void {
   logger.info(
     { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
     `Notification hook: ${event}`
   );
 
-  switch (event) {
-    case 'envio_creado':
-      emailService.sendEnvioCreado(envio);
-      break;
-    case 'cambio_estado':
-      if (envio.estado === 'entregado') {
-        emailService.sendEntregado(envio);
-      } else if (envio.estado === 'problema') {
-        emailService.sendProblema(envio);
-      } else if (previousEstado) {
-        emailService.sendCambioEstado(envio, previousEstado);
-      }
-      break;
-    case 'problema':
-      emailService.sendProblema(envio);
-      break;
-  }
+  // Fire-and-forget: la respuesta HTTP no espera al email. Un error de config o de DB
+  // se loggea pero no afecta la respuesta del cambio de estado.
+  void (async () => {
+    const key = notifKeyFor(event, envio.estado);
+    if (!key) {
+      logger.info({ event, estado: envio.estado }, '[NOTIF] No notification key for this transition, skipping');
+      return;
+    }
+
+    const enabled = await notificacionesConfigService.isEnabled(key);
+    if (!enabled) {
+      logger.info({ event, estado: envio.estado, key, tracking: envio.trackingNumber }, '[NOTIF] Event disabled by admin config, skipping email');
+      return;
+    }
+
+    if (event === 'envio_creado') {
+      await emailService.sendEnvioCreado(envio);
+      return;
+    }
+
+    if (envio.estado === 'entregado') {
+      await emailService.sendEntregado(envio);
+      return;
+    }
+
+    if (envio.estado === 'problema') {
+      await emailService.sendProblema(envio);
+      return;
+    }
+
+    if (previousEstado) {
+      await emailService.sendCambioEstado(envio, previousEstado);
+    }
+  })();
 }
 
 // Explicit column lists

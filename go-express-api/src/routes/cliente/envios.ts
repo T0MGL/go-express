@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { emailService } from '../../services/email.service.js';
+import { notificacionesConfigService } from '../../services/notificacionesConfig.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio } from '../../services/envio.service.js';
 import { cuentaCorrienteService } from '../../services/cuentaCorriente.service.js';
@@ -415,7 +416,13 @@ router.post(
       descripcion: 'Envío creado desde portal cliente',
     });
 
-    emailService.sendEnvioCreado(envio);
+    void (async () => {
+      if (await notificacionesConfigService.isEnabled('envio_creado')) {
+        await emailService.sendEnvioCreado(envio);
+      } else {
+        logger.info({ tracking: envio.trackingNumber }, '[NOTIF] envio_creado disabled by admin config, skipping email');
+      }
+    })();
 
     sseService.broadcastToRole({ entity: ['envios', 'list'], action: 'created' }, 'admin');
     sseService.broadcastToRole({ entity: ['dashboard'], action: 'updated' }, 'admin');

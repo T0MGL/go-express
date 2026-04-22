@@ -24,6 +24,12 @@ import { extractApiError } from '@/lib/api';
 import type { Usuario } from '@/data/types';
 import { useConfiguracion, useUpdateConfiguracion } from '@/hooks/api/use-configuracion';
 import { useSeguroConfig, useUpdateSeguroConfig } from '@/hooks/api/use-seguro-config';
+import {
+  useNotificacionesConfig,
+  useUpdateNotificacionesConfig,
+  NOTIFICACIONES_DEFAULTS,
+  type NotificacionesConfig,
+} from '@/hooks/api/use-notificaciones-config';
 import { calcularSeguroAdicional, SEGURO_DEFAULTS, type SeguroConfig } from '@/lib/seguro';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -253,16 +259,141 @@ const SeguroTab = () => {
   );
 };
 
+// Template fijo por ahora: solo lectura en la UI, editable en una sesion futura
+// cuando cerremos la historia de templates dinamicos.
+const EMAIL_TEMPLATE_PREVIEW =
+  'Hola {customer_name},\n\nTu envío con número de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.';
+
+interface NotificacionToggle {
+  key: keyof NotificacionesConfig;
+  label: string;
+  description: string;
+}
+
+const NOTIFICACION_TOGGLES: NotificacionToggle[] = [
+  { key: 'envio_creado', label: 'Envío creado', description: 'Cuando se registra un nuevo envío (estado Pendiente)' },
+  { key: 'recolectado', label: 'Retirado del remitente', description: 'Cuando el envío se recolecta del cliente' },
+  { key: 'en_transito', label: 'En tránsito', description: 'Cuando el envío sale a ruta entre centros' },
+  { key: 'en_reparto', label: 'En reparto', description: 'Cuando el repartidor sale a entregar' },
+  { key: 'entregado', label: 'Entregado', description: 'Cuando el paquete llega al destinatario' },
+  { key: 'fallido', label: 'Entrega fallida', description: 'Cuando un intento de entrega no pudo completarse' },
+  { key: 'problema', label: 'Con problema', description: 'Cuando el envío se marca como problema' },
+];
+
+const NotificacionesTab = () => {
+  const { data, isLoading } = useNotificacionesConfig();
+  const updateMut = useUpdateNotificacionesConfig();
+  const [form, setForm] = useState<NotificacionesConfig>(NOTIFICACIONES_DEFAULTS);
+
+  useEffect(() => {
+    if (data?.config) setForm(data.config);
+  }, [data]);
+
+  const handleToggle = (key: keyof NotificacionesConfig, value: boolean) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateMut.mutate(form, {
+      onSuccess: () => toast.success('Notificaciones actualizadas'),
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? 'Error al guardar notificaciones';
+        toast.error(msg);
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="surface-card p-4 border-l-2 border-l-primary/40 bg-primary/[0.02]">
+        <div className="flex items-start gap-2.5">
+          <EnvelopeSimple size={16} weight="duotone" className="text-primary flex-shrink-0 mt-0.5" />
+          <div className="text-[12px] text-muted-foreground leading-relaxed">
+            Elegí en qué momentos del ciclo del envío GO EXPRESS envía un email al destinatario.
+            Los cambios impactan a envíos nuevos y a transiciones futuras. Si desactivás un evento,
+            el sistema deja de enviar ese email aunque la transición ocurra.
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="surface-card p-6 space-y-6">
+        <div>
+          <h3 className="section-label mb-4">Eventos que disparan email al destinatario</h3>
+          <div className="space-y-3">
+            {NOTIFICACION_TOGGLES.map((toggle) => (
+              <label
+                key={toggle.key}
+                htmlFor={`notif-${toggle.key}`}
+                className="flex items-start gap-3 p-3 rounded-md border border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+              >
+                <Checkbox
+                  id={`notif-${toggle.key}`}
+                  checked={form[toggle.key]}
+                  onCheckedChange={(val) => handleToggle(toggle.key, Boolean(val))}
+                  disabled={isLoading}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium">{toggle.label}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">{toggle.description}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t pt-6">
+          <h3 className="section-label mb-4">Otros canales</h3>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox id="sms" disabled />
+              <Label htmlFor="sms" className="font-normal text-[13px] text-muted-foreground">
+                Notificar por SMS (disponible proximamente)
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="whatsapp" disabled />
+              <Label htmlFor="whatsapp" className="font-normal text-[13px] text-muted-foreground">
+                Avisar al repartidor por WhatsApp (disponible proximamente)
+              </Label>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t pt-6 opacity-70">
+          <div className="flex items-center justify-between mb-2">
+            <Label htmlFor="template" className="text-[13px]">Texto del email</Label>
+            <Badge variant="outline" className="text-[10px]">Template fijo por ahora</Badge>
+          </div>
+          <p className="text-[12px] text-muted-foreground mt-1 mb-3">
+            Variables disponibles: {'{tracking_number}'}, {'{customer_name}'}, {'{status}'}.
+            Editable en una proxima version.
+          </p>
+          <Textarea
+            id="template"
+            value={EMAIL_TEMPLATE_PREVIEW}
+            readOnly
+            rows={6}
+            className="font-data text-[13px] bg-muted/30"
+            disabled
+          />
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button type="submit" size="sm" disabled={updateMut.isPending || isLoading}>
+            Guardar configuración
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 const Configuracion = () => {
   const { isAdmin } = useAuth();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [passwordDialogUsuario, setPasswordDialogUsuario] = useState<Usuario | null>(null);
-  const [emailTemplate, setEmailTemplate] = useState(
-    'Hola {customer_name},\n\nTu envío con número de seguimiento {tracking_number} ha sido registrado.\n\nGracias por confiar en Go Express.'
-  );
-  const [notifCreate, setNotifCreate] = useState(true);
-  const [notifReparto, setNotifReparto] = useState(true);
-  const [notifEntrega, setNotifEntrega] = useState(true);
 
   // Gestion de usuarios es estrictamente admin. El backend devuelve 403 a
   // operadores, asi que deshabilitamos la query y ocultamos la pestana para
@@ -309,18 +440,6 @@ const Configuracion = () => {
         onError: (err) => toast.error(extractApiError(err, 'Error al invitar usuario')),
       },
     );
-  };
-
-  const handleSaveNotificaciones = (e: React.FormEvent) => {
-    e.preventDefault();
-    Promise.all([
-      updateConfigMut.mutateAsync({ key: 'notif_create', value: String(notifCreate) }),
-      updateConfigMut.mutateAsync({ key: 'notif_reparto', value: String(notifReparto) }),
-      updateConfigMut.mutateAsync({ key: 'notif_entrega', value: String(notifEntrega) }),
-      updateConfigMut.mutateAsync({ key: 'email_template', value: emailTemplate }),
-    ])
-      .then(() => toast.success('Configuración guardada'))
-      .catch(() => toast.error('Error al guardar configuración'));
   };
 
   const handleSaveConfig = (e: React.FormEvent) => {
@@ -411,100 +530,7 @@ const Configuracion = () => {
         </TabsContent>
 
         <TabsContent value="notificaciones">
-          <div className="space-y-4">
-            <div className="surface-card p-4 border-l-2 border-l-warning/50 bg-warning/[0.04] flex items-start gap-2.5">
-              <Warning size={16} weight="duotone" className="text-warning flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="section-label text-warning">Proximamente</span>
-                  <Badge variant="outline" className="text-[10px]">Deshabilitado temporalmente</Badge>
-                </div>
-                <p className="text-[12px] text-muted-foreground leading-relaxed">
-                  El backend de notificaciones por email por evento todavia no esta conectado. Esta vista queda visible como preview, se reactiva cuando el servicio de email este listo.
-                </p>
-              </div>
-            </div>
-
-            <div className="surface-card p-6 opacity-60 pointer-events-none select-none" aria-disabled="true">
-              <form className="space-y-6" onSubmit={handleSaveNotificaciones}>
-                <div>
-                  <h3 className="section-label mb-4">Cuando enviar emails al destinatario</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="email-create"
-                        checked={notifCreate}
-                        onCheckedChange={(val) => setNotifCreate(Boolean(val))}
-                        disabled
-                      />
-                      <Label htmlFor="email-create" className="font-normal text-[13px]">
-                        Cuando se crea el envío
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="email-reparto"
-                        checked={notifReparto}
-                        onCheckedChange={(val) => setNotifReparto(Boolean(val))}
-                        disabled
-                      />
-                      <Label htmlFor="email-reparto" className="font-normal text-[13px]">
-                        Cuando el repartidor sale a entregar
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="email-entrega"
-                        checked={notifEntrega}
-                        onCheckedChange={(val) => setNotifEntrega(Boolean(val))}
-                        disabled
-                      />
-                      <Label htmlFor="email-entrega" className="font-normal text-[13px]">
-                        Cuando el paquete es entregado
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-6">
-                  <h3 className="section-label mb-4">Otros canales</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="sms" disabled />
-                      <Label htmlFor="sms" className="font-normal text-[13px] text-muted-foreground">
-                        Notificar por SMS (disponible proximamente)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="whatsapp" disabled />
-                      <Label htmlFor="whatsapp" className="font-normal text-[13px] text-muted-foreground">
-                        Avisar al repartidor por WhatsApp (disponible proximamente)
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-6">
-                  <Label htmlFor="template" className="text-[13px]">Texto del email</Label>
-                  <p className="text-[12px] text-muted-foreground mt-1 mb-3">
-                    Podés usar estas variables que se reemplazan solas: {'{tracking_number}'} (número de seguimiento), {'{customer_name}'} (nombre del cliente), {'{status}'} (estado actual).
-                  </p>
-                  <Textarea
-                    id="template"
-                    value={emailTemplate}
-                    onChange={(e) => setEmailTemplate(e.target.value)}
-                    rows={6}
-                    className="font-data text-[13px]"
-                    disabled
-                  />
-                </div>
-
-                <div className="flex justify-end pt-4">
-                  <Button type="submit" size="sm" disabled>Guardar configuración</Button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <NotificacionesTab />
         </TabsContent>
 
         {isAdmin && (

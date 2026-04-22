@@ -2,9 +2,16 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
+import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
+import { notificacionesConfigService } from '../../services/notificacionesConfig.service.js';
 import { parseSeguroConfig, validateSeguroConfigInput, SEGURO_DEFAULTS } from '../../lib/seguro.js';
+import {
+  parseNotificacionesConfig,
+  validateNotificacionesConfigInput,
+  NOTIFICACIONES_DEFAULTS,
+} from '../../lib/notificaciones.js';
 import type { ConfiguracionRow } from '../../types/index.js';
 
 const router = Router();
@@ -29,6 +36,16 @@ const seguroConfigSchema = z.object({
   tasaAdicional: z.number().min(0).max(1),
   minimoAdicional: z.number().int().nonnegative().max(1_000_000_000),
   maximoAsegurable: z.number().int().nonnegative().max(1_000_000_000_000),
+});
+
+const notificacionesConfigSchema = z.object({
+  envio_creado: z.boolean(),
+  recolectado: z.boolean(),
+  en_transito: z.boolean(),
+  en_reparto: z.boolean(),
+  entregado: z.boolean(),
+  fallido: z.boolean(),
+  problema: z.boolean(),
 });
 
 /**
@@ -154,6 +171,103 @@ router.put(
 );
 
 /**
+ * GET /notificaciones: fetch notifications toggles (typed, with defaults fallback).
+ * NOTE: must be declared BEFORE /:key so express route matching resolves the static path first.
+ */
+router.get(
+  '/notificaciones',
+  asyncHandler(async (_req, res) => {
+    const { data, error } = await supabase
+      .from('configuracion')
+      .select('value, updated_at, updated_by')
+      .eq('key', 'notificaciones_config')
+      .maybeSingle();
+
+    if (error) {
+      throw new AppError('Error fetching notificaciones config', 500, 'DB_ERROR');
+    }
+
+    if (!data) {
+      res.json({
+        config: { ...NOTIFICACIONES_DEFAULTS },
+        updatedAt: null,
+        updatedBy: null,
+      });
+      return;
+    }
+
+    const row = data as { value: unknown; updated_at: string; updated_by: string | null };
+    res.json({
+      config: parseNotificacionesConfig(row.value),
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
+    });
+  })
+);
+
+/**
+ * PUT /notificaciones: replace the notifications toggles map. Invalidates the in-memory
+ * cache so the next email dispatch reads the new values immediately.
+ */
+router.put(
+  '/notificaciones',
+  adminWriteLimiter,
+  validate({ body: notificacionesConfigSchema }),
+  asyncHandler(async (req, res) => {
+    let cfg;
+    try {
+      cfg = validateNotificacionesConfigInput(req.body);
+    } catch (err) {
+      throw AppError.badRequest(err instanceof Error ? err.message : 'Invalid notificaciones config');
+    }
+
+    const { data: previous } = await supabase
+      .from('configuracion')
+      .select('value')
+      .eq('key', 'notificaciones_config')
+      .maybeSingle();
+
+    const previousValue = previous ? (previous as { value: unknown }).value : null;
+
+    const { data, error } = await supabase
+      .from('configuracion')
+      .upsert(
+        { key: 'notificaciones_config', value: cfg, updated_by: req.userId! },
+        { onConflict: 'key' }
+      )
+      .select('value, updated_at, updated_by')
+      .single();
+
+    if (error || !data) {
+      throw new AppError('Error upserting notificaciones config', 500, 'DB_ERROR');
+    }
+
+    const row = data as { value: unknown; updated_at: string; updated_by: string | null };
+
+    notificacionesConfigService.invalidate();
+
+    await auditoriaService.log({
+      usuario: req.userName ?? 'Admin GoExpress',
+      usuarioId: req.userId!,
+      accion: 'editar',
+      entidad: 'sistema',
+      entidadId: 'notificaciones_config',
+      descripcion: 'Configuracion de notificaciones por email actualizada',
+      valorAnterior: previousValue !== null ? { value: previousValue } : null,
+      valorNuevo: { value: cfg },
+      ipAddress: req.ip ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined,
+    });
+
+    res.json({
+      config: parseNotificacionesConfig(row.value),
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by,
+    });
+  })
+);
+
+/**
  * PUT /:key: upsert a single config entry. Accepts string, number, boolean or object (JSONB).
  */
 router.put(
@@ -166,6 +280,11 @@ router.put(
     // Hard guard: seguro_config must go through the typed /seguro endpoint so it is validated.
     if (key === 'seguro_config') {
       throw AppError.badRequest('Use PUT /admin/configuracion/seguro to update seguro_config');
+    }
+
+    // Hard guard: notificaciones_config must go through the typed /notificaciones endpoint.
+    if (key === 'notificaciones_config') {
+      throw AppError.badRequest('Use PUT /admin/configuracion/notificaciones to update notificaciones_config');
     }
 
     const { data: previous } = await supabase

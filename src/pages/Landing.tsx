@@ -788,7 +788,8 @@ const Landing = () => {
               <div className="space-y-6">
                 {[
                   { icon: MapPin, title: 'Central', desc: 'Itapúa, Paraguay' },
-                  { icon: Phone, title: 'Atención a Empresas', desc: '0991600777' },
+                  { icon: Phone, title: 'Atención a Empresas', desc: '0991 600 777' },
+                  { icon: WhatsappLogo, title: 'WhatsApp para notificaciones de envíos', desc: '+595 981 987 476' },
                   { icon: EnvelopeSimple, title: 'Comercial', desc: 'contacto@goexpressparaguay.com' },
                 ].map((item, i) => (
                   <motion.div
@@ -915,9 +916,24 @@ const Landing = () => {
             <div>
               <h4 className="text-sidebar font-bold text-sm mb-5">Legal</h4>
               <div className="flex flex-col gap-3">
-                {['Términos de Servicio', 'Política de Privacidad', 'Reclamos', 'Condiciones de Envío'].map((item) => (
-                  <button key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit">{item}</button>
-                ))}
+                <a
+                  href="/privacidad"
+                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
+                >
+                  Política de Privacidad
+                </a>
+                <button
+                  onClick={() => scrollToSection('contacto')}
+                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
+                >
+                  Reclamos
+                </button>
+                <button
+                  onClick={() => setInsuranceOpen(true)}
+                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
+                >
+                  Condiciones del Seguro
+                </button>
               </div>
             </div>
           </div>

@@ -60,8 +60,13 @@
         max-width: 1120px;
         margin: 0 auto;
       }
+      header.site .left { display: inline-flex; align-items: center; gap: 18px; }
       header.site a.logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
       header.site img { height: 26px; width: auto; }
+      header.site nav { display: inline-flex; gap: 14px; }
+      header.site nav a { color: var(--ink-muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+      header.site nav a:hover { color: var(--ink); }
+      header.site nav a[aria-current="page"] { color: var(--accent); }
       header.site a.back { color: var(--ink-muted); font-size: 14px; font-weight: 600; text-decoration: none; }
       header.site a.back:hover { color: var(--ink); }
       main {
@@ -130,6 +135,13 @@
       }
       .contact-grid a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--border); }
       .contact-grid a:hover { border-bottom-color: var(--accent); }
+      .legal-links {
+        margin-top: 28px;
+        font-size: 13px;
+        color: var(--ink-muted);
+      }
+      .legal-links a { color: var(--ink-muted); text-decoration: none; border-bottom: 1px solid var(--border); }
+      .legal-links a:hover { color: var(--ink); border-bottom-color: var(--accent); }
       footer.site {
         border-top: 1px solid var(--border);
         padding: 24px;
@@ -137,6 +149,9 @@
         font-size: 12px;
         color: var(--ink-muted);
       }
+      footer.site nav { margin-top: 6px; display: flex; justify-content: center; gap: 14px; }
+      footer.site nav a { color: var(--ink-muted); text-decoration: none; }
+      footer.site nav a:hover { color: var(--ink); }
       @media (min-width: 640px) {
         .contact-grid { grid-template-columns: 1fr 1fr; }
         h1 { font-size: 44px; }
@@ -145,9 +160,15 @@
   </head>
   <body>
     <header class="site">
-      <a class="logo" href="/" aria-label="Go Express, ir al inicio">
-        <img src="/logotipo.png" alt="Go Express" />
-      </a>
+      <div class="left">
+        <a class="logo" href="/" aria-label="Go Express, ir al inicio">
+          <img src="/logotipo.png" alt="Go Express" />
+        </a>
+        <nav aria-label="Documentos legales">
+          <a href="/privacidad" aria-current="page">Privacidad</a>
+          <a href="/terminos">Terminos</a>
+        </nav>
+      </div>
       <a class="back" href="/">Volver al inicio</a>
     </header>
 
@@ -231,10 +252,17 @@
           </div>
         </div>
       </div>
+
+      <p class="legal-links">Ver tambien: <a href="/terminos">Terminos y Condiciones</a>.</p>
     </main>
 
     <footer class="site">
-      &copy; <span id="y"></span> Go Express E.A.S. Todos los derechos reservados.
+      <div>&copy; <span id="y"></span> Go Express E.A.S. Todos los derechos reservados.</div>
+      <nav>
+        <a href="/privacidad">Politica de Privacidad</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href="/terminos">Terminos y Condiciones</a>
+      </nav>
     </footer>
     <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
   </body>

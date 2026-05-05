@@ -37,7 +37,7 @@ export default defineConfig(({ mode }): UserConfig => ({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
-        navigateFallbackDenylist: [/^\/api/, /^\/privacidad/],
+        navigateFallbackDenylist: [/^\/api/, /^\/privacidad/, /^\/terminos/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.goexpressparaguay\.com\/api\/public\//,

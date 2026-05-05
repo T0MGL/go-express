@@ -922,6 +922,12 @@ const Landing = () => {
                 >
                   Política de Privacidad
                 </a>
+                <a
+                  href="/terminos"
+                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
+                >
+                  Términos y Condiciones
+                </a>
                 <button
                   onClick={() => scrollToSection('contacto')}
                   className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"

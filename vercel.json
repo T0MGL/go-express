@@ -2,7 +2,9 @@
   "rewrites": [
     { "source": "/privacidad", "destination": "/privacidad/index.html" },
     { "source": "/privacidad/", "destination": "/privacidad/index.html" },
-    { "source": "/((?!assets/|privacidad).*)", "destination": "/index.html" }
+    { "source": "/terminos", "destination": "/terminos/index.html" },
+    { "source": "/terminos/", "destination": "/terminos/index.html" },
+    { "source": "/((?!assets/|privacidad|terminos).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -28,6 +30,13 @@
     },
     {
       "source": "/privacidad(/.*)?",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" },
+        { "key": "Content-Type", "value": "text/html; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/terminos(/.*)?",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" },
         { "key": "Content-Type", "value": "text/html; charset=utf-8" }

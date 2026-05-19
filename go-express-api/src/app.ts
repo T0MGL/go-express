@@ -18,6 +18,7 @@ import clienteRoutes from './routes/cliente/index.js';
 import trackingRoutes from './routes/public/tracking.js';
 import publicTarifaRoutes from './routes/public/tarifas.js';
 import publicCiudadRoutes from './routes/public/ciudades.js';
+import webhookRoutes from './routes/public/webhooks.js';
 import repartidorRoutes from './routes/repartidor/index.js';
 import authRoutes from './routes/auth.js';
 import sseRoutes from './routes/sse.js';
@@ -108,9 +109,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // limiters below (strict for credentials, loose for reads); skipping it here
 // prevents double-counting requests against the same IP bucket, which
 // previously halved the effective budget for /auth/me.
+// /api/public/webhooks tambien se bypasea: Meta WhatsApp Cloud API postea delivery
+// receipts en bursts desde un pool reducido de IPs y dispararia 429s; Meta interpreta
+// el endpoint como down y degrada la reputacion del numero. Endpoint es idempotente
+// y solo responde 200; no necesita anti-abuse propio.
 if (env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/auth/')) return next();
+    if (req.path.startsWith('/api/public/webhooks/')) return next();
     return generalLimiter(req, res, next);
   });
 }
@@ -147,6 +153,7 @@ app.use('/api/cliente', clienteRoutes);
 app.use('/api/repartidor', repartidorRoutes);
 app.use('/api/public/tarifas', publicTarifaRoutes);
 app.use('/api/public/ciudades', publicCiudadRoutes);
+app.use('/api/public/webhooks', webhookRoutes);
 app.use('/api/public', trackingRoutes);
 
 app.use((_req, res) => {

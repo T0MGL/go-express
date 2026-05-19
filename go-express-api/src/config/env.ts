@@ -25,6 +25,15 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional().default(''),
   EMAIL_FROM: z.string().min(1, 'EMAIL_FROM is required').default('GoExpress <envios@goexpressparaguay.com>'),
 
+  // WhatsApp Cloud API (Meta). Outbound-only, solo templates pre-aprobados.
+  // Si META_WA_TOKEN o META_WA_PHONE_NUMBER_ID estan vacios, el canal WhatsApp
+  // se considera deshabilitado y los intentos se loguean como 'descartado'.
+  META_WA_TOKEN: z.string().optional().default(''),
+  META_WA_PHONE_NUMBER_ID: z.string().optional().default(''),
+  META_WA_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/, 'Format: v22.0').default('v22.0'),
+  // Solo necesario si activamos el webhook handler para que Meta valide el endpoint.
+  META_WA_VERIFY_TOKEN: z.string().optional().default(''),
+
   // App
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3001),

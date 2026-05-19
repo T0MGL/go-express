@@ -33,7 +33,7 @@ function statusLabel(estado: string): string {
   const labels: Record<string, string> = {
     pendiente: 'Pendiente',
     recolectado: 'Retirado del remitente',
-    en_transito: 'En transito',
+    en_transito: 'En tránsito',
     en_reparto: 'En reparto',
     entregado: 'Entregado',
     fallido: 'Entrega fallida',
@@ -60,7 +60,7 @@ function badge(text: string, bg: string, color: string): string {
 function trackingBox(tn: string, accent: string, bgColor = '#F0F4FF', borderColor = '#DDE4F7', labelColor = '#7B8AB5'): string {
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px">
 <tr><td style="text-align:center;background-color:${bgColor};border:1px solid ${borderColor};border-radius:12px;padding:24px">
-<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:${labelColor};margin:0 0 8px">Numero de tracking</p>
+<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:${labelColor};margin:0 0 8px">Número de tracking</p>
 <p style="font-family:'JetBrains Mono',SFMono-Regular,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:${accent};margin:0">${tn}</p>
 </td></tr></table>`;
 }
@@ -76,7 +76,7 @@ interface TemplateOptions {
 
 function baseTemplate({ title, body, tracking, accent = '#0643F7', ctaText, ctaUrl }: TemplateOptions): string {
   const btnUrl = ctaUrl ?? (tracking ? trackingUrl(tracking) : '');
-  const btnText = ctaText ?? 'Rastrear envio';
+  const btnText = ctaText ?? 'Rastrear envío';
   const showBtn = !!btnUrl;
 
   return `<!DOCTYPE html>
@@ -126,30 +126,83 @@ ${showBtn ? `<table width="100%" cellpadding="0" cellspacing="0" border="0" styl
 </html>`;
 }
 
+// SendResult expone dos terminales explicitos:
+//   sent  -> Resend acepto la entrega, hay messageId persistible en notificaciones_log.
+//   skipped -> Resend no esta configurado (RESEND_API_KEY ausente) o no hay destinatario.
+//             El caller decide si esto cuenta como "descartado" en el log. No es un error.
+// El tercer caso (Resend rechaza, excepcion de red, payload invalido) se modela como
+// throw del send interno; los fan-out senders (sendEntregado, sendFallido) lo capturan
+// localmente y lo traducen a un entry { status: 'failed' } por audiencia, para que el
+// wrapper en notificaciones.service.ts persista 1 fila por destinatario real sin colapsar.
+// Audit log nunca miente: cada row refleja el resultado real de su propio send.
+export type EmailSendResult =
+  | { status: 'sent'; messageId: string }
+  | { status: 'skipped'; reason: 'resend_not_configured' | 'no_recipient' }
+  | { status: 'failed'; error: string };
+
+// Entry de fan-out: vincula el resultado del send con el email concreto al que se intento
+// enviar (o '' cuando no habia email para esa audiencia). El wrapper usa `recipient`
+// para llenar la columna `destinatario` de notificaciones_log sin necesidad de columnas
+// nuevas: cada audiencia es una row con su propio destinatario real.
+export interface EmailDispatchEntry {
+  result: EmailSendResult;
+  recipient: string;
+}
+
+export class EmailDeliveryError extends Error {
+  constructor(
+    message: string,
+    public readonly providerError?: unknown,
+    public readonly to?: string,
+    public readonly subject?: string,
+  ) {
+    super(message);
+    this.name = 'EmailDeliveryError';
+  }
+}
+
 class EmailService {
-  private async send(to: string, subject: string, html: string): Promise<void> {
+  private async send(to: string, subject: string, html: string): Promise<EmailSendResult> {
     if (!resend) {
       logger.warn({ to, subject }, '[EMAIL] RESEND_API_KEY not set, email NOT sent');
-      return;
+      return { status: 'skipped', reason: 'resend_not_configured' };
     }
 
+    let response: Awaited<ReturnType<typeof resend.emails.send>>;
     try {
-      const { error } = await resend.emails.send({ from, to, subject, html });
-      if (error) {
-        logger.error({ error, to, subject }, '[EMAIL] Resend send failed');
-        return;
-      }
-      logger.info({ to, subject }, '[EMAIL] Sent successfully');
+      response = await resend.emails.send({ from, to, subject, html });
     } catch (err) {
-      logger.error({ err, to, subject }, '[EMAIL] Unexpected error');
+      logger.error({ err, to, subject }, '[EMAIL] Resend transport error');
+      throw new EmailDeliveryError(
+        err instanceof Error ? err.message : 'Resend transport error',
+        err,
+        to,
+        subject,
+      );
     }
+
+    if (response.error) {
+      logger.error({ error: response.error, to, subject }, '[EMAIL] Resend send rejected');
+      const msg =
+        (response.error as { message?: string } | null)?.message ?? 'Resend send rejected';
+      throw new EmailDeliveryError(msg, response.error, to, subject);
+    }
+
+    const messageId = response.data?.id;
+    if (!messageId) {
+      logger.error({ response, to, subject }, '[EMAIL] Resend returned no message id');
+      throw new EmailDeliveryError('Resend returned no message id', response, to, subject);
+    }
+
+    logger.info({ to, subject, messageId }, '[EMAIL] Sent successfully');
+    return { status: 'sent', messageId };
   }
 
-  async sendEnvioCreado(envio: Envio): Promise<void> {
+  async sendEnvioCreado(envio: Envio): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping envio_creado');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
@@ -158,26 +211,26 @@ class EmailService {
     const remitente = escapeHtml(envio.clienteNombre);
 
     const html = baseTemplate({
-      title: 'Tu pedido esta en camino',
+      title: 'Tu pedido está en camino',
       accent: '#0643F7',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu pedido esta en camino</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">${remitente} registro un envio para vos a traves de GO EXPRESS. Te vamos a ir avisando cada cambio de estado.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu pedido está en camino</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">${remitente} registró un envío para vos a través de GO EXPRESS. Te vamos a ir avisando cada cambio de estado.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Remitente', remitente)}
 ${row('Destino', dest)}
 ${row('Estado', badge('Pendiente', '#EEF2FF', '#0643F7'), true)}`,
     });
 
-    await this.send(to, `Tu pedido esta en camino, ${envio.trackingNumber}`, html);
+    return this.send(to, `Tu pedido está en camino, ${envio.trackingNumber}`, html);
   }
 
-  async sendRecolectado(envio: Envio): Promise<void> {
+  async sendRecolectado(envio: Envio): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping recolectado');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
@@ -191,21 +244,21 @@ ${row('Estado', badge('Pendiente', '#EEF2FF', '#0643F7'), true)}`,
       tracking: envio.trackingNumber,
       body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete fue retirado</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Pasamos a buscar el paquete donde ${remitente}. Ya esta en nuestras manos y se esta preparando para el envio.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Pasamos a buscar el paquete donde ${remitente}. Ya está en nuestras manos y se está preparando para el envío.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Remitente', remitente)}
 ${row('Destino', dest)}
 ${row('Estado', badge('Retirado del remitente', '#EEF2FF', '#0643F7'), true)}`,
     });
 
-    await this.send(to, `Tu paquete esta en camino, ${envio.trackingNumber}`, html);
+    return this.send(to, `Tu paquete está en camino, ${envio.trackingNumber}`, html);
   }
 
-  async sendEnTransito(envio: Envio): Promise<void> {
+  async sendEnTransito(envio: Envio): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping en_transito');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
@@ -213,25 +266,25 @@ ${row('Estado', badge('Retirado del remitente', '#EEF2FF', '#0643F7'), true)}`,
     const dest = escapeHtml(envio.destino);
 
     const html = baseTemplate({
-      title: 'Tu paquete esta en transito',
+      title: 'Tu paquete está en tránsito',
       accent: '#0643F7',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete esta en transito</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tu paquete ya salio hacia el centro de distribucion. Pronto llegara a tu zona.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete está en tránsito</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tu paquete ya salió hacia el centro de distribución. Pronto llega a tu zona.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Destino', dest)}
-${row('Estado', badge('En transito', '#EEF2FF', '#0643F7'), true)}`,
+${row('Estado', badge('En tránsito', '#EEF2FF', '#0643F7'), true)}`,
     });
 
-    await this.send(to, `Tu paquete esta en transito, ${envio.trackingNumber}`, html);
+    return this.send(to, `Tu paquete está en tránsito, ${envio.trackingNumber}`, html);
   }
 
-  async sendEnReparto(envio: Envio): Promise<void> {
+  async sendEnReparto(envio: Envio): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping en_reparto');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
@@ -245,17 +298,22 @@ ${row('Estado', badge('En transito', '#EEF2FF', '#0643F7'), true)}`,
       tracking: envio.trackingNumber,
       body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, tu paquete sale a entrega hoy</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor ya tiene tu paquete. Estate atento porque lo llevan a tu direccion.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor ya tiene tu paquete. Estate atento porque lo llevan a tu dirección.</p>
 ${trackingBox(tn, '#5C8A00', '#F4FADA', '#D4EF85', '#A3C840')}
 ${row('Destino', dest)}
 ${instrucciones ? row('Instrucciones', instrucciones) : ''}
 ${row('Estado', badge('En reparto', '#F4FADA', '#5C8A00'), true)}`,
     });
 
-    await this.send(to, `Tu paquete esta en reparto hoy, ${envio.trackingNumber}`, html);
+    return this.send(to, `Tu paquete está en reparto hoy, ${envio.trackingNumber}`, html);
   }
 
-  async sendFallido(envio: Envio): Promise<void> {
+  // Fan-out a destinatario y cliente. Devuelve 1 entry por audiencia con su recipient
+  // y su EmailSendResult independiente. El wrapper en notificaciones.service.ts
+  // persiste 1 row por entry, asi que el audit log refleja el resultado real de cada
+  // send (sent / failed / skipped) sin colapsar. Si ambas audiencias estan ausentes,
+  // devolvemos un unico entry skipped/no_recipient para que quede traza del evento.
+  async sendFallido(envio: Envio): Promise<EmailDispatchEntry[]> {
     const destinatarioTo = this.destinatarioEmail(envio);
     const clienteTo = await this.resolveClienteEmail(envio);
 
@@ -264,6 +322,8 @@ ${row('Estado', badge('En reparto', '#F4FADA', '#5C8A00'), true)}`,
     const dest = escapeHtml(envio.destino);
     const remitente = escapeHtml(envio.clienteNombre);
 
+    const entries: EmailDispatchEntry[] = [];
+
     if (destinatarioTo) {
       const htmlDestinatario = baseTemplate({
         title: 'No pudimos entregar tu paquete',
@@ -271,13 +331,16 @@ ${row('Estado', badge('En reparto', '#F4FADA', '#5C8A00'), true)}`,
         tracking: envio.trackingNumber,
         body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, no pudimos entregarte el paquete</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor intento entregar el paquete pero no fue posible completar la entrega. Nuestro equipo coordinara un nuevo intento.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El repartidor intentó entregar el paquete pero no fue posible completar la entrega. Nuestro equipo coordinará un nuevo intento.</p>
 ${trackingBox(tn, '#EF4444', '#FEF2F2', '#FECACA', '#FCA5A5')}
 ${row('Destino', dest)}
 ${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}
-<p style="font-size:13px;line-height:1.7;color:#6b7280;margin:24px 0 0">Si tenes alguna duda o queres reprogramar, escribinos por WhatsApp.</p>`,
+<p style="font-size:13px;line-height:1.7;color:#6b7280;margin:24px 0 0">Si tenés alguna duda o querés reprogramar, escribinos por WhatsApp.</p>`,
       });
-      await this.send(destinatarioTo, `Intento de entrega fallido, ${envio.trackingNumber}`, htmlDestinatario);
+      entries.push({
+        recipient: destinatarioTo,
+        result: await this.tryFanOutSend(destinatarioTo, `Intento de entrega fallido, ${envio.trackingNumber}`, htmlDestinatario),
+      });
     } else {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email on fallido');
     }
@@ -289,23 +352,31 @@ ${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}
         tracking: envio.trackingNumber,
         body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">No se pudo completar la entrega</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola ${remitente}, el repartidor no pudo entregar el paquete. Se coordinara un nuevo intento.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola ${remitente}, el repartidor no pudo entregar el paquete. Se coordinará un nuevo intento.</p>
 ${trackingBox(tn, '#EF4444', '#FEF2F2', '#FECACA', '#FCA5A5')}
 ${row('Destinatario', nombre)}
 ${row('Destino', dest)}
 ${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}`,
       });
-      await this.send(clienteTo, `Entrega fallida: ${envio.trackingNumber}`, htmlCliente);
+      entries.push({
+        recipient: clienteTo,
+        result: await this.tryFanOutSend(clienteTo, `Entrega fallida: ${envio.trackingNumber}`, htmlCliente),
+      });
     } else {
       logger.info({ envioId: envio.id, clienteId: envio.clienteId }, '[EMAIL] No cliente email on fallido');
     }
+
+    if (entries.length === 0) {
+      return [{ recipient: '', result: { status: 'skipped', reason: 'no_recipient' } }];
+    }
+    return entries;
   }
 
-  async sendCambioEstado(envio: Envio, previousEstado: string): Promise<void> {
+  async sendCambioEstado(envio: Envio, previousEstado: string): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber, estado: envio.estado }, '[EMAIL] No destinatario email, skipping cambio_estado');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
@@ -315,22 +386,22 @@ ${row('Estado', badge('Entrega fallida', '#FEF2F2', '#DC2626'), true)}`,
     const dest = escapeHtml(envio.destino);
 
     const html = baseTemplate({
-      title: 'Actualizacion de tu envio',
+      title: 'Actualización de tu envío',
       accent: '#0643F7',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, hay novedades de tu envio</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tu pedido paso a un nuevo estado.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, hay novedades de tu envío</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Tu pedido pasó a un nuevo estado.</p>
 ${trackingBox(tn, '#0643F7')}
 ${row('Estado anterior', prevLabel)}
 ${row('Nuevo estado', badge(newLabel, '#EEF2FF', '#0643F7'))}
 ${row('Destino', dest, true)}`,
     });
 
-    await this.send(to, `Envio ${envio.trackingNumber}: ${newLabel}`, html);
+    return this.send(to, `Envío ${envio.trackingNumber}: ${newLabel}`, html);
   }
 
-  async sendEntregado(envio: Envio): Promise<void> {
+  async sendEntregado(envio: Envio): Promise<EmailDispatchEntry[]> {
     const destinatarioTo = this.destinatarioEmail(envio);
     const clienteTo = await this.resolveClienteEmail(envio);
 
@@ -339,71 +410,84 @@ ${row('Destino', dest, true)}`,
     const nombreDestinatario = escapeHtml(envio.destinatarioNombre);
     const remitente = escapeHtml(envio.clienteNombre);
 
+    const entries: EmailDispatchEntry[] = [];
+
     if (destinatarioTo) {
       const htmlDestinatario = baseTemplate({
-        title: 'Tu envio fue entregado',
+        title: 'Tu envío fue entregado',
         accent: '#10B981',
         tracking: envio.trackingNumber,
         body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envio fue entregado</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El paquete llego a destino exitosamente. Gracias por confiar en GO EXPRESS.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu envío fue entregado</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">El paquete llegó a destino exitosamente. Gracias por confiar en GO EXPRESS.</p>
 ${trackingBox(tn, '#10B981', '#ECFDF5', '#D1FAE5', '#6EE7B7')}
 ${row('Destino', dest)}
 ${row('Destinatario', nombreDestinatario)}
 ${row('Estado', badge('Entregado', '#ECFDF5', '#059669'), true)}`,
       });
-      await this.send(destinatarioTo, `Envio ${envio.trackingNumber} entregado`, htmlDestinatario);
+      entries.push({
+        recipient: destinatarioTo,
+        result: await this.tryFanOutSend(destinatarioTo, `Envío ${envio.trackingNumber} entregado`, htmlDestinatario),
+      });
     } else {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email on entregado');
     }
 
     if (clienteTo) {
       const htmlCliente = baseTemplate({
-        title: 'Envio entregado',
+        title: 'Envío entregado',
         accent: '#10B981',
         tracking: envio.trackingNumber,
         body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Envio entregado exitosamente</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola ${remitente}, confirmamos la entrega del envio que registraste.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Envío entregado exitosamente</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola ${remitente}, confirmamos la entrega del envío que registraste.</p>
 ${trackingBox(tn, '#10B981', '#ECFDF5', '#D1FAE5', '#6EE7B7')}
 ${row('Destinatario', nombreDestinatario)}
 ${row('Destino', dest)}
 ${row('Estado', badge('Entregado', '#ECFDF5', '#059669'), true)}`,
       });
-      await this.send(clienteTo, `Envio ${envio.trackingNumber} entregado a ${envio.destinatarioNombre}`, htmlCliente);
+      entries.push({
+        recipient: clienteTo,
+        result: await this.tryFanOutSend(clienteTo, `Envío ${envio.trackingNumber} entregado a ${envio.destinatarioNombre}`, htmlCliente),
+      });
     } else {
       logger.info({ envioId: envio.id, clienteId: envio.clienteId }, '[EMAIL] No cliente email on entregado');
     }
+
+    if (entries.length === 0) {
+      return [{ recipient: '', result: { status: 'skipped', reason: 'no_recipient' } }];
+    }
+    return entries;
   }
 
-  async sendProblema(envio: Envio): Promise<void> {
+  async sendProblema(envio: Envio): Promise<EmailSendResult> {
     const to = this.destinatarioEmail(envio);
     if (!to) {
       logger.info({ envioId: envio.id, tracking: envio.trackingNumber }, '[EMAIL] No destinatario email, skipping problema');
-      return;
+      return { status: 'skipped', reason: 'no_recipient' };
     }
 
     const tn = escapeHtml(envio.trackingNumber);
     const nombre = escapeHtml(envio.destinatarioNombre);
-    const desc = escapeHtml(envio.problemaDescripcion ?? 'Sin descripcion');
+    const desc = escapeHtml(envio.problemaDescripcion ?? 'Sin descripción');
 
     const html = baseTemplate({
-      title: 'Novedad con tu envio',
+      title: 'Novedad con tu envío',
       accent: '#F59E0B',
       tracking: envio.trackingNumber,
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, hay una novedad con tu envio</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Nuestro equipo esta trabajando para resolverlo.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Hola ${nombre}, hay una novedad con tu envío</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Nuestro equipo está trabajando para resolverlo.</p>
 ${trackingBox(tn, '#F59E0B', '#FFFBEB', '#FDE68A', '#FBBF24')}
 ${row('Detalle', desc)}
 ${row('Estado', badge('Con problema', '#FFFBEB', '#D97706'), true)}
-<p style="font-size:13px;line-height:1.7;color:#6b7280;margin:24px 0 0">Te contactaremos a la brevedad. Si necesitas ayuda inmediata, escribinos por WhatsApp.</p>`,
+<p style="font-size:13px;line-height:1.7;color:#6b7280;margin:24px 0 0">Te contactaremos a la brevedad. Si necesitás ayuda inmediata, escribinos por WhatsApp.</p>`,
     });
 
-    await this.send(to, `Novedad con tu envio ${envio.trackingNumber}`, html);
+    return this.send(to, `Novedad con tu envío ${envio.trackingNumber}`, html);
   }
 
-  async sendPortalInvite(email: string, temporaryPassword: string, clienteName: string): Promise<void> {
+  async sendPortalInvite(email: string, temporaryPassword: string, clienteName: string): Promise<EmailSendResult> {
     const safeName = escapeHtml(clienteName);
     const safeEmail = escapeHtml(email);
     const safePassword = escapeHtml(temporaryPassword);
@@ -416,19 +500,19 @@ ${row('Estado', badge('Con problema', '#FFFBEB', '#D97706'), true)}
       ctaUrl: 'https://goexpressparaguay.com/portal/login',
       body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Bienvenido al Portal de Clientes</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Tu cuenta fue activada. Desde el portal podes crear envios, ver el estado y descargar reportes.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Tu cuenta fue activada. Desde el portal podés crear envíos, ver el estado y descargar reportes.</p>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
 ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
-<p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesion por primera vez.</p>`,
+<p style="font-size:13px;color:#6b7280;margin:0">Cambiá tu contraseña al iniciar sesión por primera vez.</p>`,
     });
 
-    await this.send(email, 'Bienvenido al Portal GO EXPRESS', html);
+    return this.send(email, 'Bienvenido al Portal GO EXPRESS', html);
   }
 
-  async sendAdminInvite(email: string, temporaryPassword: string, adminName: string): Promise<void> {
+  async sendAdminInvite(email: string, temporaryPassword: string, adminName: string): Promise<EmailSendResult> {
     const safeName = escapeHtml(adminName);
     const safeEmail = escapeHtml(email);
     const safePassword = escapeHtml(temporaryPassword);
@@ -441,16 +525,16 @@ ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter
       ctaUrl: 'https://goexpressparaguay.com/admin/login',
       body: `
 <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu acceso al panel Admin</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Se creo tu cuenta con permisos de administrador sobre el panel completo de GO EXPRESS. Entra con estas credenciales y cambia la contrasena apenas ingreses.</p>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Se creó tu cuenta con permisos de administrador sobre el panel completo de GO EXPRESS. Entrá con estas credenciales y cambiá la contraseña apenas ingreses.</p>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
 ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
-<p style="font-size:13px;color:#6b7280;margin:0">Cambia tu contrasena al iniciar sesion por primera vez.</p>`,
+<p style="font-size:13px;color:#6b7280;margin:0">Cambiá tu contraseña al iniciar sesión por primera vez.</p>`,
     });
 
-    await this.send(email, 'Tu acceso al panel Admin GO EXPRESS', html);
+    return this.send(email, 'Tu acceso al panel Admin GO EXPRESS', html);
   }
 
   async sendPasswordReset(
@@ -458,7 +542,7 @@ ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter
     nombre: string,
     resetUrl: string,
     portal: 'cliente' | 'repartidor' | 'admin',
-  ): Promise<void> {
+  ): Promise<EmailSendResult> {
     const safeName = escapeHtml(nombre || 'Hola');
     const safeUrl = escapeHtml(resetUrl);
     const portalLabel =
@@ -479,10 +563,10 @@ ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter
 <p style="font-size:12px;color:#9ca3af;margin:0">Si no fuiste vos, podés ignorar este correo. Tu contraseña actual sigue funcionando.</p>`,
     });
 
-    await this.send(email, 'Recuperá tu contraseña GO EXPRESS', html);
+    return this.send(email, 'Recuperá tu contraseña GO EXPRESS', html);
   }
 
-  async sendRepartidorInvite(email: string, temporaryPassword: string, repartidorName: string): Promise<void> {
+  async sendRepartidorInvite(email: string, temporaryPassword: string, repartidorName: string): Promise<EmailSendResult> {
     const safeName = escapeHtml(repartidorName);
     const safeEmail = escapeHtml(email);
     const safePassword = escapeHtml(temporaryPassword);
@@ -494,18 +578,35 @@ ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter
       ctaText: 'Abrir portal repartidor',
       ctaUrl: 'https://goexpressparaguay.com/repartidor/login',
       body: `
-<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu cuenta esta lista</h1>
-<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Desde ahora vas a ver tus pedidos asignados en el portal. Podes marcar entregas, reportar incidencias y avisar al cliente con un toque.</p>
+<h1 style="font-size:22px;font-weight:700;margin:0 0 8px;color:#1a1a2e">Tu cuenta está lista</h1>
+<p style="font-size:14px;line-height:1.7;color:#6b7280;margin:0 0 28px">Hola, ${safeName}. Desde ahora vas a ver tus pedidos asignados en el portal. Podés marcar entregas, reportar incidencias y avisar al cliente con un toque.</p>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fb;border-radius:12px;margin-bottom:24px">
 <tr><td style="padding:24px">
 ${row('Email', safeEmail)}
 ${row('Contraseña', `<span style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${safePassword}</span>`, true)}
 </td></tr></table>
-<p style="font-size:13px;color:#6b7280;margin:0 0 8px"><strong>Consejo:</strong> abri el portal desde el celular y agregalo a la pantalla de inicio para tenerlo como una app.</p>
-<p style="font-size:12px;color:#9ca3af;margin:0">Si no esperabas este correo, podes ignorarlo.</p>`,
+<p style="font-size:13px;color:#6b7280;margin:0 0 8px"><strong>Consejo:</strong> abrí el portal desde el celular y agregalo a la pantalla de inicio para tenerlo como una app.</p>
+<p style="font-size:12px;color:#9ca3af;margin:0">Si no esperabas este correo, podés ignorarlo.</p>`,
     });
 
-    await this.send(email, 'Tu acceso al portal de repartidores GO EXPRESS', html);
+    return this.send(email, 'Tu acceso al portal de repartidores GO EXPRESS', html);
+  }
+
+  // Captura el throw de send() y lo traduce a un EmailSendResult con status='failed'.
+  // Sirve para que cada audiencia en un fan-out registre su propio resultado en el
+  // audit log, sin que el throw de una arrastre el reporte de la otra.
+  private async tryFanOutSend(to: string, subject: string, html: string): Promise<EmailSendResult> {
+    try {
+      return await this.send(to, subject, html);
+    } catch (err) {
+      const message =
+        err instanceof EmailDeliveryError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      return { status: 'failed', error: message };
+    }
   }
 
   private destinatarioEmail(envio: Envio): string | null {

@@ -11,6 +11,7 @@ const allEnabled = {
   envio_creado: true,
   recolectado: true,
   en_transito: true,
+  en_deposito: true,
   en_reparto: true,
   entregado: true,
   fallido: true,

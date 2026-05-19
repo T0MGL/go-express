@@ -42,6 +42,7 @@ const notificacionesConfigSchema = z.object({
   envio_creado: z.boolean(),
   recolectado: z.boolean(),
   en_transito: z.boolean(),
+  en_deposito: z.boolean(),
   en_reparto: z.boolean(),
   entregado: z.boolean(),
   fallido: z.boolean(),

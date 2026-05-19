@@ -12,6 +12,7 @@ export interface NotificacionesConfig {
   envio_creado: boolean;
   recolectado: boolean;
   en_transito: boolean;
+  en_deposito: boolean;
   en_reparto: boolean;
   entregado: boolean;
   fallido: boolean;
@@ -24,6 +25,7 @@ export const NOTIFICACIONES_KEYS: readonly NotificacionesConfigKey[] = [
   'envio_creado',
   'recolectado',
   'en_transito',
+  'en_deposito',
   'en_reparto',
   'entregado',
   'fallido',
@@ -34,6 +36,7 @@ export const NOTIFICACIONES_DEFAULTS: NotificacionesConfig = {
   envio_creado: true,
   recolectado: true,
   en_transito: true,
+  en_deposito: true,
   en_reparto: true,
   entregado: true,
   fallido: true,
@@ -54,6 +57,7 @@ export function parseNotificacionesConfig(raw: unknown): NotificacionesConfig {
     envio_creado: coerce('envio_creado'),
     recolectado: coerce('recolectado'),
     en_transito: coerce('en_transito'),
+    en_deposito: coerce('en_deposito'),
     en_reparto: coerce('en_reparto'),
     entregado: coerce('entregado'),
     fallido: coerce('fallido'),

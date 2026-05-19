@@ -417,10 +417,14 @@ router.post(
     });
 
     void (async () => {
-      if (await notificacionesConfigService.isEnabled('envio_creado')) {
-        await emailService.sendEnvioCreado(envio);
-      } else {
-        logger.info({ tracking: envio.trackingNumber }, '[NOTIF] envio_creado disabled by admin config, skipping email');
+      try {
+        if (await notificacionesConfigService.isEnabled('envio_creado')) {
+          await emailService.sendEnvioCreado(envio);
+        } else {
+          logger.info({ tracking: envio.trackingNumber }, '[NOTIF] envio_creado disabled by admin config, skipping email');
+        }
+      } catch (err) {
+        logger.error({ err, tracking: envio.trackingNumber }, 'Failed to send envio_creado email');
       }
     })();
 

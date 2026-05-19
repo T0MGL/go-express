@@ -14,6 +14,7 @@ import usuarioRoutes from './usuarios.js';
 import cuentaCorrienteRoutes from './cuentaCorriente.js';
 import liquidacionRoutes from './liquidaciones.js';
 import ciudadRoutes from './ciudades.js';
+import maintenanceRoutes from './maintenance.js';
 
 const router = Router();
 
@@ -39,5 +40,7 @@ router.use('/configuracion', configuracionRoutes);
 // Un operador con escalada de privilegios podria crearse otro admin, asi que
 // el gate vive a nivel de sub-router y no por ruta.
 router.use('/usuarios', requireOnlyAdmin, usuarioRoutes);
+// Tareas operativas del sistema (jobs, retencion). Solo admin.
+router.use('/maintenance', maintenanceRoutes);
 
 export default router;

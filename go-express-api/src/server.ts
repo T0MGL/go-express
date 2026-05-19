@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { sseService } from './services/sse.service.js';
+import { startPodCleanupScheduler, stopPodCleanupScheduler } from './services/podCleanup.service.js';
 
 const server = app.listen(env.PORT, async () => {
   logger.info(
@@ -18,6 +19,12 @@ const server = app.listen(env.PORT, async () => {
   if (!dbOk) {
     logger.error('Database connection failed at startup. API will return 503 on /health until connection is restored.');
   }
+
+  // Rutina de retencion de fotos POD (30 dias). Corre dentro del proceso del API.
+  // En test no arranca para no contaminar el env de vitest.
+  if (env.NODE_ENV !== 'test') {
+    startPodCleanupScheduler();
+  }
 });
 
 server.timeout = 30000;
@@ -27,6 +34,7 @@ server.headersTimeout = 66000;
 function gracefulShutdown(signal: string) {
   logger.info({ signal }, 'Received shutdown signal, closing server...');
   sseService.shutdown();
+  stopPodCleanupScheduler();
 
   server.close((err) => {
     if (err) {

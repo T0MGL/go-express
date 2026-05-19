@@ -495,7 +495,9 @@ class ClienteService {
       authUserId = createData.user.id;
     }
 
-    emailService.sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social);
+    emailService
+      .sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social)
+      .catch((err) => logger.error({ err, email, clienteId }, 'Failed to send portal invite email'));
 
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')
@@ -564,7 +566,9 @@ class ClienteService {
       throw new AppError(`Error al reenviar invitacion: ${updateAuthErr.message}`, 500, 'INVITE_ERROR');
     }
 
-    emailService.sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social);
+    emailService
+      .sendPortalInvite(email, tempPassword, clienteRow.contacto_nombre || clienteRow.razon_social)
+      .catch((err) => logger.error({ err, email, clienteId }, 'Failed to send portal reinvite email'));
 
     const { data: updated, error: updateErr } = await supabase
       .from('clientes')

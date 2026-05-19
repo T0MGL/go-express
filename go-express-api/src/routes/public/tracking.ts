@@ -23,6 +23,12 @@ router.get(
       throw AppError.notFound('Envío', trackingNumber);
     }
 
+    // Cache breve por destinatario que refresca su tracking. Evita spam pero permite
+    // updates casi en vivo (15s). Public para que CDN del cliente colabore. No
+    // cacheable por la red de GoExpress mientras el dato sea identificatorio del
+    // destinatario (telefono, direccion en respuesta).
+    res.setHeader('Cache-Control', 'public, max-age=15, must-revalidate');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.json(result);
   })
 );

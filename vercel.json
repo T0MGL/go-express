@@ -1,10 +1,17 @@
 {
+  "redirects": [
+    {
+      "source": "/whatsapp",
+      "destination": "https://wa.me/595991600777?text=Hola%20Go%20Express!%20Tengo%20una%20consulta%20sobre%20mi%20env%C3%ADo",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/privacidad", "destination": "/privacidad/index.html" },
     { "source": "/privacidad/", "destination": "/privacidad/index.html" },
     { "source": "/terminos", "destination": "/terminos/index.html" },
     { "source": "/terminos/", "destination": "/terminos/index.html" },
-    { "source": "/((?!assets/|privacidad|terminos).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|privacidad|terminos|whatsapp).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

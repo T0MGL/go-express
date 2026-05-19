@@ -83,8 +83,8 @@ const Clientes = () => {
     activos: allClientes.filter(c => c.estado === 'activo').length,
     totalEnvios: allClientes.reduce((sum, c) => sum + (c.totalEnvios ?? 0), 0),
     deudaTotal: allClientes
-      .filter(c => (c.saldoCuentaCorriente ?? 0) < 0)
-      .reduce((sum, c) => sum + Math.abs(c.saldoCuentaCorriente ?? 0), 0),
+      .filter(c => (c.saldoCuentaCorriente ?? 0) > 0)
+      .reduce((sum, c) => sum + (c.saldoCuentaCorriente ?? 0), 0),
   };
 
   const handleExport = async () => {
@@ -380,10 +380,10 @@ const Clientes = () => {
                           <strong className="text-foreground">{cliente.enviosActivos}</strong> activos · {cliente.totalEnvios} total
                         </span>
                       </div>
-                      {(cliente.saldoCuentaCorriente ?? 0) < 0 && (
+                      {(cliente.saldoCuentaCorriente ?? 0) > 0 && (
                         <div className="flex items-center gap-1.5 text-amber-500">
                           <CurrencyDollar size={14} weight="duotone" className="flex-shrink-0" />
-                          <span className="font-data">{formatCurrency(Math.abs(cliente.saldoCuentaCorriente ?? 0))}</span>
+                          <span className="font-data">{formatCurrency(cliente.saldoCuentaCorriente ?? 0)}</span>
                         </div>
                       )}
                     </div>
@@ -392,12 +392,12 @@ const Clientes = () => {
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="text-right hidden md:block">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {cliente.saldoCuentaCorriente < 0 ? 'Debe' : cliente.saldoCuentaCorriente > 0 ? 'A favor' : 'Saldo'}
+                        {cliente.saldoCuentaCorriente > 0 ? 'Debe' : cliente.saldoCuentaCorriente < 0 ? 'A favor' : 'Saldo'}
                       </p>
                       <p className={`font-semibold text-sm font-data ${
-                        cliente.saldoCuentaCorriente < 0
+                        cliente.saldoCuentaCorriente > 0
                           ? 'text-destructive'
-                          : cliente.saldoCuentaCorriente > 0
+                          : cliente.saldoCuentaCorriente < 0
                           ? 'text-success'
                           : 'text-muted-foreground'
                       }`}>
@@ -460,7 +460,7 @@ const Clientes = () => {
                   </div>
                 </div>
 
-                {cliente.saldoCuentaCorriente < -100000 && (
+                {cliente.saldoCuentaCorriente > 100000 && (
                   <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-warning">
                     <Warning size={13} weight="fill" />
                     <span>Saldo elevado, requiere atención</span>

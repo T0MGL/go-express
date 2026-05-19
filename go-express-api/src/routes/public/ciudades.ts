@@ -14,6 +14,8 @@ router.get(
   trackingLimiter,
   asyncHandler(async (_req, res) => {
     const ciudades = await ciudadService.list();
+    // Catalogo casi estatico: 5min en CDN, validacion al rato.
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
     res.json({ data: ciudades });
   }),
 );

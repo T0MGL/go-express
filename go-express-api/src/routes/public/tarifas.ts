@@ -61,6 +61,8 @@ router.get(
       }),
     );
 
+    // Tarifas cambian poco, 5min en CDN reduce carga del API en horario pico de cotizadores.
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
     res.json({ ciudades, hub: 'Asunción' });
   }),
 );

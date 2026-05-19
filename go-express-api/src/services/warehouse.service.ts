@@ -212,6 +212,8 @@ class WarehouseService {
       throw AppError.badRequest('Package is already dispatched');
     }
 
+    // OCC sobre estado_almacen previo. Si dos operadores lo despachan en paralelo, el
+    // segundo recibe 0 filas y respondemos 409 sin pisar fecha_salida.
     const { data, error } = await supabase
       .from('inventario_almacen')
       .update({
@@ -219,11 +221,16 @@ class WarehouseService {
         fecha_salida: nowISO(),
       })
       .eq('id', paqueteId)
+      .eq('estado_almacen', row.estado_almacen)
       .select(INVENTARIO_COLUMNS)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    if (error) {
       throw new AppError('Error dispatching paquete', 500, 'DB_ERROR');
+    }
+
+    if (!data) {
+      throw AppError.conflict('El paquete ya fue despachado por otro operador. Recargue e intente de nuevo.');
     }
 
     await supabase.from('movimientos_almacen').insert({
@@ -286,6 +293,12 @@ class WarehouseService {
 
     const row = existing as unknown as InventarioAlmacenRow;
 
+    if (row.estado_almacen === 'devuelto') {
+      throw AppError.badRequest('El paquete ya esta marcado como devuelto');
+    }
+
+    // OCC sobre estado_almacen previo. Si otro operador lo devolvio en paralelo, el
+    // UPDATE no impacta filas y respondemos 409 sin pisar la ubicacion destino.
     const { data, error } = await supabase
       .from('inventario_almacen')
       .update({
@@ -293,11 +306,16 @@ class WarehouseService {
         ubicacion: ubicacionDestino,
       })
       .eq('id', paqueteId)
+      .eq('estado_almacen', row.estado_almacen)
       .select(INVENTARIO_COLUMNS)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    if (error) {
       throw new AppError('Error returning paquete', 500, 'DB_ERROR');
+    }
+
+    if (!data) {
+      throw AppError.conflict('El paquete fue modificado por otro operador. Recargue e intente de nuevo.');
     }
 
     await supabase.from('movimientos_almacen').insert({

@@ -10,6 +10,7 @@ import { idParamSchema } from '../../lib/validators/common.schema.js';
 import { nowISO, todayPY } from '../../lib/datetime.js';
 import { auditoriaService } from '../../services/auditoria.service.js';
 import { pagoService } from '../../services/pago.service.js';
+import { envioService } from '../../services/envio.service.js';
 import { validarDiferenciaCobroCod, CodValidationError } from '../../lib/cod.js';
 import { warehouseService } from '../../services/warehouse.service.js';
 
@@ -149,54 +150,40 @@ router.patch(
     const repartidorId = req.repartidorId!;
     const repartidorNombre = req.repartidorNombre ?? 'Repartidor';
 
-    const { data: current, error: fetchErr } = await supabase
+    // Verificacion de ownership (no-op en DB, solo guarda el race a nivel de autorizacion).
+    // El estado se transita via RPC atomico que valida la transicion bajo SELECT FOR UPDATE.
+    const { data: ownerCheck, error: fetchErr } = await supabase
       .from('envios')
-      .select('id, estado, repartidor_id, tracking_number')
+      .select('repartidor_id, estado')
       .eq('id', id)
       .eq('eliminado', false)
       .single();
 
-    if (fetchErr || !current) {
+    if (fetchErr || !ownerCheck) {
       throw AppError.notFound('Envio', id);
     }
 
-    const envio = current as { id: string; estado: string; repartidor_id: string | null; tracking_number: string };
-
-    if (envio.repartidor_id !== repartidorId) {
+    const owner = ownerCheck as { repartidor_id: string | null; estado: string };
+    if (owner.repartidor_id !== repartidorId) {
       throw AppError.forbidden('Este envio no esta asignado a vos');
     }
 
-    if (envio.estado !== 'pendiente' && envio.estado !== 'recolectado') {
-      throw AppError.badRequest(`No se puede marcar como recolectado desde estado "${envio.estado}"`);
+    // Idempotente: si ya esta recolectado, devolver ok sin tocar nada. Evita 422 espurios
+    // en doble tap o reintentos por red intermitente desde el mobile del driver.
+    if (owner.estado === 'recolectado') {
+      res.json({ ok: true, idempotent: true });
+      return;
     }
 
-    const { error: updateErr } = await supabase
-      .from('envios')
-      .update({ estado: 'recolectado', recolectado_en: nowISO() })
-      .eq('id', id);
-
-    if (updateErr) {
-      logger.error({ err: updateErr, id }, 'Error marking recolectado');
-      throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
-    }
-
-    await supabase.from('eventos_envio').insert({
-      envio_id: id,
-      estado: 'recolectado',
-      descripcion: `Paquete recolectado por ${repartidorNombre}`,
-      registrado_por_nombre: repartidorNombre,
-    });
-
-    auditoriaService.log({
-      usuario: repartidorNombre,
-      usuarioId: repartidorId,
-      accion: 'cambio_estado',
-      entidad: 'envio',
-      entidadId: id,
-      descripcion: `Repartidor marco recolectado: ${envio.tracking_number}`,
-      ipAddress: req.ip ?? undefined,
-      userAgent: req.headers['user-agent'] ?? undefined,
-    });
+    await envioService.updateEstado(
+      id,
+      { estado: 'recolectado', descripcion: `Paquete recolectado por ${repartidorNombre}` },
+      repartidorId,
+      repartidorNombre,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+      SISTEMA_USER_ID,
+    );
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
@@ -272,9 +259,11 @@ router.patch(
       }
     }
 
-    // Primero el UPDATE del envio (estado, POD, incidencia). El trigger de pagos se
-    // encarga despues de sincronizar envios.monto_cobrado desde el pago COD que
-    // creamos via RPC. Evitamos el set directo del monto_cobrado (hallazgo 3.2).
+    // UPDATE del envio (estado, POD, incidencia) con OCC sobre estado previo. Si otra
+    // sesion del mismo repartidor (doble tap o reintentos por red intermitente) o el
+    // admin marcaron problema/fallido en paralelo, este UPDATE retorna 0 filas y
+    // respondemos 409 sin clobberar datos. El trigger de pagos sincroniza envios.monto_cobrado
+    // despues, desde el pago COD via RPC. Evitamos el set directo (hallazgo 3.2).
     const update: Record<string, unknown> = {
       estado: 'entregado',
       fecha_entrega_real: nowISO(),
@@ -297,11 +286,21 @@ router.patch(
       update['monto_cobrado'] = montoCobrado;
     }
 
-    const { error: updateErr } = await supabase.from('envios').update(update).eq('id', id);
+    const { data: updatedRow, error: updateErr } = await supabase
+      .from('envios')
+      .update(update)
+      .eq('id', id)
+      .eq('estado', envio.estado)
+      .select('id')
+      .maybeSingle();
 
     if (updateErr) {
       logger.error({ err: updateErr, id }, 'Error marking entregado');
       throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
+    }
+
+    if (!updatedRow) {
+      throw AppError.conflict('El estado del envio fue modificado por otro usuario. Recargue e intente de nuevo.');
     }
 
     // Pago COD atomico via RPC. Falla -> rollback del pago y auditoria en Postgres, pero
@@ -487,6 +486,14 @@ router.patch(
       throw AppError.forbidden('Este envio no esta asignado a vos');
     }
 
+    if (envio.estado === 'en_transito' || envio.estado === 'en_deposito') {
+      // Idempotente: ya esta en almacen, devolver ok sin tocar nada. Cubre doble tap
+      // y reintentos por red intermitente desde el mobile del driver.
+      sseService.broadcast({ entity: ['envios', id], action: 'updated' });
+      res.json({ ok: true, idempotent: true });
+      return;
+    }
+
     if (envio.estado !== 'recolectado') {
       throw AppError.badRequest(
         envio.estado === 'pendiente'
@@ -495,15 +502,18 @@ router.patch(
       );
     }
 
-    const { error: updateErr } = await supabase
-      .from('envios')
-      .update({ estado: 'en_transito' })
-      .eq('id', id);
-
-    if (updateErr) {
-      logger.error({ err: updateErr, id }, 'Error transitioning to en_transito');
-      throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
-    }
+    // Transicion atomica recolectado -> en_transito via RPC. eventos_envio + auditoria
+    // se insertan en la misma transaccion plpgsql. Si alguien mas movio el estado, el
+    // RPC raisea transicion_invalida y este endpoint responde 422 sin clobberar.
+    await envioService.updateEstado(
+      id,
+      { estado: 'en_transito', descripcion: `Paquete depositado en almacén por ${repartidorNombre}` },
+      repartidorId,
+      repartidorNombre,
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+      SISTEMA_USER_ID,
+    );
 
     const dimensiones =
       envio.dimensiones_largo && envio.dimensiones_ancho && envio.dimensiones_alto
@@ -533,23 +543,8 @@ router.patch(
       logger.error({ err: warehouseErr, envioId: id, tracking: envio.tracking_number }, 'Warehouse ingreso from repartidor failed, envio still marked en_transito');
     }
 
-    await supabase.from('eventos_envio').insert({
-      envio_id: id,
-      estado: 'en_transito',
-      descripcion: `Paquete depositado en almacén por ${repartidorNombre}`,
-      registrado_por_nombre: repartidorNombre,
-    });
-
-    auditoriaService.log({
-      usuario: repartidorNombre,
-      usuarioId: SISTEMA_USER_ID,
-      accion: 'cambio_estado',
-      entidad: 'envio',
-      entidadId: id,
-      descripcion: `Repartidor ${repartidorNombre} deposito en almacen: ${envio.tracking_number}`,
-      ipAddress: req.ip ?? undefined,
-      userAgent: req.headers['user-agent'] ?? undefined,
-    });
+    // eventos_envio + auditoria_log ya fueron insertados por update_envio_estado_atomico
+    // dentro de la misma transaccion. No duplicar aqui.
 
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });

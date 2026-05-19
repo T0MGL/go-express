@@ -3,9 +3,7 @@ import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { cuentaCorrienteService } from './cuentaCorriente.service.js';
-import { emailService } from './email.service.js';
-import { notificacionesConfigService } from './notificacionesConfig.service.js';
-import type { NotificacionesConfigKey } from '../lib/notificaciones.js';
+import { notificacionesService } from './notificaciones.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
@@ -201,60 +199,18 @@ function mapNotaRow(row: NotaInternaRow): NotaInterna {
   };
 }
 
-// Mapea event -> flag en la config de notificaciones. Si el flag esta en false,
-// el email no se envia. La key `envio_creado` cubre la creacion del envio
-// (siempre con estado pendiente), las demas cubren cada transicion.
-function notifKeyFor(event: NotificationEvent, newEstado: EnvioEstado): NotificacionesConfigKey | null {
-  if (event === 'envio_creado') return 'envio_creado';
-  switch (newEstado) {
-    case 'recolectado': return 'recolectado';
-    case 'en_transito': return 'en_transito';
-    case 'en_reparto': return 'en_reparto';
-    case 'entregado': return 'entregado';
-    case 'fallido': return 'fallido';
-    case 'problema': return 'problema';
-    case 'pendiente': return null;
-    default: return null;
-  }
-}
-
+// Fire-and-forget al orquestador multi-canal. La HTTP response del cambio de estado
+// no espera al fan-out. El orquestador resuelve config gate, dispara email + WhatsApp
+// en paralelo (Promise.allSettled) y persiste cada intento en notificaciones_log.
 function triggerNotification(event: NotificationEvent, envio: Envio, previousEstado?: EnvioEstado): void {
   logger.info(
     { event, trackingNumber: envio.trackingNumber, previousEstado, newEstado: envio.estado },
     `Notification hook: ${event}`
   );
 
-  // Fire-and-forget: la respuesta HTTP no espera al email. Un error de config o de DB
-  // se loggea pero no afecta la respuesta del cambio de estado.
-  void (async () => {
-    const key = notifKeyFor(event, envio.estado);
-    if (!key) {
-      logger.info({ event, estado: envio.estado }, '[NOTIF] No notification key for this transition, skipping');
-      return;
-    }
-
-    const enabled = await notificacionesConfigService.isEnabled(key);
-    if (!enabled) {
-      logger.info({ event, estado: envio.estado, key, tracking: envio.trackingNumber }, '[NOTIF] Event disabled by admin config, skipping email');
-      return;
-    }
-
-    if (event === 'envio_creado') {
-      await emailService.sendEnvioCreado(envio);
-      return;
-    }
-
-    switch (envio.estado) {
-      case 'recolectado':  await emailService.sendRecolectado(envio); break;
-      case 'en_transito':  await emailService.sendEnTransito(envio);  break;
-      case 'en_reparto':   await emailService.sendEnReparto(envio);   break;
-      case 'entregado':    await emailService.sendEntregado(envio);   break;
-      case 'fallido':      await emailService.sendFallido(envio);     break;
-      case 'problema':     await emailService.sendProblema(envio);    break;
-      default:
-        logger.info({ estado: envio.estado }, '[NOTIF] No email template for this state');
-    }
-  })();
+  void notificacionesService.dispatch(event, envio).catch((err) => {
+    logger.error({ err, event, tracking: envio.trackingNumber }, '[NOTIF] dispatch threw unexpectedly');
+  });
 }
 
 // Explicit column lists
@@ -706,93 +662,86 @@ class EnvioService {
     return envio;
   }
 
-  async updateEstado(id: string, input: UpdateEnvioEstadoInput, userId: string, userName?: string, ipAddress?: string, userAgent?: string): Promise<Envio> {
-    const { data: currentData, error: fetchError } = await supabase
-      .from('envios')
-      .select('estado, tracking_number')
-      .eq('id', id)
-      .eq('eliminado', false)
-      .single();
+  /**
+   * Transiciona el estado de un envio de forma atomica via RPC plpgsql.
+   * El RPC ejecuta SELECT FOR UPDATE + UPDATE + INSERT eventos_envio + INSERT auditoria_log
+   * en una sola transaccion plpgsql. Si cualquiera falla, todo se rollbackea.
+   *
+   * Cierra dos clases de bugs que existian con el path previo (UPDATE con OCC en TS,
+   * eventos/auditoria fuera de transaccion):
+   *  1. eventos_envio o auditoria_log fallaba luego del UPDATE -> estado nuevo sin
+   *     timeline ni log forense.
+   *  2. Drivers o admins concurrentes en la misma fila -> el OCC en TS detectaba el
+   *     race pero dejaba ventanas pequeñas si el UPDATE corria sin lock previo. Ahora
+   *     el FOR UPDATE serializa por fila bajo lock pesimista.
+   *
+   * userName: nombre legible que va al timeline y al log.
+   * auditActorId: FK a usuarios. Para repartidores que no son usuarios, pasar el
+   *   SISTEMA_USER_ID. La identidad real queda en userName y en envios.repartidor_id.
+   */
+  async updateEstado(
+    id: string,
+    input: UpdateEnvioEstadoInput,
+    userId: string,
+    userName?: string,
+    ipAddress?: string,
+    userAgent?: string,
+    auditActorId?: string,
+  ): Promise<Envio> {
+    const actorNombre = userName ?? 'Admin GoExpress';
+    const actorAuditId = auditActorId ?? userId;
 
-    if (fetchError || !currentData) {
-      throw AppError.notFound('Envio no encontrado');
-    }
-
-    const previousEstado = (currentData as { estado: EnvioEstado; tracking_number: string }).estado;
-    const newEstado = input.estado;
-
-    const allowed = VALID_TRANSITIONS[previousEstado];
-    if (!allowed || !allowed.includes(newEstado)) {
-      throw AppError.unprocessable(
-        `Invalid state transition: "${previousEstado}" to "${newEstado}"`,
-        { currentEstado: previousEstado, requestedEstado: newEstado, allowedTransitions: allowed }
-      );
-    }
-
-    const updateData: Record<string, unknown> = { estado: newEstado };
-
-    if (newEstado === 'problema') {
-      updateData['problema_descripcion'] = input.descripcion;
-      updateData['problema_fecha'] = nowISO();
-    }
-
-    if (previousEstado === 'problema' && newEstado !== 'problema') {
-      updateData['problema_descripcion'] = null;
-      updateData['problema_fecha'] = null;
-    }
-
-    if (newEstado === 'en_reparto' && input.repartidorId) {
-      updateData['repartidor_id'] = input.repartidorId;
-      updateData['repartidor_asignado_en'] = nowISO();
-    }
-
-    const { data, error } = await supabase
-      .from('envios')
-      .update(updateData)
-      .eq('id', id)
-      .eq('estado', previousEstado)
-      .select(ENVIO_COLUMNS)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('update_envio_estado_atomico', {
+      p_envio_id: id,
+      p_nuevo_estado: input.estado,
+      p_descripcion: input.descripcion,
+      p_ubicacion: input.ubicacion ?? null,
+      p_problema_descr: input.estado === 'problema' ? input.descripcion : null,
+      p_repartidor_id: input.estado === 'en_reparto' ? (input.repartidorId ?? null) : null,
+      p_apply_repartidor: input.estado === 'en_reparto' && Boolean(input.repartidorId),
+      p_actor_id: userId,
+      p_actor_nombre: actorNombre,
+      p_audit_actor_id: actorAuditId,
+      p_extra_descr: null,
+      p_ip: ipAddress ?? null,
+      p_user_agent: userAgent ?? null,
+    });
 
     if (error) {
+      const msg = error.message ?? '';
+      if (msg.includes('envio_no_encontrado')) {
+        throw AppError.notFound('Envio', id);
+      }
+      if (msg.includes('envio_eliminado')) {
+        throw AppError.badRequest('No se puede modificar un envio eliminado');
+      }
+      if (msg.includes('transicion_invalida')) {
+        throw AppError.unprocessable(
+          `Transicion de estado invalida hacia "${input.estado}"`,
+          { detail: msg }
+        );
+      }
+      logger.error({ error, envioId: id, nuevoEstado: input.estado }, 'Error en RPC update_envio_estado_atomico');
       throw new AppError('Error updating envio estado', 500, 'DB_ERROR');
     }
 
     if (!data) {
-      throw AppError.conflict('El estado del envio fue modificado por otro usuario. Recargue e intente de nuevo.');
+      throw new AppError('Error updating envio estado: empty response', 500, 'DB_ERROR');
     }
 
-    const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
-
-    const [eventoResult] = await Promise.all([
-      supabase.from('eventos_envio').insert({
-        envio_id: id,
-        estado: newEstado,
-        descripcion: input.descripcion,
-        ubicacion: input.ubicacion ?? null,
-      }),
-      auditoriaService.log({
-        usuario: userName ?? 'Admin GoExpress',
-        usuarioId: userId,
-        accion: 'cambio_estado',
-        entidad: 'envio',
-        entidadId: id,
-        descripcion: `Envio ${envio.trackingNumber}: "${previousEstado}" a "${newEstado}". ${input.descripcion}`,
-        ipAddress,
-        userAgent,
-      }),
-    ]);
-
-    if (eventoResult.error) {
-      logger.error({ error: eventoResult.error, envioId: id }, 'Failed to insert evento_envio after estado change');
+    const row = (Array.isArray(data) ? data[0] : data) as EnvioRow | undefined;
+    if (!row) {
+      throw new AppError('Error updating envio estado: empty row', 500, 'DB_ERROR');
     }
+
+    const envio = mapEnvioRowToApi(row);
 
     let event: NotificationEvent = 'cambio_estado';
-    if (newEstado === 'entregado') event = 'entregado';
-    else if (newEstado === 'problema') event = 'problema';
-    else if (newEstado === 'fallido') event = 'fallido';
+    if (input.estado === 'entregado') event = 'entregado';
+    else if (input.estado === 'problema') event = 'problema';
+    else if (input.estado === 'fallido') event = 'fallido';
 
-    triggerNotification(event, envio, previousEstado);
+    triggerNotification(event, envio);
 
     return envio;
   }

@@ -33,6 +33,10 @@ const envSchema = z.object({
   META_WA_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/, 'Format: v22.0').default('v22.0'),
   // Solo necesario si activamos el webhook handler para que Meta valide el endpoint.
   META_WA_VERIFY_TOKEN: z.string().optional().default(''),
+  // App secret de la Meta App. Se usa para validar la firma HMAC-SHA256 de los POST
+  // que Meta hace al webhook (header X-Hub-Signature-256). Sin este valor, las
+  // requests no se pueden autenticar y se loguea warning en cada POST.
+  META_APP_SECRET: z.string().optional().default(''),
 
   // App
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

@@ -102,7 +102,19 @@ if (env.NODE_ENV !== 'test') {
   );
 }
 
-app.use(express.json({ limit: '1mb' }));
+// El verify callback se ejecuta antes de parsear JSON. Guardamos el raw body
+// solo para webhooks publicos: Meta firma cada POST con HMAC-SHA256 sobre el
+// body crudo, y la firma no se puede recalcular desde el JSON ya parseado (orden
+// de keys, espacios, etc). El resto del API no necesita rawBody, no lo guardamos
+// para no duplicar memoria.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req: IncomingMessage & { rawBody?: Buffer }, _res, buf: Buffer) => {
+    if (req.url?.startsWith('/api/public/webhooks/')) {
+      req.rawBody = Buffer.from(buf);
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Global limiter covers the non-auth surface. /api/auth has its own tuned

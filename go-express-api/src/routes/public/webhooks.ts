@@ -94,11 +94,16 @@ router.post('/whatsapp', (req: Request, res) => {
   const sigHeaderRaw = req.headers['x-hub-signature-256'];
   const sigHeader = Array.isArray(sigHeaderRaw) ? sigHeaderRaw[0] : sigHeaderRaw;
 
-  // Si APP_SECRET no esta seteado, fallback a accept-and-log: rechazar tiraria 401
-  // a Meta y degradaria el endpoint. El warn deja huella para que ops se entere.
-  // En produccion META_APP_SECRET debe estar seteado.
+  // En produccion la firma es obligatoria: hard-fail 401 si APP_SECRET falta o
+  // si la firma no valida. En dev/test fallback a warn-and-accept para no romper
+  // el flow local cuando todavia no se cargo el secret.
   if (!env.META_APP_SECRET) {
-    logger.warn('[WA WEBHOOK POST] META_APP_SECRET no seteado, firma no verificada');
+    if (env.NODE_ENV === 'production') {
+      logger.error('[WA WEBHOOK POST] META_APP_SECRET ausente en produccion, rechazando');
+      res.status(401).send('Unauthorized');
+      return;
+    }
+    logger.warn('[WA WEBHOOK POST] META_APP_SECRET no seteado, firma no verificada (NODE_ENV != production)');
   } else if (!verifySignature(rawBody, sigHeader)) {
     logger.warn({ hasHeader: Boolean(sigHeader) }, '[WA WEBHOOK POST] Firma invalida');
     res.status(401).send('Unauthorized');
@@ -177,11 +182,15 @@ async function persistDeliveryStatus(status: MetaStatus): Promise<void> {
     ? `${firstError.code}: ${firstError.title}${firstError.message ? ` - ${firstError.message}` : ''}`
     : 'failed sin detalle';
 
+  // Idempotente: solo transiciona enviado -> fallido. Meta reintenta el mismo
+  // status si no recibe ACK en 20s; sin el guard, cada reintento dispararia un
+  // UPDATE redundante que en el futuro podria fan-out a alertas/retries.
   const { error, count } = await supabase
     .from('notificaciones_log')
     .update({ status: 'fallido', error: errorMsg }, { count: 'exact' })
     .eq('proveedor_message_id', status.id)
-    .eq('canal', 'whatsapp');
+    .eq('canal', 'whatsapp')
+    .eq('status', 'enviado');
 
   if (error) {
     logger.error(

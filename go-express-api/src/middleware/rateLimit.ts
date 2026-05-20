@@ -115,3 +115,22 @@ export const adminWriteLimiter = rateLimit({
   message: 'Too many admin write requests, please try again later',
   keyGenerator: (req) => req.ip ?? 'unknown',
 });
+
+/**
+ * Webhook rate limiter (Meta WhatsApp Cloud API).
+ * Generous: 600 requests per minute per IP. Meta postea delivery statuses en
+ * bursts (1 mensaje = sent + delivered + read = 3 events), y un escenario de
+ * 100 envios/dia con 5 status events cada uno cabe holgadamente.
+ * No usamos el bypass total que tenia antes porque permitia floodear el endpoint
+ * con POST 1MB sin firma (ataque CPU/JSON parse). Cualquier flood real va a
+ * disparar 429 antes de gastar handler.
+ */
+export const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 600,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many webhook requests, please try again later',
+  keyGenerator: (req) => req.ip ?? 'unknown',
+});

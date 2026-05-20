@@ -3,8 +3,7 @@ import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
-import { emailService } from '../../services/email.service.js';
-import { notificacionesConfigService } from '../../services/notificacionesConfig.service.js';
+import { notificacionesService } from '../../services/notificaciones.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio } from '../../services/envio.service.js';
 import { cuentaCorrienteService } from '../../services/cuentaCorriente.service.js';
@@ -416,17 +415,13 @@ router.post(
       descripcion: 'Envío creado desde portal cliente',
     });
 
-    void (async () => {
-      try {
-        if (await notificacionesConfigService.isEnabled('envio_creado')) {
-          await emailService.sendEnvioCreado(envio);
-        } else {
-          logger.info({ tracking: envio.trackingNumber }, '[NOTIF] envio_creado disabled by admin config, skipping email');
-        }
-      } catch (err) {
-        logger.error({ err, tracking: envio.trackingNumber }, 'Failed to send envio_creado email');
-      }
-    })();
+    // Dispatch fan-out (email + WhatsApp) via servicio orquestador. Internamente
+    // chequea notificaciones_config, manda template aprobado a Meta Cloud API y al
+    // canal email, y persiste cada intento en notificaciones_log. Fire-and-forget:
+    // no bloquea el response al cliente, errores quedan logueados.
+    void notificacionesService.dispatch('envio_creado', envio).catch((err: unknown) => {
+      logger.error({ err, tracking: envio.trackingNumber }, '[NOTIF] dispatch envio_creado fallo');
+    });
 
     sseService.broadcastToRole({ entity: ['envios', 'list'], action: 'created' }, 'admin');
     sseService.broadcastToRole({ entity: ['dashboard'], action: 'updated' }, 'admin');

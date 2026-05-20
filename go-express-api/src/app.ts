@@ -11,7 +11,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
-import { generalLimiter, authLimiter, authReadLimiter, sseLimiter, adminWriteLimiter } from './middleware/rateLimit.js';
+import { generalLimiter, authLimiter, authReadLimiter, sseLimiter, adminWriteLimiter, webhookLimiter } from './middleware/rateLimit.js';
 
 import adminRoutes from './routes/admin/index.js';
 import clienteRoutes from './routes/cliente/index.js';
@@ -117,15 +117,15 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Global limiter covers the non-auth surface. /api/auth has its own tuned
-// limiters below (strict for credentials, loose for reads); skipping it here
-// prevents double-counting requests against the same IP bucket, which
-// previously halved the effective budget for /auth/me.
-// /api/public/webhooks tambien se bypasea: Meta WhatsApp Cloud API postea delivery
-// receipts en bursts desde un pool reducido de IPs y dispararia 429s; Meta interpreta
-// el endpoint como down y degrada la reputacion del numero. Endpoint es idempotente
-// y solo responde 200; no necesita anti-abuse propio.
+// Global limiter covers the non-auth surface. /api/auth tiene sus propios
+// limiters tunneados mas abajo (strict para credentials, loose para reads).
+// /api/public/webhooks usa webhookLimiter dedicado (600/min/IP): Meta postea
+// statuses en bursts desde un pool reducido de IPs y dispararia 429 con el
+// limit general de 100. Anteriormente bypaseabamos totalmente, pero el HMAC
+// se valida despues de express.json (1MB cap), entonces un atacante podia
+// gastar CPU+JSON-parse a voluntad. Ahora hay piso anti-abuse sin pisar a Meta.
 if (env.NODE_ENV !== 'test') {
+  app.use('/api/public/webhooks', webhookLimiter);
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/auth/')) return next();
     if (req.path.startsWith('/api/public/webhooks/')) return next();

@@ -7,13 +7,13 @@ import type { Cliente } from '@/data/types';
 import { Plus, Download, ChevronRight } from 'lucide-react';
 import {
   Buildings,
-  Package, PencilSimple, ArrowSquareOut, Warning, TrendUp, CurrencyDollar,
+  Package, PencilSimple, ArrowSquareOut, Warning, TrendUp,
   PaperPlaneTilt, ArrowClockwise, LockKey, Globe,
 } from '@phosphor-icons/react';
 import { exportToCSV } from '@/lib/exportCSV';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,6 @@ import {
   useInviteCliente, useReinviteCliente, useResetClientePassword,
 } from '@/hooks/api/use-clientes';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { AdminCuentaCorriente } from '@/components/admin/AdminCuentaCorriente';
 
 const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,9 +81,6 @@ const Clientes = () => {
   const totales = {
     activos: allClientes.filter(c => c.estado === 'activo').length,
     totalEnvios: allClientes.reduce((sum, c) => sum + (c.totalEnvios ?? 0), 0),
-    deudaTotal: allClientes
-      .filter(c => (c.saldoCuentaCorriente ?? 0) > 0)
-      .reduce((sum, c) => sum + (c.saldoCuentaCorriente ?? 0), 0),
   };
 
   const handleExport = async () => {
@@ -103,7 +99,6 @@ const Clientes = () => {
         { label: 'Ciudad', accessor: (c: Cliente) => c.ciudad ?? '' },
         { label: 'Estado', accessor: (c: Cliente) => estadoClienteLabels[c.estado] },
         { label: 'Total Envíos', accessor: (c: Cliente) => c.totalEnvios },
-        { label: 'Saldo Cta Cte', accessor: (c: Cliente) => c.saldoCuentaCorriente },
       ];
       exportToCSV(exportData, 'clientes', columns);
       toast.success('Exportando clientes a CSV...');
@@ -258,7 +253,7 @@ const Clientes = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="stat-card">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-success/6 flex items-center justify-center">
@@ -278,17 +273,6 @@ const Clientes = () => {
               <div>
                 <p className="stat-card-value text-xl">{totales.totalEnvios}</p>
                 <p className="stat-card-label">Envíos hechos en total</p>
-              </div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-destructive/6 flex items-center justify-center">
-                <CurrencyDollar size={16} weight="duotone" className="text-destructive" />
-              </div>
-              <div>
-                <p className="stat-card-value text-xl">{formatCurrency(totales.deudaTotal)}</p>
-                <p className="stat-card-label">Deuda total de clientes</p>
               </div>
             </div>
           </div>
@@ -380,32 +364,10 @@ const Clientes = () => {
                           <strong className="text-foreground">{cliente.enviosActivos}</strong> activos · {cliente.totalEnvios} total
                         </span>
                       </div>
-                      {(cliente.saldoCuentaCorriente ?? 0) > 0 && (
-                        <div className="flex items-center gap-1.5 text-amber-500">
-                          <CurrencyDollar size={14} weight="duotone" className="flex-shrink-0" />
-                          <span className="font-data">{formatCurrency(cliente.saldoCuentaCorriente ?? 0)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="text-right hidden md:block">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {cliente.saldoCuentaCorriente > 0 ? 'Debe' : cliente.saldoCuentaCorriente < 0 ? 'A favor' : 'Saldo'}
-                      </p>
-                      <p className={`font-semibold text-sm font-data ${
-                        cliente.saldoCuentaCorriente > 0
-                          ? 'text-destructive'
-                          : cliente.saldoCuentaCorriente < 0
-                          ? 'text-success'
-                          : 'text-muted-foreground'
-                      }`}>
-                        {cliente.saldoCuentaCorriente === 0
-                          ? 'Sin deuda'
-                          : formatCurrency(Math.abs(cliente.saldoCuentaCorriente))}
-                      </p>
-                    </div>
                     <div className="flex gap-0.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -459,13 +421,6 @@ const Clientes = () => {
                     <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
                   </div>
                 </div>
-
-                {cliente.saldoCuentaCorriente > 100000 && (
-                  <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-warning">
-                    <Warning size={13} weight="fill" />
-                    <span>Saldo elevado, requiere atención</span>
-                  </div>
-                )}
 
                 {cliente.estado === 'suspendido' && cliente.notas && (
                   <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2 text-[12px] text-destructive">
@@ -732,17 +687,6 @@ const Clientes = () => {
                     </div>
                   </div>
 
-                  {/* Cuenta corriente */}
-                  <div className="border-t border-border/50 pt-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CurrencyDollar size={16} weight="duotone" className="text-primary" />
-                      <h4 className="text-[13px] font-semibold">Cuenta corriente</h4>
-                    </div>
-                    <AdminCuentaCorriente
-                      clienteId={detailCliente.id}
-                      clienteNombre={detailCliente.razonSocial}
-                    />
-                  </div>
                 </div>
 
                 <DialogFooter>

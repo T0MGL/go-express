@@ -661,7 +661,6 @@ const EnvioDetail = () => {
           onClose={() => setIsAnularPagoModalOpen(false)}
           pagoId={envio.pago.id}
           montoRecibido={envio.pago.montoRecibido}
-          esCuentaCorriente={envio.tipoPago === 'cuenta_corriente'}
         />
       )}
 
@@ -876,7 +875,6 @@ const EnvioDetail = () => {
                     <SelectContent>
                       <SelectItem value="anticipado">Anticipado</SelectItem>
                       <SelectItem value="contra_entrega">Contra Entrega</SelectItem>
-                      <SelectItem value="cuenta_corriente">Cuenta Corriente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -92,7 +92,7 @@ export interface Envio {
   eventos: EventoEnvio[];
   costo: number;
   montoACobrar: number;
-  tipoPago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+  tipoPago: 'anticipado' | 'contra_entrega';
   seguroAdicional: boolean;
   costoSeguro: number;
   pago: Pago | null;
@@ -198,7 +198,6 @@ export interface Cliente {
   ciudad: string | null;
   estado: 'activo' | 'inactivo' | 'suspendido';
   plan: 'basico' | 'profesional' | 'enterprise';
-  saldoCuentaCorriente: number;
   totalEnvios: number;
   enviosActivos: number;
   notas: string | null;

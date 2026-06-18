@@ -15,7 +15,7 @@ export interface RepartidorEnvio {
   estado: 'pendiente' | 'recolectado' | 'en_transito' | 'en_reparto' | 'entregado' | 'fallido' | 'problema';
   costo: number;
   monto_a_cobrar: number;
-  tipo_pago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+  tipo_pago: 'anticipado' | 'contra_entrega';
   peso: number;
   producto: string | null;
   fragil: boolean;

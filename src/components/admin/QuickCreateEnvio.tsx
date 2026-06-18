@@ -33,7 +33,7 @@ interface QuickForm {
   destino: string;
   peso: string;
   tipoServicio: 'estandar' | 'express';
-  tipoPago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+  tipoPago: 'anticipado' | 'contra_entrega';
   costo: string;
   montoACobrar: string;
   notas: string;
@@ -107,8 +107,6 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
       walkIn: checked,
       clienteId: checked ? (mostradorCliente?.id ?? '') : '',
       walkInNombre: checked ? prev.walkInNombre : '',
-      // cuenta corriente no aplica a walk-in, forzar anticipado
-      tipoPago: checked && prev.tipoPago === 'cuenta_corriente' ? 'anticipado' : prev.tipoPago,
     }));
     setClienteSearch('');
     setClienteOpen(false);
@@ -413,9 +411,6 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
                     <SelectContent>
                       <SelectItem value="anticipado">Anticipado</SelectItem>
                       <SelectItem value="contra_entrega">Contra entrega</SelectItem>
-                      <SelectItem value="cuenta_corriente" disabled={form.walkIn}>
-                        Cuenta corriente
-                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

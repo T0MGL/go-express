@@ -13,7 +13,6 @@ interface AnularPagoModalProps {
   onClose: () => void;
   pagoId: string;
   montoRecibido: number;
-  esCuentaCorriente: boolean;
   onAnulado?: () => void;
 }
 
@@ -25,7 +24,6 @@ export const AnularPagoModal = ({
   onClose,
   pagoId,
   montoRecibido,
-  esCuentaCorriente,
   onAnulado,
 }: AnularPagoModalProps) => {
   const [motivo, setMotivo] = useState('');
@@ -83,9 +81,7 @@ export const AnularPagoModal = ({
                 Esta accion es irreversible.
               </p>
               <p className="text-[12px] text-muted-foreground mt-1">
-                {esCuentaCorriente
-                  ? `Se anulara el cobro de ${formatCurrency(montoRecibido)} y se revertira el saldo de cuenta corriente del cliente.`
-                  : `Se marcara el cobro de ${formatCurrency(montoRecibido)} como anulado. Podras registrar un nuevo cobro sobre el mismo envio.`}
+                {`Se marcara el cobro de ${formatCurrency(montoRecibido)} como anulado. Podras registrar un nuevo cobro sobre el mismo envio.`}
               </p>
             </div>
 

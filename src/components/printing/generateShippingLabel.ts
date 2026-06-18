@@ -87,7 +87,6 @@ function drawLabel(pdf: jsPDF, envio: Envio): void {
 
   // Payment type badge
   const tipoPagoLabel = envio.tipoPago === 'contra_entrega' ? 'CONTRA ENTREGA'
-    : envio.tipoPago === 'cuenta_corriente' ? 'CTA. CORRIENTE'
     : 'ANTICIPADO';
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');

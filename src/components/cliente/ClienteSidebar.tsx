@@ -1,5 +1,5 @@
 import {
-  ChartBar, Package, PlusCircle, Tag, GearSix, UploadSimple, Calculator, Receipt,
+  ChartBar, Package, PlusCircle, Tag, GearSix, UploadSimple, Calculator,
 } from '@phosphor-icons/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,6 @@ const menuItems = [
   { icon: UploadSimple, label: 'Importar', path: '/portal/importar', end: true },
   { icon: Calculator, label: 'Cotizador', path: '/portal/cotizar', end: true },
   { icon: Tag, label: 'Etiquetas', path: '/portal/etiquetas', end: true },
-  { icon: Receipt, label: 'Cuenta corriente', path: '/portal/cuenta-corriente', end: true },
   { icon: GearSix, label: 'Mi cuenta', path: '/portal/cuenta', end: true },
 ];
 

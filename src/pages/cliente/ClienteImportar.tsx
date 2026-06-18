@@ -140,7 +140,7 @@ const ClienteImportar = () => {
       peso: parseFloat(f.peso) || 1,
       costo: 0,
       montoACobrar: 0,
-      tipoPago: 'cuenta_corriente',
+      tipoPago: 'contra_entrega',
       notas: f.notas || undefined,
     }));
 

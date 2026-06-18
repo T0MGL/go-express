@@ -80,7 +80,7 @@ const paso4Schema = z.object({
 
 const paso5Schema = z.object({
   costo: z.string().refine((val) => parseFloat(val) > 0, 'El costo debe ser mayor a 0'),
-  tipoPago: z.enum(['anticipado', 'contra_entrega', 'cuenta_corriente'], {
+  tipoPago: z.enum(['anticipado', 'contra_entrega'], {
     errorMap: () => ({ message: 'Selecciona un tipo de pago' })
   }),
 });
@@ -785,12 +785,6 @@ export function EnvioWizard() {
                       <div className="flex flex-col">
                         <span className="text-[13px]">Contra Entrega</span>
                         <span className="text-[11px] text-muted-foreground">Repartidor cobra al entregar</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="cuenta_corriente">
-                      <div className="flex flex-col">
-                        <span className="text-[13px]">Cuenta Corriente</span>
-                        <span className="text-[11px] text-muted-foreground">Facturación mensual</span>
                       </div>
                     </SelectItem>
                   </SelectContent>

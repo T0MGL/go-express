@@ -87,7 +87,7 @@ export interface BulkImportEnvio {
   notas?: string;
   costo: number;
   montoACobrar: number;
-  tipoPago: 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+  tipoPago: 'anticipado' | 'contra_entrega';
   tags?: string[];
   tarifaId?: string;
 }

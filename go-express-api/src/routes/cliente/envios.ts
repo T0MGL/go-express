@@ -10,20 +10,17 @@ import { cuentaCorrienteService } from '../../services/cuentaCorriente.service.j
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
-import { calcularCosto } from '../../lib/volumetric.js';
-import { normalizeCiudad } from '../../lib/ciudad.js';
+import { computeCostoEnvio } from '../../lib/cotizacion.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import {
-  createEnvioSchema,
   createClienteEnvioSchema,
   envioQuerySchema,
-  bulkImportSchema,
+  bulkClienteImportSchema,
 } from '../../lib/validators/envio.schema.js';
 import { escapeLikePattern } from '../../lib/validators/common.schema.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
-import type { EnvioRow, EventoEnvioRow, PagoRow, Envio, TarifaRow } from '../../types/index.js';
+import type { EnvioRow, EventoEnvioRow, PagoRow, Envio } from '../../types/index.js';
 import type {
-  CreateEnvioInput,
   CreateClienteEnvioInput,
   EnvioQuery,
 } from '../../lib/validators/envio.schema.js';
@@ -44,6 +41,7 @@ const ENVIO_COLUMNS = [
   'seguro_adicional', 'costo_seguro',
   'repartidor_id', 'repartidor_asignado_en',
   'problema_descripcion', 'problema_fecha',
+  'cod_pago_pendiente',
   'tags', 'tarifa_id', 'fecha',
   'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
@@ -103,6 +101,7 @@ function mapEnvioRow(row: EnvioRow): Envio {
     incidenciaNota: row.incidencia_nota ?? null,
     incidenciaReportadaEn: row.incidencia_reportada_en ?? null,
     incidenciaReportadaPor: row.incidencia_reportada_por ?? null,
+    codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
     fecha: row.fecha,
@@ -285,50 +284,21 @@ router.post(
 
     const origenInput = clienteRow.ciudad?.trim() || 'Asuncion';
     const destinoInput = input.destinatarioCiudad.trim();
-    const origenNorm = normalizeCiudad(origenInput);
-    const destinoNorm = normalizeCiudad(destinoInput);
 
-    // Buscar tarifa activa con match normalizado (tolera tildes/mayusculas entre
-    // cliente.ciudad y lo que el admin haya cargado en tarifas). Si no hay match,
-    // el envio se crea con costo 0 y el admin lo tasa despues (no bloqueamos al
-    // cliente por configuracion faltante o mismatch de strings).
-    let costo = 0;
-    let tarifaId: string | null = null;
-    let origen = origenInput;
-    let destino = destinoInput;
+    // Costo server-side via helper compartido (misma fuente de verdad que el path admin).
+    // Si no hay tarifa que matchee, costo 0 y el admin lo tasa despues: no bloqueamos al
+    // cliente por configuracion faltante. El cliente nunca decide el costo.
+    const cotizacion = await computeCostoEnvio(supabase, {
+      origen: origenInput,
+      destino: destinoInput,
+      peso: input.peso,
+      dimensiones: input.dimensiones ?? null,
+    });
 
-    const { data: tarifasData, error: tarifaError } = await supabase
-      .from('tarifas')
-      .select('id, origen, destino, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
-      .eq('activo', true)
-      .eq('eliminado', false);
-
-    if (tarifaError) {
-      logger.warn({ error: tarifaError, origenInput, destinoInput, clienteId }, 'Error buscando tarifas para envio cliente, se crea con costo 0');
-    } else {
-      const tarifas = (tarifasData ?? []) as Array<Pick<TarifaRow, 'id' | 'origen' | 'destino' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'>>;
-      const tarifa = tarifas.find(
-        (t) => normalizeCiudad(t.origen) === origenNorm && normalizeCiudad(t.destino) === destinoNorm
-      );
-      if (tarifa) {
-        const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
-        costo = calcularCosto(
-          {
-            precioBase: tarifa.precio_base,
-            pesoBase: tarifa.peso_base,
-            precioPorKgExtra: tarifa.precio_por_kg_extra,
-            factorDimensional: tarifa.factor_dimensional,
-          },
-          input.peso,
-          hasDims ? input.dimensiones : undefined
-        ).costoTotal;
-        tarifaId = tarifa.id;
-        // Guardar con la forma canonica de la tarifa, no con lo que mando el cliente.
-        origen = tarifa.origen;
-        destino = tarifa.destino;
-      }
-    }
-
+    const costo = cotizacion.costo;
+    const tarifaId = cotizacion.tarifaId;
+    const origen = cotizacion.origen;
+    const destino = cotizacion.destino;
     const destinatarioCiudad = destino;
 
     const trackingNumber = await generateTrackingNumber(supabase);
@@ -435,19 +405,14 @@ router.post(
 router.post(
   '/bulk-import',
   bulkLimiter,
-  validate({ body: bulkImportSchema }),
+  validate({ body: bulkClienteImportSchema }),
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
-    const { envios } = req.body as { envios: CreateEnvioInput[] };
-
-    // Enforce clienteId from auth token on every envio in the batch
-    for (const envio of envios) {
-      envio.clienteId = clienteId;
-    }
+    const { envios } = req.body as { envios: CreateClienteEnvioInput[] };
 
     const { data: clienteData, error: clienteError } = await supabase
       .from('clientes')
-      .select('razon_social')
+      .select('razon_social, ciudad, estado, eliminado')
       .eq('id', clienteId)
       .single();
 
@@ -455,7 +420,21 @@ router.post(
       throw AppError.notFound('Cliente', clienteId);
     }
 
-    const clienteNombre = (clienteData as { razon_social: string }).razon_social;
+    const clienteRow = clienteData as {
+      razon_social: string;
+      ciudad: string | null;
+      estado: string;
+      eliminado: boolean;
+    };
+    if (clienteRow.eliminado) {
+      throw AppError.forbidden('La cuenta del cliente esta eliminada');
+    }
+    if (clienteRow.estado !== 'activo') {
+      throw AppError.forbidden('La cuenta del cliente no esta activa');
+    }
+
+    const clienteNombre = clienteRow.razon_social;
+    const origenInput = clienteRow.ciudad?.trim() || 'Asuncion';
 
     const trackingNumbers = await Promise.all(
       envios.map(() => generateTrackingNumber(supabase))
@@ -477,6 +456,20 @@ router.post(
       (seguroConfigData as { value: unknown } | null)?.value ?? null
     );
 
+    // Cotizacion server-side por fila, misma fuente de verdad que el unitario (causa raiz C).
+    // El cliente NO decide costo, tipoPago, montoACobrar ni tarifaId: el portal siempre factura
+    // a cuenta corriente y el costo se deriva de la tarifa que matchea origen/destino.
+    const cotizaciones = await Promise.all(
+      envios.map((input) =>
+        computeCostoEnvio(supabase, {
+          origen: origenInput,
+          destino: input.destinatarioCiudad.trim(),
+          peso: input.peso,
+          dimensiones: input.dimensiones ?? null,
+        })
+      )
+    );
+
     const today = todayPY();
     const insertRows = envios.map((input, i) => {
       const valorDeclarado = input.valorDeclarado ?? 0;
@@ -494,19 +487,21 @@ router.post(
         costoSeguro = calcularSeguroAdicional(valorDeclarado, seguroConfig);
       }
 
+      const cot = cotizaciones[i]!;
+
       return {
         tracking_number: trackingNumbers[i]!,
         cliente_id: clienteId,
         cliente_nombre: clienteNombre,
         codigo_referencia: input.codigoReferencia ?? null,
-        origen: input.origen,
-        destino: input.destino,
+        origen: cot.origen,
+        destino: cot.destino,
         destinatario_nombre: input.destinatarioNombre,
         destinatario_direccion: input.destinatarioDireccion,
         destinatario_telefono: input.destinatarioTelefono,
         destinatario_telefono2: input.destinatarioTelefono2 ?? null,
         destinatario_cedula: input.destinatarioCedula ?? null,
-        destinatario_ciudad: input.destinatarioCiudad,
+        destinatario_ciudad: cot.destino,
         destinatario_departamento: input.destinatarioDepartamento ?? '',
         destinatario_barrio: input.destinatarioBarrio ?? null,
         destinatario_referencia: input.destinatarioReferencia ?? null,
@@ -524,16 +519,32 @@ router.post(
         horario_entrega: input.horarioEntrega ?? null,
         notas: input.notas ?? null,
         estado: 'pendiente' as const,
-        costo: input.costo,
-        monto_a_cobrar: input.montoACobrar,
-        tipo_pago: input.tipoPago,
+        costo: cot.costo,
+        monto_a_cobrar: 0,
+        tipo_pago: 'cuenta_corriente' as const,
         seguro_adicional: seguroAdicionalFlag,
         costo_seguro: costoSeguro,
         tags: input.tags ?? [],
-        tarifa_id: input.tarifaId ?? null,
+        tarifa_id: cot.tarifaId,
         fecha: today,
       };
     });
+
+    // Limite de credito sobre el total del lote antes de insertar. El trigger de debito por
+    // fila tambien lo valida bajo lock, pero un check previo agregado da el 422 limpio al
+    // cliente en vez de un insert parcial.
+    const montoFacturableLote = insertRows.reduce((sum, r) => sum + r.costo + r.costo_seguro, 0);
+    if (montoFacturableLote > 0) {
+      const verif = await cuentaCorrienteService.verificarLimiteCredito(clienteId, montoFacturableLote);
+      if (!verif.permitido) {
+        throw AppError.unprocessable('limite_credito_excedido', {
+          saldoActual: verif.saldoActual,
+          limiteCredito: verif.limiteCredito,
+          montoSolicitado: montoFacturableLote,
+          disponible: verif.disponible,
+        });
+      }
+    }
 
     // Batch insert all envios in a single query
     const { data: insertedData, error: insertError } = await supabase

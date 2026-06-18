@@ -13,6 +13,7 @@ import type {
   CrearLiquidacionInput,
   CerrarLiquidacionInput,
   LiquidacionQuery,
+  ReabrirLiquidacionInput,
 } from '../lib/validators/liquidacion.schema.js';
 
 const LIQUIDACION_COLUMNS = [
@@ -112,6 +113,16 @@ function mapLiquidacionRpcError(err: unknown, context: { liquidacionId?: string;
     return AppError.conflict('Uno o mas envios ya pertenecen a otra liquidacion cerrada');
   }
 
+  // 23P01 = exclusion_violation. El EXCLUDE gist sobre el rango del repartidor bloqueo un
+  // segundo crear_liquidacion concurrente (doble submit). crear_liquidacion ya lo remapea a
+  // liquidacion_rango_solapado, pero si llegara crudo, aca tambien lo tratamos como 409 de
+  // negocio y no como 500 (causa raiz H).
+  if (err.code === '23P01' || msg.includes('liquidaciones_repartidor_rango_no_solapado')) {
+    return AppError.conflict(
+      'Ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado',
+    );
+  }
+
   if (msg.includes('liquidacion_rango_solapado')) {
     return AppError.conflict(
       'Ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado',
@@ -124,6 +135,14 @@ function mapLiquidacionRpcError(err: unknown, context: { liquidacionId?: string;
 
   if (msg.includes('liquidacion_ya_cerrada')) {
     return AppError.conflict('La liquidacion ya esta cerrada');
+  }
+
+  if (msg.includes('liquidacion_no_cerrada')) {
+    return AppError.conflict('La liquidacion ya esta pendiente, no hay nada que reabrir');
+  }
+
+  if (msg.includes('motivo_insuficiente')) {
+    return AppError.badRequest('El motivo debe tener al menos 10 caracteres');
   }
 
   if (msg.includes('repartidor_no_encontrado')) {
@@ -228,6 +247,35 @@ class LiquidacionService {
     }
 
     return liquidacion;
+  }
+
+  async reabrir(
+    id: string,
+    input: ReabrirLiquidacionInput,
+    actorId: string,
+    usuarioNombre: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<LiquidacionRepartidor> {
+    const { data, error } = await supabase.rpc('reabrir_liquidacion', {
+      p_liquidacion_id: id,
+      p_motivo: input.motivo,
+      p_actor: actorId,
+      p_usuario_nombre: usuarioNombre,
+      p_ip: ipAddress ?? null,
+      p_user_agent: userAgent ?? null,
+    });
+
+    if (error) {
+      throw mapLiquidacionRpcError(error, { liquidacionId: id });
+    }
+
+    const row = Array.isArray(data) ? (data[0] as LiquidacionRepartidorRow | undefined) : (data as LiquidacionRepartidorRow | null);
+    if (!row) {
+      throw new AppError('Error reabriendo liquidacion', 500, 'DB_ERROR');
+    }
+
+    return mapLiquidacionRowToApi(row);
   }
 
   async list(query: LiquidacionQuery): Promise<PaginatedResponse<LiquidacionRepartidor>> {

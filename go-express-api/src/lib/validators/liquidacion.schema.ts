@@ -32,6 +32,14 @@ export const liquidacionQuerySchema = paginationSchema.merge(dateRangeSchema).ex
   estado: estadoLiquidacionEnum.optional(),
 });
 
+// Reabrir una liquidacion cerrada o con_diferencia: vuelve a pendiente, des-concilia sus envios
+// y habilita la correccion del cobro. Operacion forense de admin: exige un motivo de al menos
+// 10 caracteres que queda en auditoria_log.
+export const reabrirLiquidacionSchema = z.object({
+  motivo: z.string().trim().min(10, 'El motivo debe tener al menos 10 caracteres').max(500),
+});
+
 export type CrearLiquidacionInput = z.infer<typeof crearLiquidacionSchema>;
 export type CerrarLiquidacionInput = z.infer<typeof cerrarLiquidacionSchema>;
 export type LiquidacionQuery = z.infer<typeof liquidacionQuerySchema>;
+export type ReabrirLiquidacionInput = z.infer<typeof reabrirLiquidacionSchema>;

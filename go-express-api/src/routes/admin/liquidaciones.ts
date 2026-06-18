@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { adminWriteLimiter } from '../../middleware/rateLimit.js';
+import { requireOnlyAdmin } from '../../middleware/adminAuth.js';
 import { liquidacionService } from '../../services/liquidacion.service.js';
 import { sseService } from '../../services/sse.service.js';
 import {
   crearLiquidacionSchema,
   cerrarLiquidacionSchema,
   liquidacionQuerySchema,
+  reabrirLiquidacionSchema,
 } from '../../lib/validators/liquidacion.schema.js';
 import type { LiquidacionQuery } from '../../lib/validators/liquidacion.schema.js';
 import { idParamSchema } from '../../lib/validators/common.schema.js';
@@ -73,6 +75,31 @@ router.patch(
   validate({ params: idParamSchema, body: cerrarLiquidacionSchema }),
   asyncHandler(async (req, res) => {
     const liquidacion = await liquidacionService.cerrar(
+      req.params['id'] as string,
+      req.body,
+      req.userId!,
+      req.userName ?? 'Admin GoExpress',
+      req.ip ?? undefined,
+      req.headers['user-agent'] ?? undefined,
+    );
+    sseService.broadcast({ entity: ['liquidaciones'], action: 'updated', id: liquidacion.id });
+    res.json(liquidacion);
+  }),
+);
+
+/**
+ * PATCH /api/admin/liquidaciones/:id/reabrir
+ * Reabre una liquidacion cerrada o con_diferencia: la vuelve a pendiente, des-concilia sus
+ * envios y habilita la correccion del cobro (anular/editar el pago, re-cerrar). Accion forense
+ * de admin: solo rol admin, exige motivo de al menos 10 caracteres, queda en auditoria_log.
+ */
+router.patch(
+  '/:id/reabrir',
+  requireOnlyAdmin,
+  adminWriteLimiter,
+  validate({ params: idParamSchema, body: reabrirLiquidacionSchema }),
+  asyncHandler(async (req, res) => {
+    const liquidacion = await liquidacionService.reabrir(
       req.params['id'] as string,
       req.body,
       req.userId!,

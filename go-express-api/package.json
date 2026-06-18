@@ -11,7 +11,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:invariants": "vitest run --config vitest.invariants.config.ts"
   },
   "dependencies": {
     "@sentry/node": "^10.46.0",

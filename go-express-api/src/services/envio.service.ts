@@ -5,6 +5,7 @@ import { auditoriaService } from './auditoria.service.js';
 import { cuentaCorrienteService } from './cuentaCorriente.service.js';
 import { notificacionesService } from './notificaciones.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
+import { computeCostoEnvio } from '../lib/cotizacion.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
 import type {
@@ -106,6 +107,7 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     incidenciaNota: row.incidencia_nota ?? null,
     incidenciaReportadaEn: row.incidencia_reportada_en ?? null,
     incidenciaReportadaPor: row.incidencia_reportada_por ?? null,
+    codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
     fecha: row.fecha,
@@ -232,6 +234,7 @@ const ENVIO_COLUMNS = [
   'foto_entrega_url', 'entregado_por_nombre', 'entregado_por_documento',
   'fecha_entrega_real', 'monto_cobrado', 'recolectado_en', 'entrega_notas',
   'tiene_incidencia', 'incidencia_nota', 'incidencia_reportada_en', 'incidencia_reportada_por',
+  'cod_pago_pendiente',
   'tags', 'tarifa_id', 'fecha',
   'eliminado', 'eliminado_por', 'eliminado_en', 'motivo_eliminacion',
   'created_at', 'updated_at',
@@ -396,11 +399,21 @@ class EnvioService {
     userName?: string,
     ipAddress?: string,
     userAgent?: string,
-    options: { forzarSobreLimite?: boolean; motivoOverride?: string } = {}
+    options: {
+      forzarSobreLimite?: boolean;
+      motivoOverride?: string;
+      forzarCostoManual?: boolean;
+      motivoCostoManual?: string;
+    } = {}
   ): Promise<Envio> {
     if (options.forzarSobreLimite && (!options.motivoOverride || options.motivoOverride.trim().length < 10)) {
       throw AppError.badRequest(
         'forzarSobreLimite requiere motivoOverride con al menos 10 caracteres'
+      );
+    }
+    if (options.forzarCostoManual && (!options.motivoCostoManual || options.motivoCostoManual.trim().length < 10)) {
+      throw AppError.badRequest(
+        'forzarCostoManual requiere motivoCostoManual con al menos 10 caracteres'
       );
     }
 
@@ -443,11 +456,31 @@ class EnvioService {
       input.seguroAdicional
     );
 
+    // Costo server-side. Por default se cotiza desde la tarifa que matchea origen/destino.
+    // input.costo NO es un default silencioso: solo se respeta como override explicito
+    // cuando forzarCostoManual=true, y ese caso queda asentado en auditoria.
+    let costo: number;
+    let tarifaIdResolved: string | null = input.tarifaId ?? null;
+    if (options.forzarCostoManual) {
+      costo = input.costo as number;
+    } else {
+      const cotizacion = await computeCostoEnvio(supabase, {
+        origen: input.origen,
+        destino: input.destino,
+        peso: input.peso,
+        dimensiones: input.dimensiones ?? null,
+      });
+      costo = cotizacion.costo;
+      if (cotizacion.matched) {
+        tarifaIdResolved = cotizacion.tarifaId;
+      }
+    }
+
     // Validar limite de credito antes de insertar cuando aplica.
     // Admin puede forzar el override pasando forzarSobreLimite=true + motivoOverride
     // (queda asentado en auditoria abajo).
     if (input.tipoPago === 'cuenta_corriente') {
-      const montoFacturable = input.costo + costoSeguro;
+      const montoFacturable = costo + costoSeguro;
       if (montoFacturable > 0 && !options.forzarSobreLimite) {
         const verif = await cuentaCorrienteService.verificarLimiteCredito(
           input.clienteId,
@@ -496,13 +529,13 @@ class EnvioService {
         horario_entrega: input.horarioEntrega ?? null,
         notas: input.notas ?? null,
         estado: 'pendiente' as const,
-        costo: input.costo,
+        costo,
         monto_a_cobrar: input.montoACobrar,
         tipo_pago: input.tipoPago,
         seguro_adicional: seguroAdicional,
         costo_seguro: costoSeguro,
         tags: input.tags ?? [],
-        tarifa_id: input.tarifaId ?? null,
+        tarifa_id: tarifaIdResolved,
         fecha: today,
         bypass_limite_credito: options.forzarSobreLimite === true,
       })
@@ -556,7 +589,21 @@ class EnvioService {
         entidad: 'cuenta_corriente',
         entidadId: input.clienteId,
         descripcion: `Override de limite de credito al crear envio ${trackingNumber}. Motivo: ${options.motivoOverride ?? 'no especificado'}`,
-        valorNuevo: { trackingNumber, costo: input.costo, costoSeguro },
+        valorNuevo: { trackingNumber, costo, costoSeguro },
+        ipAddress,
+        userAgent,
+      });
+    }
+
+    if (options.forzarCostoManual) {
+      await auditoriaService.log({
+        usuario: userName ?? 'Admin GoExpress',
+        usuarioId: userId,
+        accion: 'editar',
+        entidad: 'envio',
+        entidadId: envio.id,
+        descripcion: `Costo manual forzado al crear envio ${trackingNumber}: ${costo} Gs (override de cotizacion automatica). Motivo: ${options.motivoCostoManual ?? 'no especificado'}`,
+        valorNuevo: { trackingNumber, costoManual: costo },
         ipAddress,
         userAgent,
       });
@@ -629,11 +676,11 @@ class EnvioService {
     if (input.instruccionesEntrega !== undefined) updateData['instrucciones_entrega'] = input.instruccionesEntrega;
     if (input.horarioEntrega !== undefined) updateData['horario_entrega'] = input.horarioEntrega;
     if (input.notas !== undefined) updateData['notas'] = input.notas;
-    if (input.costo !== undefined) updateData['costo'] = input.costo;
-    if (input.montoACobrar !== undefined) updateData['monto_a_cobrar'] = input.montoACobrar;
-    if (input.tipoPago !== undefined) updateData['tipo_pago'] = input.tipoPago;
+    // costo, monto_a_cobrar, tipo_pago, tarifa_id y seguro NO se copian al UPDATE generico
+    // (causa raiz B). Mover plata por aca desincroniza el ledger sin re-debito. El ajuste de
+    // costo va por recreacion del envio; el monto COD esta blindado a nivel DB una vez que hay
+    // pago/liquidacion. Cualquier intento de mandarlos por aca se ignora en silencio.
     if (input.tags !== undefined) updateData['tags'] = input.tags;
-    if (input.tarifaId !== undefined) updateData['tarifa_id'] = input.tarifaId;
 
     const { data, error } = await supabase
       .from('envios')
@@ -643,6 +690,19 @@ class EnvioService {
       .single();
 
     if (error || !data) {
+      // El trigger trg_envio_block_tipo_pago_change rechaza cambiar tipo_pago si el envio
+      // ya tiene un pago activo. Lo mapeamos a 422 con mensaje claro en vez de 500 opaco.
+      if (error?.message?.includes('tipo_pago_no_modificable')) {
+        throw AppError.unprocessable(
+          'No se puede cambiar el tipo de pago de un envio que ya tiene un pago asociado. Anula el pago primero.'
+        );
+      }
+      if (error?.message?.includes('cod_monto_no_modificable')) {
+        throw AppError.unprocessable(
+          'No se puede cambiar el monto a cobrar de un envio COD que ya tiene un pago activo o esta en una liquidacion.'
+        );
+      }
+      logger.error({ error, envioId: id }, 'Error updating envio');
       throw new AppError('Error updating envio', 500, 'DB_ERROR');
     }
 
@@ -944,6 +1004,21 @@ class EnvioService {
       validEnvios.map(() => generateTrackingNumber(supabase))
     );
 
+    // Costo server-side por fila via la misma cotizacion que el path unitario (causa raiz C).
+    // El costo del caller NO se confia: se recotiza desde la tarifa que matchea origen/destino.
+    // Si no hay tarifa, costo 0 y el admin lo tasa despues (el trigger de DB asienta el debito
+    // cuando se asigna el costo). Asi un import masivo no puede mover plata a costo cero.
+    const cotizaciones = await Promise.all(
+      validEnvios.map(({ input }) =>
+        computeCostoEnvio(supabase, {
+          origen: input.origen,
+          destino: input.destino,
+          peso: input.peso,
+          dimensiones: input.dimensiones ?? null,
+        })
+      )
+    );
+
     const today = todayPY();
     const insertRows = validEnvios.map(({ input, clienteNombre }, i) => ({
       tracking_number: trackingNumbers[i]!,
@@ -975,11 +1050,14 @@ class EnvioService {
       horario_entrega: input.horarioEntrega ?? null,
       notas: input.notas ?? null,
       estado: 'pendiente' as const,
-      costo: input.costo,
+      // Costo y tarifa derivados server-side (cotizaciones[i]), nunca del caller. tipo_pago y
+      // monto_a_cobrar siguen siendo intent operativo del admin (COD vs CC), pero el costo que
+      // alimenta el ledger es siempre el recotizado.
+      costo: cotizaciones[i]!.costo,
       monto_a_cobrar: input.montoACobrar,
       tipo_pago: input.tipoPago,
       tags: input.tags ?? [],
-      tarifa_id: input.tarifaId ?? null,
+      tarifa_id: cotizaciones[i]!.tarifaId,
       fecha: today,
     }));
 

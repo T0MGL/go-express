@@ -60,12 +60,34 @@ function mapRpcError(err: unknown, context: { envioId?: string; pagoId?: string 
     return AppError.notFound('Pago', context.pagoId);
   }
 
+  if (msg.includes('pago_cc_no_editable')) {
+    return AppError.unprocessable(
+      'Un pago a cuenta corriente no se edita. Anula este pago y registra uno nuevo con el monto correcto.'
+    );
+  }
+
+  if (msg.includes('pago_monto_total_invalido')) {
+    return AppError.unprocessable(
+      'El monto total no coincide con el costo real del envio. Recarga el envio e intenta de nuevo.'
+    );
+  }
+
   if (msg.includes('pago_monto_recibido_invalido')) {
     return AppError.badRequest('El monto recibido no puede exceder el monto total');
   }
 
   if (msg.includes('pago_ya_anulado')) {
     return AppError.conflict('El pago ya esta anulado');
+  }
+
+  if (msg.includes('pago_en_liquidacion_cerrada')) {
+    return AppError.conflict(
+      'El envio pertenece a una liquidacion cerrada. Reabri o ajusta la liquidacion antes de editar o anular este pago.',
+    );
+  }
+
+  if (msg.includes('envio_no_encontrado')) {
+    return AppError.notFound('Envio', context.envioId);
   }
 
   if (msg.includes('motivo_insuficiente')) {

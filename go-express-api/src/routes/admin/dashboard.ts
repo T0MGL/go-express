@@ -32,6 +32,7 @@ router.get(
       pendientesRecoleccionHoyResult,
       enRutaSinActualizarResult,
       incidenciasActivasResult,
+      codPagoPendienteResult,
       recientesResult,
     ] = await Promise.all([
       // Envios created today
@@ -58,11 +59,13 @@ router.get(
         .select('id', { count: 'exact', head: true })
         .eq('eliminado', false)
         .in('estado', ['entregado', 'fallido']),
-      // Pending payments total
+      // Pending payments total. Excluir pagos anulados: un pago anulado no es deuda
+      // pendiente, su flag de estado_pago queda viejo tras la anulacion.
       supabase
         .from('pagos')
         .select('monto_total, monto_recibido')
-        .neq('estado_pago', 'pagado'),
+        .neq('estado_pago', 'pagado')
+        .eq('anulado', false),
       // Problems today
       supabase
         .from('envios')
@@ -97,6 +100,12 @@ router.get(
         .select('id', { count: 'exact', head: true })
         .eq('eliminado', false)
         .eq('tiene_incidencia', true),
+      // COD cobrado en la calle cuyo registro de pago fallo: cola de reconciliacion manual
+      supabase
+        .from('envios')
+        .select('id', { count: 'exact', head: true })
+        .eq('eliminado', false)
+        .eq('cod_pago_pendiente', true),
       // Recent envios (last 7 days)
       supabase
         .from('envios')
@@ -135,6 +144,7 @@ router.get(
       pendientesRecoleccionHoy: pendientesRecoleccionHoyResult.count ?? 0,
       enRutaSinActualizar: enRutaSinActualizarResult.count ?? 0,
       incidenciasActivas: incidenciasActivasResult.count ?? 0,
+      codPagoPendiente: codPagoPendienteResult.count ?? 0,
       enviosRecientes: rawRecientes.map(r => ({
         id: r.id,
         trackingNumber: r.tracking_number,

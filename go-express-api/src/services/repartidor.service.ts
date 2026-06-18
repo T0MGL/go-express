@@ -593,6 +593,7 @@ class RepartidorService {
       incidenciaNota: null,
       incidenciaReportadaEn: null,
       incidenciaReportadaPor: null,
+      codPagoPendiente: (row['cod_pago_pendiente'] as boolean) ?? false,
       tags: [],
       tarifaId: null,
       fecha: row['fecha'] as string,

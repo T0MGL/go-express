@@ -16,7 +16,7 @@ export interface CodValidationResult {
 
 export class CodValidationError extends Error {
   constructor(
-    public readonly code: 'diferencia_cobro_excesiva',
+    public readonly code: 'diferencia_cobro_excesiva' | 'sobrecobro_no_permitido',
     message: string,
   ) {
     super(message);
@@ -39,6 +39,17 @@ export function validarDiferenciaCobroCod(args: {
 }): CodValidationResult {
   if (args.montoEsperado <= 0) {
     return { hayIncidencia: false, diferenciaPct: 0 };
+  }
+
+  // El COD nunca puede exceder el monto_a_cobrar del envio. Un sobrecobro no es registrable en
+  // el ledger (create_pago_atomico topa por monto_a_cobrar) y dejaba plata fuera del libro en
+  // cod_pago_pendiente irresoluble (causa raiz D, sobrecobro). Se rechaza ARRIBA: el repartidor
+  // no puede marcar la entrega con un monto mayor al esperado.
+  if (args.montoReportado > args.montoEsperado) {
+    throw new CodValidationError(
+      'sobrecobro_no_permitido',
+      `El monto cobrado (${args.montoReportado}) no puede superar el monto a cobrar del envio (${args.montoEsperado})`,
+    );
   }
 
   const diferenciaPct = Math.abs(args.montoReportado - args.montoEsperado) / args.montoEsperado;

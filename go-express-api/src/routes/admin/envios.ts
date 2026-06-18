@@ -58,15 +58,27 @@ router.get(
 const createEnvioBodyWithOverride = createEnvioSchema.extend({
   forzarSobreLimite: z.boolean().optional(),
   motivoOverride: z.string().min(10).max(500).optional(),
+  // Override explicito del costo cotizado server-side. Sin este flag, costo se ignora y se
+  // cotiza desde la tarifa. Con el flag, requiere motivoCostoManual y queda en auditoria.
+  forzarCostoManual: z.boolean().optional(),
+  motivoCostoManual: z.string().min(10).max(500).optional(),
 });
 
 router.post(
   '/',
   validate({ body: createEnvioBodyWithOverride }),
   asyncHandler(async (req, res) => {
-    const { forzarSobreLimite, motivoOverride, ...envioInput } = req.body;
+    const { forzarSobreLimite, motivoOverride, forzarCostoManual, motivoCostoManual, ...envioInput } = req.body;
     if (forzarSobreLimite && !motivoOverride) {
       throw AppError.badRequest('motivoOverride es obligatorio cuando forzarSobreLimite=true');
+    }
+    if (forzarCostoManual) {
+      if (envioInput.costo === undefined) {
+        throw AppError.badRequest('forzarCostoManual=true requiere un costo explicito');
+      }
+      if (!motivoCostoManual) {
+        throw AppError.badRequest('motivoCostoManual es obligatorio cuando forzarCostoManual=true');
+      }
     }
     const envio = await envioService.create(
       envioInput,
@@ -74,7 +86,7 @@ router.post(
       req.userName!,
       req.ip ?? undefined,
       req.headers['user-agent'] ?? undefined,
-      { forzarSobreLimite, motivoOverride }
+      { forzarSobreLimite, motivoOverride, forzarCostoManual, motivoCostoManual }
     );
     sseService.broadcast({ entity: ['envios', 'list'], action: 'created' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
@@ -99,9 +111,19 @@ router.post(
   })
 );
 
+// Edicion de envio: solo campos NO monetarios. costo, monto_a_cobrar, tipoPago, tarifaId y
+// seguroAdicional NUNCA entran por aca: mover plata via UPDATE crudo desincroniza el ledger
+// (causa raiz B del Paso 2). El costo CC se ajusta recreando el envio (el trigger de DB asienta
+// el ajuste delta); el monto COD no se cambia una vez que hay pago/liquidacion (trigger DB lo
+// bloquea). Si en el futuro se necesita ajuste de costo con override, va por un endpoint
+// dedicado con auditoria, no por este PUT general.
+const updateEnvioBodySchema = createEnvioSchema
+  .partial()
+  .omit({ clienteId: true, costo: true, montoACobrar: true, tipoPago: true, tarifaId: true, seguroAdicional: true });
+
 router.put(
   '/:id',
-  validate({ params: idParamSchema, body: createEnvioSchema.partial().omit({ clienteId: true }) }),
+  validate({ params: idParamSchema, body: updateEnvioBodySchema }),
   asyncHandler(async (req, res) => {
     const id = req.params['id'] as string;
     const envio = await envioService.update(id, req.body, req.userId!);

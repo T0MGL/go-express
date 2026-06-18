@@ -54,7 +54,10 @@ export const createEnvioSchema = z.object({
   notas: z.string().max(1000).optional(),
 
   // Cobro
-  costo: z.number().int().min(0),
+  // costo: input opcional. Por default el servidor cotiza server-side desde la tarifa que
+  // matchea origen/destino. costo solo se usa como override cuando el admin pasa
+  // forzarCostoManual=true (queda en auditoria). Nunca es un default silencioso.
+  costo: z.number().int().min(0).optional(),
   montoACobrar: z.number().int().min(0).default(0),
   tipoPago: tipoPagoEnum,
 
@@ -155,6 +158,15 @@ export const createClienteEnvioSchema = z.object({
 });
 
 export type CreateClienteEnvioInput = z.infer<typeof createClienteEnvioSchema>;
+
+// Bulk import del cliente portal: array de envios con el shape del cliente (sin costo,
+// montoACobrar, tipoPago ni tarifaId). El servidor deriva todo igual que el unitario. Cierra
+// la causa raiz C en el path bulk del cliente: el afiliado no puede mover plata a costo cero.
+export const bulkClienteImportSchema = z.object({
+  envios: z.array(createClienteEnvioSchema).min(1).max(500),
+});
+
+export type BulkClienteImportInput = z.infer<typeof bulkClienteImportSchema>;
 
 // Bulk actions over existing envios (change estado or assign repartidor).
 // The frontend ticks rows in EnviosList and sends their IDs; the server

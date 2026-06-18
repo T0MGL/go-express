@@ -153,6 +153,7 @@ export interface EnvioRow {
   incidencia_nota: string | null;
   incidencia_reportada_en: string | null;
   incidencia_reportada_por: string | null;
+  cod_pago_pendiente: boolean;
   tags: string[];
   tarifa_id: string | null;
   fecha: string;
@@ -432,6 +433,7 @@ export interface Envio {
   incidenciaNota: string | null;
   incidenciaReportadaEn: string | null;
   incidenciaReportadaPor: string | null;
+  codPagoPendiente: boolean;
   tags: string[];
   tarifaId: string | null;
   fecha: string;

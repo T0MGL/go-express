@@ -309,7 +309,12 @@ router.patch(
     // actualiza envios.monto_cobrado. Si el RPC falla, envios queda como entregado sin
     // pago: estado operativamente correcto, la liquidacion simplemente no podra tomar
     // este envio hasta que se cree el pago manualmente desde admin.
-    if (esCod && montoCobradoCod !== null && montoCobradoCod > 0) {
+    // Guard !== null (no > 0): un COD entregado SIEMPRE registra el hecho del cobro, incluso
+    // cuando el repartidor reporto 0 (no pudo cobrar, con nota). Asi el envio nunca queda con
+    // monto_cobrado NULL y sin pago ni flag, invisible a la liquidacion (causa raiz D). Un pago
+    // de monto_recibido 0 queda estado 'pendiente' y el trigger lo deja fuera de cobrado, pero
+    // dentro del sistema y de la cola.
+    if (esCod && montoCobradoCod !== null) {
       const notaPago = hayIncidencia && notaIncidencia ? notaIncidencia : null;
       try {
         await pagoService.create(
@@ -326,14 +331,52 @@ router.patch(
           userAgent,
         );
       } catch (err) {
-        // Si ya existia un pago activo (pago anterior en el envio), ignoramos para no
-        // romper la entrega. Cualquier otro error se loggea pero no rompe: el envio
-        // queda como entregado y el pago se puede crear desde admin.
+        // 409 = ya existe un pago activo para el envio. NO se traga incondicionalmente: si el
+        // monto del pago existente difiere del que reporta el repartidor, hubo cobro real en la
+        // calle que no se asento. Se marca cod_pago_pendiente y se alerta. Solo es benigno
+        // (reintento idempotente) cuando el monto coincide exactamente (causa raiz D, race).
         if (err instanceof AppError && err.statusCode === 409) {
-          logger.warn({ envioId: id }, 'Entrega COD: ya existe pago activo, no se crea uno nuevo');
+          const { data: activo } = await supabase
+            .from('pagos')
+            .select('monto_recibido')
+            .eq('envio_id', id)
+            .eq('anulado', false)
+            .maybeSingle();
+          const registrado = (activo as { monto_recibido: number } | null)?.monto_recibido ?? null;
+          if (registrado !== null && registrado !== montoCobradoCod) {
+            logger.error(
+              { envioId: id, reportado: montoCobradoCod, registrado },
+              'Entrega COD: monto reportado difiere del pago activo existente, marcado cod_pago_pendiente',
+            );
+            Sentry.captureMessage('cod_monto_divergente_pago_existente', {
+              level: 'warning',
+              extra: { envioId: id, reportado: montoCobradoCod, registrado },
+            });
+            const { error: flagErr } = await supabase
+              .from('envios')
+              .update({ cod_pago_pendiente: true })
+              .eq('id', id);
+            if (flagErr) {
+              logger.error({ err: flagErr, envioId: id }, 'CRITICO: COD divergente sin poder marcar cod_pago_pendiente');
+              Sentry.captureException(flagErr, { extra: { envioId: id, context: 'cod_pago_pendiente flag failed (409 divergente)' } });
+            }
+          } else {
+            logger.warn({ envioId: id }, 'Entrega COD: reintento idempotente, pago activo coincide');
+          }
         } else {
-          logger.error({ err, envioId: id }, 'Entrega COD: fallo el RPC create_pago_atomico, envio queda sin pago asociado');
+          logger.error({ err, envioId: id }, 'Entrega COD: fallo el registro del pago, envio marcado cod_pago_pendiente para reconciliacion');
           Sentry.captureException(err, { extra: { envioId: id, monto: montoCobradoCod } });
+
+          const { error: flagErr } = await supabase
+            .from('envios')
+            .update({ cod_pago_pendiente: true })
+            .eq('id', id);
+
+          if (flagErr) {
+            // No pudimos ni marcar la cola: esto es lo unico que NO puede quedar callado.
+            logger.error({ err: flagErr, envioId: id }, 'CRITICO: COD cobrado sin pago Y sin poder marcar cod_pago_pendiente');
+            Sentry.captureException(flagErr, { extra: { envioId: id, monto: montoCobradoCod, context: 'cod_pago_pendiente flag failed' } });
+          }
         }
       }
     }

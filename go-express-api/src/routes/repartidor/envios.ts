@@ -236,14 +236,23 @@ router.patch(
       );
     }
 
-    // COD: decidir monto cobrado reportado y validar diferencia antes de tocar DB.
-    // Si diferencia > 10% exigimos nota de incidencia. Failsafe para evitar que el
-    // repartidor reporte un monto arbitrario sin justificacion (hallazgo 3.3).
-    const esCod = envio.tipo_pago === 'contra_entrega';
-    const montoCobradoCod = esCod ? (montoCobrado ?? envio.monto_a_cobrar) : null;
+    // Modelo COD-only (036): el repartidor cobra efectivo en AMBOS modos. contra_entrega cobra
+    // producto+tarifa; anticipado cobra solo la tarifa (monto_a_cobrar == costo+seguro, I1 igualdad
+    // enforzada en 037). En los dos casos hay efectivo en la calle que tiene que entrar a la
+    // liquidacion, asi que los dos registran un pago COD al entregar. Sin esto, un anticipado
+    // entregado quedaba sin pago y crear_liquidacion (que gatea por EXISTS pago pagado) nunca lo
+    // tomaba: plata cobrada sin reconciliar.
+    const cobraEfectivo = envio.monto_a_cobrar > 0;
+    // El monto fisico que rinde el envio: en anticipado el importe es la tarifa fija (== monto_a_cobrar);
+    // en contra_entrega es producto+tarifa (== monto_a_cobrar). create_pago_atomico recomputa el
+    // importe esperado por modo del lado DB, asi que pasamos monto_a_cobrar como total en ambos.
+    const montoCobradoCod = cobraEfectivo ? (montoCobrado ?? envio.monto_a_cobrar) : null;
+    // metodo_pago refleja como entro el efectivo: contra_entrega es el COD clasico; en anticipado el
+    // repartidor cobra el flete en efectivo. cuenta_corriente ya no existe en el modelo.
+    const metodoPago = envio.tipo_pago === 'contra_entrega' ? 'contra_entrega' : 'efectivo';
     let hayIncidencia = false;
 
-    if (esCod && montoCobradoCod !== null) {
+    if (cobraEfectivo && montoCobradoCod !== null) {
       try {
         const validation = validarDiferenciaCobroCod({
           montoEsperado: envio.monto_a_cobrar,
@@ -278,13 +287,9 @@ router.patch(
       update['incidencia_reportada_en'] = nowISO();
       update['incidencia_reportada_por'] = repartidorId;
     }
-    // Envios no-COD: si el repartidor reporta un monto (anticipado que se cobro en
-    // efectivo), lo reflejamos como cache directo. No hay pago atomico asociado porque
-    // el pago anticipado suele haberse registrado antes. Mantiene compat con el flujo
-    // previo.
-    if (!esCod && montoCobrado !== undefined && montoCobrado > 0) {
-      update['monto_cobrado'] = montoCobrado;
-    }
+    // No seteamos monto_cobrado en este UPDATE: el trigger de sync lo escribe desde el pago COD
+    // (ambos modos pasan por el pago, abajo). Set directo seria un segundo camino para el mismo dato
+    // y reabriria el hallazgo 3.2.
 
     const { data: updatedRow, error: updateErr } = await supabase
       .from('envios')
@@ -314,7 +319,7 @@ router.patch(
     // monto_cobrado NULL y sin pago ni flag, invisible a la liquidacion (causa raiz D). Un pago
     // de monto_recibido 0 queda estado 'pendiente' y el trigger lo deja fuera de cobrado, pero
     // dentro del sistema y de la cola.
-    if (esCod && montoCobradoCod !== null) {
+    if (cobraEfectivo && montoCobradoCod !== null) {
       const notaPago = hayIncidencia && notaIncidencia ? notaIncidencia : null;
       try {
         await pagoService.create(
@@ -322,7 +327,7 @@ router.patch(
             envioId: id,
             montoTotal: envio.monto_a_cobrar,
             montoRecibido: montoCobradoCod,
-            metodoPago: 'contra_entrega',
+            metodoPago,
             fechaPago: todayPY(),
             ...(notaPago ? { notas: notaPago } : {}),
           },
@@ -381,7 +386,7 @@ router.patch(
       }
     }
 
-    const descripcion = esCod
+    const descripcion = cobraEfectivo
       ? `Entregado a ${nombreRecibe}. Cobrado Gs. ${(montoCobradoCod ?? 0).toLocaleString('es-PY')}.${hayIncidencia ? ' Incidencia: ' + (notaIncidencia ?? '') : ''}`
       : `Entregado a ${nombreRecibe}.`;
 
@@ -400,7 +405,7 @@ router.patch(
       accion: 'cambio_estado',
       entidad: 'envio',
       entidadId: id,
-      descripcion: `Repartidor ${repartidorNombre} marco entregado: ${envio.tracking_number}${esCod ? '. COD Gs. ' + (montoCobradoCod ?? 0).toLocaleString('es-PY') : ''}${hayIncidencia ? ' (incidencia)' : ''}`,
+      descripcion: `Repartidor ${repartidorNombre} marco entregado: ${envio.tracking_number}${cobraEfectivo ? '. COD Gs. ' + (montoCobradoCod ?? 0).toLocaleString('es-PY') : ''}${hayIncidencia ? ' (incidencia)' : ''}`,
       ipAddress,
       userAgent,
     });
@@ -408,7 +413,7 @@ router.patch(
     sseService.broadcast({ entity: ['envios', id], action: 'updated' });
     sseService.broadcast({ entity: ['envios', 'list'], action: 'updated' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });
-    if (esCod) {
+    if (cobraEfectivo) {
       sseService.broadcast({ entity: ['pagos'], action: 'created' });
     }
 

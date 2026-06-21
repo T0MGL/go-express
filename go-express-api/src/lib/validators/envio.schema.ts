@@ -3,7 +3,7 @@ import { phoneSchema, optionalPhoneSchema, paginationSchema, searchSchema, dateR
 
 // Envio states enum
 const envioEstadoEnum = z.enum(['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'entregado', 'fallido', 'problema']);
-const tipoPagoEnum = z.enum(['anticipado', 'contra_entrega', 'cuenta_corriente']);
+const tipoPagoEnum = z.enum(['anticipado', 'contra_entrega']);
 
 export const createEnvioSchema = z.object({
   clienteId: uuidSchema,

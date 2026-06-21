@@ -7,7 +7,6 @@ import productosRoutes from './productos.js';
 import tagsRoutes from './tags.js';
 import cotizadorRoutes from './cotizador.js';
 import cuentaRoutes from './cuenta.js';
-import cuentaCorrienteRoutes from './cuentaCorriente.js';
 import ciudadRoutes from './ciudades.js';
 
 const router = Router();
@@ -21,7 +20,6 @@ router.use('/productos', productosRoutes);
 router.use('/tags', tagsRoutes);
 router.use('/cotizador', cotizadorRoutes);
 router.use('/cuenta', cuentaRoutes);
-router.use('/cuenta-corriente', cuentaCorrienteRoutes);
 router.use('/ciudades', ciudadRoutes);
 
 export default router;

@@ -9,7 +9,7 @@ import type { UpdateClienteCuentaInput } from '../../lib/validators/cliente.sche
 
 const router = Router();
 
-const CLIENTE_COLUMNS = 'id, auth_id, razon_social, ruc, contacto_nombre, contacto_cargo, telefono, email, direccion, ciudad, estado, plan, saldo_cuenta_corriente, limite_credito, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, es_mostrador, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at';
+const CLIENTE_COLUMNS = 'id, auth_id, razon_social, ruc, contacto_nombre, contacto_cargo, telefono, email, direccion, ciudad, estado, plan, total_envios, envios_activos, notas, portal_activo, portal_status, portal_invited_at, es_mostrador, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at';
 
 function mapClienteRow(row: ClienteRow): Cliente {
   return {

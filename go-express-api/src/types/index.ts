@@ -11,7 +11,7 @@ export type EnvioEstado =
   | 'entregado'
   | 'fallido'
   | 'problema';
-export type TipoPago = 'anticipado' | 'contra_entrega' | 'cuenta_corriente';
+export type TipoPago = 'anticipado' | 'contra_entrega';
 export type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta' | 'contra_entrega';
 export type EstadoPago = 'pendiente' | 'pagado' | 'pago_parcial';
 export type TipoServicio = 'estandar' | 'express' | 'economico';

@@ -2,7 +2,6 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
-import { cuentaCorrienteService } from './cuentaCorriente.service.js';
 import { notificacionesService } from './notificaciones.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { computeCostoEnvio } from '../lib/cotizacion.js';
@@ -476,27 +475,6 @@ class EnvioService {
       }
     }
 
-    // Validar limite de credito antes de insertar cuando aplica.
-    // Admin puede forzar el override pasando forzarSobreLimite=true + motivoOverride
-    // (queda asentado en auditoria abajo).
-    if (input.tipoPago === 'cuenta_corriente') {
-      const montoFacturable = costo + costoSeguro;
-      if (montoFacturable > 0 && !options.forzarSobreLimite) {
-        const verif = await cuentaCorrienteService.verificarLimiteCredito(
-          input.clienteId,
-          montoFacturable
-        );
-        if (!verif.permitido) {
-          throw AppError.unprocessable('limite_credito_excedido', {
-            saldoActual: verif.saldoActual,
-            limiteCredito: verif.limiteCredito,
-            montoSolicitado: montoFacturable,
-            disponible: verif.disponible,
-          });
-        }
-      }
-    }
-
     const { data, error } = await supabase
       .from('envios')
       .insert({
@@ -537,22 +515,11 @@ class EnvioService {
         tags: input.tags ?? [],
         tarifa_id: tarifaIdResolved,
         fecha: today,
-        bypass_limite_credito: options.forzarSobreLimite === true,
       })
       .select(ENVIO_COLUMNS)
       .single();
 
     if (error || !data) {
-      // El trigger trg_envio_cc_debito_fn invoca registrar_movimiento_cc, que valida
-      // limite_credito bajo lock. Si la advisory check pasa pero la race condition
-      // empuja al cliente sobre el limite, el RPC raisea P0003 y el INSERT del envio
-      // hace rollback. Mapeamos a 422 para mantener el contrato consistente.
-      if (error?.message?.includes('limite_credito_excedido')) {
-        throw AppError.unprocessable('limite_credito_excedido', {
-          message: 'El envio excede el limite de credito del cliente',
-          detail: error.message,
-        });
-      }
       logger.error({ error, trackingNumber }, 'Error creating envio');
       throw new AppError('Error creating envio', 500, 'DB_ERROR');
     }
@@ -579,20 +546,6 @@ class EnvioService {
 
     if (eventoResult.error) {
       logger.error({ error: eventoResult.error, envioId: envio.id }, 'Failed to insert evento_envio after envio creation');
-    }
-
-    if (options.forzarSobreLimite && input.tipoPago === 'cuenta_corriente') {
-      await auditoriaService.log({
-        usuario: userName ?? 'Admin GoExpress',
-        usuarioId: userId,
-        accion: 'editar',
-        entidad: 'cuenta_corriente',
-        entidadId: input.clienteId,
-        descripcion: `Override de limite de credito al crear envio ${trackingNumber}. Motivo: ${options.motivoOverride ?? 'no especificado'}`,
-        valorNuevo: { trackingNumber, costo, costoSeguro },
-        ipAddress,
-        userAgent,
-      });
     }
 
     if (options.forzarCostoManual) {

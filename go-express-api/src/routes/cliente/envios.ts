@@ -6,7 +6,6 @@ import { logger } from '../../config/logger.js';
 import { notificacionesService } from '../../services/notificaciones.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio } from '../../services/envio.service.js';
-import { cuentaCorrienteService } from '../../services/cuentaCorriente.service.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
@@ -311,20 +310,9 @@ router.post(
 
     const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
 
-    // Cliente portal siempre factura a cuenta corriente, validar limite antes de insertar.
-    // Este check es advisory: la atomicidad real ocurre en el trigger via FOR UPDATE.
-    const montoFacturable = costo + costoSeguro;
-    if (montoFacturable > 0) {
-      const verif = await cuentaCorrienteService.verificarLimiteCredito(clienteId, montoFacturable);
-      if (!verif.permitido) {
-        throw AppError.unprocessable('limite_credito_excedido', {
-          saldoActual: verif.saldoActual,
-          limiteCredito: verif.limiteCredito,
-          montoSolicitado: montoFacturable,
-          disponible: verif.disponible,
-        });
-      }
-    }
+    // Modelo COD-only: el envio del portal es anticipado (producto prepago a la tienda),
+    // GO EXPRESS cobra solo la tarifa al entregar. monto_a_cobrar = costo + seguro (cumple I1).
+    const tarifaFacturable = costo + costoSeguro;
 
     const envioInsert = {
       tracking_number: trackingNumber,
@@ -357,8 +345,8 @@ router.post(
       notas: input.notas ?? null,
       estado: 'pendiente' as const,
       costo,
-      monto_a_cobrar: 0,
-      tipo_pago: 'cuenta_corriente' as const,
+      monto_a_cobrar: tarifaFacturable,
+      tipo_pago: 'anticipado' as const,
       seguro_adicional: seguroAdicional,
       costo_seguro: costoSeguro,
       tags: input.tags ?? [],
@@ -520,8 +508,8 @@ router.post(
         notas: input.notas ?? null,
         estado: 'pendiente' as const,
         costo: cot.costo,
-        monto_a_cobrar: 0,
-        tipo_pago: 'cuenta_corriente' as const,
+        monto_a_cobrar: cot.costo + costoSeguro,
+        tipo_pago: 'anticipado' as const,
         seguro_adicional: seguroAdicionalFlag,
         costo_seguro: costoSeguro,
         tags: input.tags ?? [],
@@ -529,22 +517,6 @@ router.post(
         fecha: today,
       };
     });
-
-    // Limite de credito sobre el total del lote antes de insertar. El trigger de debito por
-    // fila tambien lo valida bajo lock, pero un check previo agregado da el 422 limpio al
-    // cliente en vez de un insert parcial.
-    const montoFacturableLote = insertRows.reduce((sum, r) => sum + r.costo + r.costo_seguro, 0);
-    if (montoFacturableLote > 0) {
-      const verif = await cuentaCorrienteService.verificarLimiteCredito(clienteId, montoFacturableLote);
-      if (!verif.permitido) {
-        throw AppError.unprocessable('limite_credito_excedido', {
-          saldoActual: verif.saldoActual,
-          limiteCredito: verif.limiteCredito,
-          montoSolicitado: montoFacturableLote,
-          disponible: verif.disponible,
-        });
-      }
-    }
 
     // Batch insert all envios in a single query
     const { data: insertedData, error: insertError } = await supabase

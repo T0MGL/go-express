@@ -6,5 +6,4 @@ export * from './tarifa.schema.js';
 export * from './repartidor.schema.js';
 export * from './warehouse.schema.js';
 export * from './auditoria.schema.js';
-export * from './cuentaCorriente.schema.js';
 export * from './liquidacion.schema.js';

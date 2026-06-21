@@ -11,7 +11,6 @@ import warehouseRoutes from './warehouse.js';
 import auditoriaRoutes from './auditoria.js';
 import configuracionRoutes from './configuracion.js';
 import usuarioRoutes from './usuarios.js';
-import cuentaCorrienteRoutes from './cuentaCorriente.js';
 import liquidacionRoutes from './liquidaciones.js';
 import ciudadRoutes from './ciudades.js';
 import maintenanceRoutes from './maintenance.js';
@@ -23,10 +22,8 @@ router.use(requireAdmin);
 
 router.use('/dashboard', dashboardRoutes);
 router.use('/envios', envioRoutes);
-// Tarifas y clientes (incluyendo cuenta corriente, que cuelga de /clientes)
-// quedan restringidos a rol admin. Operadores reciben 403 explicito.
+// Tarifas y clientes quedan restringidos a rol admin. Operadores reciben 403 explicito.
 router.use('/clientes', requireOnlyAdmin, clienteRoutes);
-router.use('/clientes', requireOnlyAdmin, cuentaCorrienteRoutes);
 router.use('/repartidores', repartidorRoutes);
 router.use('/tarifas', requireOnlyAdmin, tarifaRoutes);
 router.use('/ciudades', ciudadRoutes);

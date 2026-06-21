@@ -57,7 +57,6 @@ const CLIENTE_COLUMNS = [
   'contacto_nombre', 'contacto_cargo',
   'telefono', 'email', 'direccion',
   'ciudad', 'estado', 'plan',
-  'saldo_cuenta_corriente', 'limite_credito',
   'total_envios', 'envios_activos',
   'notas', 'portal_activo', 'portal_status', 'portal_invited_at',
   'es_mostrador',

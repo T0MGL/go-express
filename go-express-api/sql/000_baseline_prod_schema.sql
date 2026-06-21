@@ -1,67 +1,14 @@
---
--- GO EXPRESS API: canonical baseline schema
---
--- Source of truth for the CURRENT state of production (Supabase Postgres 17.6),
--- materialized 2026-06-17 from a read-only pg_dump --schema-only of the public schema.
--- Faithful to prod object-by-object: 23 tables, 23 enums, 20 business functions,
--- 17 triggers, 36 RLS policies, the gist EXCLUDE constraint, all indexes and FKs.
---
--- Migrations 001-033 are kept as history. Every future migration starts from THIS file.
--- See sql/README.md.
---
--- The block below reconstructs the implicit environment that Supabase provides in
--- prod but a vanilla PG17 cluster does not. It is required for this baseline to apply
--- cleanly outside Supabase. None of it alters the functional public schema.
-
-SET client_min_messages = warning;
-
-CREATE SCHEMA IF NOT EXISTS extensions;
-
--- Extension placement mirrors prod exactly (verified via pg_extension/pg_namespace):
---   extensions schema: uuid-ossp, pgcrypto
---   public schema:     btree_gist, pg_trgm, unaccent
--- Placement is load-bearing: the dump calls extensions.uuid_generate_v4 and references
--- public.gin_trgm_ops, so each extension must resolve in its prod schema.
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
-
--- pg_trgm operator classes are referenced as public.gin_trgm_ops on the search indexes.
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
-
--- btree_gist backs the EXCLUDE USING gist (repartidor_id WITH =, daterange WITH &&)
--- on liquidaciones_repartidor.
-CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
-
-CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
-
--- Roles targeted by the 36 deny-all RLS policies. Supabase ships these; vanilla PG17 does not.
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    CREATE ROLE anon NOLOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN;
-  END IF;
-END
-$$;
-
--- Minimal auth.users so repartidores_auth_id_fkey resolves. In prod this is the full
--- Supabase Auth table; here only the referenced primary key is reconstructed.
-CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY
-);
-
--- End of Supabase-environment shim. Below is the verbatim prod public-schema dump,
--- with only CREATE SCHEMA public made idempotent.
+-- GO EXPRESS, baseline del schema VIVO de prod (oxyvhexsgppnkgcnqpkl).
+-- Regenerado 2026-06-21 con pg_dump 17 tras aplicar migraciones 036-041 (nucleo COD-only).
+-- Source of truth del estado actual. Las migraciones 001-041 quedan como historial.
+-- Incluye: I1 (037), inmutabilidad header/detalle liquidaciones (038/039), remediacion Step6 (040),
+-- payout vs esperado / faltante del repartidor no absorbido por la tienda (041).
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict D73RD9QgH1bITdb47jZdbJoksNTiVExOdX2G89Z4K11byBf1DScLeZW14xNr5pN
+\restrict eYHA9OiZfyDObI2Rl001sLBqlBq7ED0IRBi4Q8PVrKi54YvmmsHW723yZJ4p4u6
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -82,7 +29,7 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA IF NOT EXISTS public;
+CREATE SCHEMA public;
 
 
 --
@@ -109,7 +56,8 @@ CREATE TYPE public.auditoria_accion AS ENUM (
     'login',
     'ajuste',
     'nota_credito',
-    'anular'
+    'anular',
+    'reabrir'
 );
 
 
@@ -403,7 +351,8 @@ CREATE TABLE public.pagos (
     motivo_anulacion text,
     CONSTRAINT pagos_anulacion_coherente CHECK ((((anulado = false) AND (anulado_por IS NULL) AND (anulado_en IS NULL) AND (motivo_anulacion IS NULL)) OR ((anulado = true) AND (anulado_por IS NOT NULL) AND (anulado_en IS NOT NULL) AND (motivo_anulacion IS NOT NULL) AND (length(motivo_anulacion) >= 10)))),
     CONSTRAINT pagos_monto_recibido_check CHECK ((monto_recibido >= 0)),
-    CONSTRAINT pagos_monto_total_check CHECK ((monto_total > 0))
+    CONSTRAINT pagos_monto_total_check CHECK ((monto_total > 0)),
+    CONSTRAINT pagos_pagado_coherente CHECK (((estado_pago <> 'pagado'::public.estado_pago) OR (monto_recibido >= monto_total)))
 );
 
 
@@ -432,16 +381,16 @@ CREATE FUNCTION public.anular_pago_atomico(p_pago_id uuid, p_motivo text, p_anul
 DECLARE
   v_pago_previo   pagos;
   v_pago_actual   pagos;
-  v_envio         RECORD;
-  v_credito_neto  BIGINT;
-  v_monto_reverso BIGINT;
   v_descripcion   TEXT;
 BEGIN
+  PERFORM set_config('app.pago_rpc', '1', true);
+
   IF p_motivo IS NULL OR length(p_motivo) < 10 THEN
     RAISE EXCEPTION 'motivo_insuficiente: el motivo debe tener al menos 10 caracteres'
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- P: lock del pago.
   SELECT * INTO v_pago_previo
     FROM pagos
    WHERE id = p_pago_id
@@ -455,6 +404,28 @@ BEGIN
     RAISE EXCEPTION 'pago_ya_anulado: %', p_pago_id USING ERRCODE = 'P0001';
   END IF;
 
+  -- L: lock de liquidacion en orden canonico antes de leer estado.
+  PERFORM 1
+     FROM liquidacion_envios le
+     JOIN liquidaciones_repartidor l ON l.id = le.liquidacion_id
+    WHERE le.envio_id = v_pago_previo.envio_id
+    FOR UPDATE OF l;
+
+  -- 4.4: ambos estados settled bloquean.
+  IF EXISTS (
+    SELECT 1
+      FROM liquidacion_envios le
+      JOIN liquidaciones_repartidor l ON l.id = le.liquidacion_id
+     WHERE le.envio_id = v_pago_previo.envio_id
+       AND l.estado IN ('cerrada', 'con_diferencia')
+  ) THEN
+    RAISE EXCEPTION 'pago_en_liquidacion_cerrada: el COD ya fue liquidado al repartidor; reabrir la liquidacion antes de anular el pago'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  -- E: lock del envio antes de que el sync trigger mute su cobro.
+  PERFORM 1 FROM envios WHERE id = v_pago_previo.envio_id FOR UPDATE;
+
   UPDATE pagos
      SET anulado          = TRUE,
          anulado_por      = p_anulado_por,
@@ -463,6 +434,9 @@ BEGIN
          updated_at       = NOW()
    WHERE id = p_pago_id
   RETURNING * INTO v_pago_actual;
+
+  -- Cierra el flag apenas pasa el UPDATE legitimo.
+  PERFORM set_config('app.pago_rpc', '0', true);
 
   v_descripcion := format('Pago %s anulado. Motivo: %s', p_pago_id, p_motivo);
 
@@ -473,45 +447,6 @@ BEGIN
     p_usuario_nombre, p_anulado_por, 'anular', 'pago', v_pago_actual.id::TEXT,
     v_descripcion, to_jsonb(v_pago_previo), to_jsonb(v_pago_actual), p_ip, p_user_agent
   );
-
-  SELECT cliente_id, tipo_pago, tracking_number
-    INTO v_envio
-    FROM envios
-   WHERE id = v_pago_previo.envio_id;
-
-  IF FOUND AND v_envio.tipo_pago = 'cuenta_corriente' THEN
-    -- Credito neto realmente asentado por este pago en el ledger (creditos cuentan
-    -- negativos). Reversar exactamente ese monto y no el monto_recibido actual cierra la
-    -- conservacion de dinero: lo que entro al ledger por este pago sale por el reverso.
-    SELECT COALESCE(-SUM(monto), 0)::BIGINT
-      INTO v_credito_neto
-      FROM movimientos_cuenta_corriente
-     WHERE pago_id = p_pago_id
-       AND tipo = 'credito';
-
-    -- Si por cualquier razon no hubo credito asentado (pago con monto_recibido 0), no hay
-    -- nada que reversar.
-    IF v_credito_neto > 0 THEN
-      v_monto_reverso := v_credito_neto;
-
-      -- p_bypass_limite => TRUE explicito (preserva intencion de migracion 021): un
-      -- reverso re-incrementa la deuda y NUNCA debe rebotar por limite de credito, aunque
-      -- en el futuro cambie el tipo-check de registrar_movimiento_cc. Hoy 'reverso' ya esta
-      -- exento del check, esto lo blinda ante cambios futuros.
-      PERFORM registrar_movimiento_cc(
-        v_envio.cliente_id,
-        v_pago_previo.envio_id,
-        p_pago_id,
-        'reverso'::tipo_movimiento_cc,
-        v_monto_reverso,
-        'Reverso por anulacion del pago ' || p_pago_id || ': ' || p_motivo,
-        p_anulado_por,
-        p_ip,
-        p_user_agent,
-        TRUE
-      );
-    END IF;
-  END IF;
 
   RETURN v_pago_actual;
 END;
@@ -544,7 +479,10 @@ CREATE TABLE public.liquidaciones_repartidor (
     creado_por uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tarifa_retenida bigint,
+    payout_tienda bigint,
     CONSTRAINT liquidacion_estado_coherente CHECK ((((estado = 'pendiente'::public.estado_liquidacion) AND (cerrada_por IS NULL) AND (cerrada_en IS NULL) AND (monto_total_recibido IS NULL)) OR ((estado = ANY (ARRAY['cerrada'::public.estado_liquidacion, 'con_diferencia'::public.estado_liquidacion])) AND (cerrada_por IS NOT NULL) AND (cerrada_en IS NOT NULL) AND (monto_total_recibido IS NOT NULL)))),
+    CONSTRAINT liquidacion_payout_conservacion CHECK (((estado = 'pendiente'::public.estado_liquidacion) OR ((tarifa_retenida IS NOT NULL) AND (payout_tienda IS NOT NULL) AND ((tarifa_retenida + payout_tienda) = monto_total_esperado)))),
     CONSTRAINT liquidacion_rango_valido CHECK ((fecha_hasta >= fecha_desde))
 );
 
@@ -585,6 +523,20 @@ COMMENT ON COLUMN public.liquidaciones_repartidor.notas IS 'Justificacion obliga
 
 
 --
+-- Name: COLUMN liquidaciones_repartidor.tarifa_retenida; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.liquidaciones_repartidor.tarifa_retenida IS 'SUM(costo+costo_seguro) del set vigente, computado al cerrar (4.2). Lo que GO EXPRESS retiene. NULL mientras pendiente.';
+
+
+--
+-- Name: COLUMN liquidaciones_repartidor.payout_tienda; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.liquidaciones_repartidor.payout_tienda IS 'SUM(monto_a_cobrar - (costo+costo_seguro)) del set vigente, computado al cerrar (4.2). 0 en anticipado, valor del producto en contra_entrega. NULL mientras pendiente.';
+
+
+--
 -- Name: cerrar_liquidacion(uuid, bigint, text, uuid, text, inet, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -593,17 +545,21 @@ CREATE FUNCTION public.cerrar_liquidacion(p_liquidacion_id uuid, p_monto_recibid
     SET search_path TO 'public'
     AS $$
 DECLARE
-  v_previa      liquidaciones_repartidor;
-  v_actual      liquidaciones_repartidor;
-  v_estado      estado_liquidacion;
-  v_diferencia  BIGINT;
-  v_descripcion TEXT;
+  v_previa         liquidaciones_repartidor;
+  v_actual         liquidaciones_repartidor;
+  v_estado         estado_liquidacion;
+  v_esperado       BIGINT := 0;
+  v_tarifa         BIGINT := 0;
+  v_payout         BIGINT := 0;
+  v_diferencia     BIGINT;
+  v_descripcion    TEXT;
 BEGIN
   IF p_monto_recibido < 0 THEN
     RAISE EXCEPTION 'monto_invalido: monto_recibido debe ser >= 0'
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- L: lock de la liquidacion.
   SELECT * INTO v_previa
     FROM liquidaciones_repartidor
    WHERE id = p_liquidacion_id
@@ -619,20 +575,82 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  v_diferencia := p_monto_recibido - v_previa.monto_total_esperado;
+  -- E: lockear bajo el set elegible vigente (mismo predicado que 4.1). Materializa los envio_id
+  -- ELEGIBLES de ESTE rango/repartidor que NO esten conciliados en OTRA liquidacion.
+  DROP TABLE IF EXISTS tmp_elegibles;
+  CREATE TEMP TABLE tmp_elegibles ON COMMIT DROP AS
+  SELECT e.id AS envio_id,
+         e.monto_a_cobrar AS monto_esperado,
+         COALESCE(e.monto_cobrado, 0) AS monto_cobrado,
+         (e.costo + COALESCE(e.costo_seguro, 0))::BIGINT AS tarifa
+    FROM envios e
+   WHERE e.repartidor_id = v_previa.repartidor_id
+     AND e.estado = 'entregado'
+     AND e.tipo_pago IN ('anticipado', 'contra_entrega')
+     AND e.eliminado = FALSE
+     AND e.fecha_entrega_real IS NOT NULL
+     AND (e.fecha_entrega_real AT TIME ZONE 'America/Asuncion')::date
+         BETWEEN v_previa.fecha_desde AND v_previa.fecha_hasta
+     AND EXISTS (
+       SELECT 1 FROM pagos p
+        WHERE p.envio_id = e.id
+          AND p.anulado = FALSE
+          AND p.estado_pago = 'pagado'
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM liquidacion_envios le
+        WHERE le.envio_id = e.id
+          AND le.conciliado = TRUE
+          AND le.liquidacion_id <> p_liquidacion_id
+     )
+   ORDER BY e.id
+   FOR UPDATE OF e;
+
+  -- DELETE las filas de ESTA liq que ya no califican (cobro anulado tras crear, etc).
+  DELETE FROM liquidacion_envios le
+   WHERE le.liquidacion_id = p_liquidacion_id
+     AND NOT EXISTS (
+       SELECT 1 FROM tmp_elegibles t WHERE t.envio_id = le.envio_id
+     );
+
+  -- UPSERT las que ahora califican; re-snapshot de monto_esperado y monto_cobrado reales.
+  INSERT INTO liquidacion_envios (liquidacion_id, envio_id, monto_esperado, monto_cobrado, conciliado)
+  SELECT p_liquidacion_id, t.envio_id, t.monto_esperado, t.monto_cobrado, FALSE
+    FROM tmp_elegibles t
+  ON CONFLICT (liquidacion_id, envio_id)
+  DO UPDATE SET monto_esperado = EXCLUDED.monto_esperado,
+                monto_cobrado  = EXCLUDED.monto_cobrado;
+
+  -- Recompute sobre el set vigente. tarifa_retenida = SUM(costo+seguro).
+  SELECT COALESCE(SUM(monto_esperado), 0)::BIGINT,
+         COALESCE(SUM(tarifa), 0)::BIGINT
+    INTO v_esperado, v_tarifa
+    FROM tmp_elegibles;
+
+  v_diferencia := p_monto_recibido - v_esperado;
 
   IF v_diferencia = 0 THEN
     v_estado := 'cerrada';
+    -- Sin diferencia: payout = esperado - tarifa = recibido - tarifa. Conservacion exacta.
+    v_payout := v_esperado - v_tarifa;
   ELSE
     v_estado := 'con_diferencia';
     IF p_notas IS NULL OR length(trim(p_notas)) < 10 THEN
       RAISE EXCEPTION 'notas_requeridas: cerrar con diferencia requiere notas de al menos 10 caracteres'
         USING ERRCODE = 'P0001';
     END IF;
+    -- Con diferencia: el payout sale del EFECTIVO REAL rendido, no del esperado. La tienda no
+    -- absorbe el faltante del repartidor por sobre-pago. Clamp a 0 si lo rendido no cubre la
+    -- tarifa GO EXPRESS (el faltante queda como diferencia a reclamar al repartidor, no como payout
+    -- negativo a la tienda). Conservacion: tarifa_retenida + payout_tienda = monto_total_recibido.
+    v_payout := v_esperado - v_tarifa;  -- 041: store cobra payout completo; faltante del repartidor = diferencia, no lo absorbe la tienda
   END IF;
 
   UPDATE liquidaciones_repartidor
-     SET monto_total_recibido = p_monto_recibido,
+     SET monto_total_esperado = v_esperado,
+         monto_total_recibido = p_monto_recibido,
+         tarifa_retenida      = v_tarifa,
+         payout_tienda        = v_payout,
          estado               = v_estado,
          cerrada_por          = p_cerrado_por,
          cerrada_en           = NOW(),
@@ -641,13 +659,14 @@ BEGIN
    WHERE id = p_liquidacion_id
   RETURNING * INTO v_actual;
 
+  -- RECIEN AHI sella: conciliado=TRUE sobre el set vigente (re-validado contra cobro real).
   UPDATE liquidacion_envios
      SET conciliado = TRUE
    WHERE liquidacion_id = p_liquidacion_id;
 
   v_descripcion := format(
-    'Liquidacion cerrada: esperado %s Gs, recibido %s Gs, diferencia %s (%s)',
-    v_actual.monto_total_esperado, v_actual.monto_total_recibido, v_diferencia, v_estado
+    'Liquidacion cerrada: esperado %s Gs, recibido %s Gs, tarifa %s Gs, payout %s Gs, diferencia %s (%s)',
+    v_esperado, p_monto_recibido, v_tarifa, v_payout, v_diferencia, v_estado
   );
 
   INSERT INTO auditoria_log (
@@ -680,11 +699,14 @@ CREATE FUNCTION public.crear_liquidacion(p_repartidor_id uuid, p_fecha_desde dat
     AS $$
 DECLARE
   v_liquidacion       liquidaciones_repartidor;
-  v_monto_esperado    BIGINT;
-  v_count             INT;
+  v_monto_esperado    BIGINT := 0;
+  v_count             INT    := 0;
   v_descripcion       TEXT;
   v_repartidor_nombre TEXT;
   v_solapada_id       UUID;
+  v_envio_id          UUID;
+  v_monto_a_cobrar    BIGINT;
+  v_monto_cobrado     BIGINT;
 BEGIN
   IF p_fecha_hasta < p_fecha_desde THEN
     RAISE EXCEPTION 'rango_invalido: fecha_hasta debe ser >= fecha_desde'
@@ -713,50 +735,55 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  SELECT COUNT(*), COALESCE(SUM(e.monto_a_cobrar), 0)
-    INTO v_count, v_monto_esperado
-    FROM envios e
-   WHERE e.repartidor_id = p_repartidor_id
-     AND e.estado = 'entregado'
-     AND e.tipo_pago = 'contra_entrega'
-     AND e.eliminado = FALSE
-     AND e.fecha_entrega_real IS NOT NULL
-     AND (e.fecha_entrega_real AT TIME ZONE 'America/Asuncion')::date
-         BETWEEN p_fecha_desde AND p_fecha_hasta
-     AND NOT EXISTS (
-       SELECT 1
-         FROM liquidacion_envios le
-        WHERE le.envio_id = e.id
-          AND le.conciliado = TRUE
-     );
-
+  -- Inserta el cabecera primero con esperado 0; se actualiza al final con el SUM del set vigente.
   INSERT INTO liquidaciones_repartidor (
-    repartidor_id, fecha_desde, fecha_hasta,
-    monto_total_esperado, creado_por
+    repartidor_id, fecha_desde, fecha_hasta, monto_total_esperado, creado_por
   ) VALUES (
-    p_repartidor_id, p_fecha_desde, p_fecha_hasta,
-    v_monto_esperado, p_creado_por
+    p_repartidor_id, p_fecha_desde, p_fecha_hasta, 0, p_creado_por
   )
   RETURNING * INTO v_liquidacion;
 
-  IF v_count > 0 THEN
-    INSERT INTO liquidacion_envios (liquidacion_id, envio_id, monto_esperado, monto_cobrado)
-    SELECT v_liquidacion.id, e.id, e.monto_a_cobrar, COALESCE(e.monto_cobrado, 0)
+  -- Set elegible MATERIALIZADO bajo lock pesimista (RAIZ D/H5). El FOR ... FOR UPDATE lockea cada
+  -- envio candidato; la insercion del detalle y el computo de count/monto salen del MISMO
+  -- conjunto, en la misma lectura. Predicado 4.1: entregado + no eliminado + AMBOS modos + fecha
+  -- en rango (TZ Asuncion) + EXISTS pago pagado no anulado + NOT EXISTS conciliado en otra liq.
+  -- SIN condicion sobre cod_pago_pendiente.
+  FOR v_envio_id, v_monto_a_cobrar, v_monto_cobrado IN
+    SELECT e.id, e.monto_a_cobrar, COALESCE(e.monto_cobrado, 0)
       FROM envios e
      WHERE e.repartidor_id = p_repartidor_id
        AND e.estado = 'entregado'
-       AND e.tipo_pago = 'contra_entrega'
+       AND e.tipo_pago IN ('anticipado', 'contra_entrega')
        AND e.eliminado = FALSE
        AND e.fecha_entrega_real IS NOT NULL
        AND (e.fecha_entrega_real AT TIME ZONE 'America/Asuncion')::date
            BETWEEN p_fecha_desde AND p_fecha_hasta
+       AND EXISTS (
+         SELECT 1 FROM pagos p
+          WHERE p.envio_id = e.id
+            AND p.anulado = FALSE
+            AND p.estado_pago = 'pagado'
+       )
        AND NOT EXISTS (
-         SELECT 1
-           FROM liquidacion_envios le
+         SELECT 1 FROM liquidacion_envios le
           WHERE le.envio_id = e.id
             AND le.conciliado = TRUE
-       );
-  END IF;
+       )
+     ORDER BY e.id
+     FOR UPDATE OF e
+  LOOP
+    INSERT INTO liquidacion_envios (liquidacion_id, envio_id, monto_esperado, monto_cobrado)
+    VALUES (v_liquidacion.id, v_envio_id, v_monto_a_cobrar, v_monto_cobrado);
+
+    v_count          := v_count + 1;
+    v_monto_esperado := v_monto_esperado + v_monto_a_cobrar;
+  END LOOP;
+
+  UPDATE liquidaciones_repartidor
+     SET monto_total_esperado = v_monto_esperado,
+         updated_at           = NOW()
+   WHERE id = v_liquidacion.id
+  RETURNING * INTO v_liquidacion;
 
   v_descripcion := format(
     'Liquidacion creada para %s (rango %s a %s): %s envios, %s Gs esperados',
@@ -772,6 +799,11 @@ BEGIN
   );
 
   RETURN v_liquidacion;
+
+EXCEPTION
+  WHEN exclusion_violation THEN
+    RAISE EXCEPTION 'liquidacion_rango_solapado: ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado'
+      USING ERRCODE = 'P0001';
 END;
 $$;
 
@@ -797,25 +829,37 @@ DECLARE
   v_descripcion  TEXT;
   v_tipo_pago    tipo_pago;
   v_monto_total  BIGINT;
+  v_eliminado    BOOLEAN;
 BEGIN
-  -- Fuente de verdad del importe del envio. Para cuenta_corriente el cobro total es el
-  -- costo facturado (costo + seguro). Para contra_entrega es el monto_a_cobrar (el dinero
-  -- que el repartidor levanta en la calle). Cualquier otro tipo cae al costo.
-  SELECT tipo_pago,
+  -- Habilita el guard de inmutabilidad fisica (4.7) para los UPDATE que el sync trigger dispara
+  -- sobre envios. En create no hay UPDATE de pagos, pero el flag se setea uniforme en las tres RPCs.
+  PERFORM set_config('app.pago_rpc', '1', true);
+
+  -- P: lock de la franja de pagos del envio primero (orden canonico P -> E -> L). No hay pago
+  -- aun, pero el lock de rango serializa contra otro create del mismo envio.
+  PERFORM 1 FROM pagos WHERE envio_id = p_envio_id AND anulado = FALSE FOR UPDATE;
+
+  -- E: lock del envio. Fuente de verdad del importe. COD = monto_a_cobrar; anticipado =
+  -- costo+seguro (el repartidor cobra el envio). Serializa contra trg_envio_block_cod_monto_change.
+  SELECT tipo_pago, eliminado,
          CASE
            WHEN tipo_pago = 'contra_entrega' THEN monto_a_cobrar
            ELSE (costo + COALESCE(costo_seguro, 0))
          END::BIGINT
-    INTO v_tipo_pago, v_monto_total
+    INTO v_tipo_pago, v_eliminado, v_monto_total
     FROM envios
-   WHERE id = p_envio_id;
+   WHERE id = p_envio_id
+   FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'envio_no_encontrado: %', p_envio_id USING ERRCODE = 'P0001';
   END IF;
 
-  -- El caller puede mandar monto_total pero no manda: validamos que coincida con el real.
-  -- Si difiere, es un bug del caller o tampering: rechazamos en vez de persistir el del caller.
+  IF v_eliminado = TRUE THEN
+    RAISE EXCEPTION 'pago_envio_eliminado: no se puede crear un pago para un envio anulado (envio %)', p_envio_id
+      USING ERRCODE = 'P0001';
+  END IF;
+
   IF p_monto_total IS NOT NULL AND p_monto_total <> v_monto_total THEN
     RAISE EXCEPTION 'pago_monto_total_invalido: monto_total enviado % no coincide con el del envio %',
       p_monto_total, v_monto_total
@@ -827,8 +871,9 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- Tope (I7): el repartidor no rinde mas de lo que el envio cobra. Sobrecobro COD se rechaza.
   IF p_monto_recibido > v_monto_total THEN
-    RAISE EXCEPTION 'pago_monto_recibido_invalido: monto_recibido % excede monto_total %',
+    RAISE EXCEPTION 'pago_monto_recibido_invalido: monto_recibido % excede el importe del envio %',
       p_monto_recibido, v_monto_total
       USING ERRCODE = 'P0001';
   END IF;
@@ -849,6 +894,10 @@ BEGIN
     p_fecha_pago, p_referencia, p_notas, p_creado_por
   )
   RETURNING * INTO v_pago;
+
+  -- Cierra el flag apenas pasa el INSERT legitimo: ningun statement posterior puede mutar pagos
+  -- en esta tx (cierra ALTA 3, antes quedaba en '1' el resto de la transaccion).
+  PERFORM set_config('app.pago_rpc', '0', true);
 
   v_descripcion := format(
     'Pago creado para envio %s: %s/%s Gs. (%s)',
@@ -898,169 +947,88 @@ $$;
 
 
 --
--- Name: recompute_saldo_cc(uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reabrir_liquidacion(uuid, text, uuid, text, inet, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.recompute_saldo_cc(p_cliente_id uuid) RETURNS bigint
+CREATE FUNCTION public.reabrir_liquidacion(p_liquidacion_id uuid, p_motivo text, p_actor uuid, p_usuario_nombre text, p_ip inet, p_user_agent text) RETURNS public.liquidaciones_repartidor
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-  v_saldo BIGINT;
+  v_previa   liquidaciones_repartidor;
+  v_actual   liquidaciones_repartidor;
+  v_descrip  TEXT;
 BEGIN
-  PERFORM 1 FROM clientes WHERE id = p_cliente_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'cliente % no existe', p_cliente_id USING ERRCODE = 'P0002';
+  IF p_motivo IS NULL OR length(trim(p_motivo)) < 10 THEN
+    RAISE EXCEPTION 'motivo_insuficiente: reabrir una liquidacion requiere un motivo de al menos 10 caracteres'
+      USING ERRCODE = 'P0001';
   END IF;
 
-  SELECT COALESCE(SUM(monto), 0)::BIGINT
-    INTO v_saldo
-    FROM movimientos_cuenta_corriente
-   WHERE cliente_id = p_cliente_id;
-
-  UPDATE clientes SET saldo_cuenta_corriente = v_saldo WHERE id = p_cliente_id;
-  RETURN v_saldo;
-END;
-$$;
-
-
---
--- Name: FUNCTION recompute_saldo_cc(p_cliente_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.recompute_saldo_cc(p_cliente_id uuid) IS 'Reconstruye el cache saldo_cuenta_corriente de un cliente desde SUM(movimientos), bajo lock. Idempotente. Herramienta de reparacion: el flujo normal nunca lo necesita porque registrar_movimiento_cc mantiene el cache en cada movimiento.';
-
-
---
--- Name: movimientos_cuenta_corriente; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.movimientos_cuenta_corriente (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    cliente_id uuid NOT NULL,
-    envio_id uuid,
-    pago_id uuid,
-    tipo public.tipo_movimiento_cc NOT NULL,
-    monto bigint NOT NULL,
-    saldo_posterior bigint NOT NULL,
-    descripcion text NOT NULL,
-    creado_por uuid NOT NULL,
-    ip_address inet,
-    user_agent text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT movimientos_cuenta_corriente_monto_check CHECK ((monto <> 0))
-);
-
-
---
--- Name: TABLE movimientos_cuenta_corriente; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.movimientos_cuenta_corriente IS 'Libro mayor de cuenta corriente B2B. Append-only. Cada fila registra un movimiento con saldo posterior calculado bajo lock para evitar race conditions.';
-
-
---
--- Name: COLUMN movimientos_cuenta_corriente.envio_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.movimientos_cuenta_corriente.envio_id IS 'Envio asociado cuando aplica (debito automatico por envio cuenta_corriente). NULL para ajustes y notas de credito sin envio.';
-
-
---
--- Name: COLUMN movimientos_cuenta_corriente.pago_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.movimientos_cuenta_corriente.pago_id IS 'Pago asociado cuando aplica (credito automatico por pago de envio cuenta_corriente). NULL en caso contrario.';
-
-
---
--- Name: COLUMN movimientos_cuenta_corriente.monto; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.movimientos_cuenta_corriente.monto IS 'Gs. Convencion: positivo aumenta deuda del cliente (debito), negativo reduce deuda (credito). Nunca cero.';
-
-
---
--- Name: COLUMN movimientos_cuenta_corriente.saldo_posterior; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.movimientos_cuenta_corriente.saldo_posterior IS 'Snapshot del saldo del cliente despues de aplicar este movimiento. Permite reconstruir libro mayor sin recalcular.';
-
-
---
--- Name: COLUMN movimientos_cuenta_corriente.creado_por; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.movimientos_cuenta_corriente.creado_por IS 'Usuario que origino el movimiento. En triggers automaticos refleja el usuario que creo el envio o el pago.';
-
-
---
--- Name: registrar_movimiento_cc(uuid, uuid, uuid, public.tipo_movimiento_cc, bigint, text, uuid, inet, text, boolean); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.registrar_movimiento_cc(p_cliente_id uuid, p_envio_id uuid, p_pago_id uuid, p_tipo public.tipo_movimiento_cc, p_monto bigint, p_descripcion text, p_creado_por uuid, p_ip inet, p_user_agent text, p_bypass_limite boolean DEFAULT false) RETURNS public.movimientos_cuenta_corriente
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_saldo_actual    BIGINT;
-  v_limite_credito  BIGINT;
-  v_nuevo_saldo     BIGINT;
-  v_movimiento      movimientos_cuenta_corriente;
-BEGIN
-  IF p_monto = 0 THEN
-    RAISE EXCEPTION 'monto no puede ser cero' USING ERRCODE = 'P0001';
-  END IF;
-
-  SELECT saldo_cuenta_corriente, limite_credito
-    INTO v_saldo_actual, v_limite_credito
-    FROM clientes
-   WHERE id = p_cliente_id
+  SELECT * INTO v_previa
+    FROM liquidaciones_repartidor
+   WHERE id = p_liquidacion_id
    FOR UPDATE;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'cliente % no existe', p_cliente_id USING ERRCODE = 'P0002';
+    RAISE EXCEPTION 'liquidacion_no_encontrada: %', p_liquidacion_id USING ERRCODE = 'P0001';
   END IF;
 
-  v_nuevo_saldo := v_saldo_actual + p_monto;
-
-  -- Limite de credito bajo lock. Solo movimientos que aumentan deuda (debito, ajuste
-  -- positivo) y con limite configurado (> 0). reverso/credito/nota_credito reducen deuda
-  -- y siempre se permiten. p_bypass_limite=TRUE saltea (override admin con motivo en
-  -- auditoria_log, propagado por el trigger de debito desde envios.bypass_limite_credito).
-  IF NOT p_bypass_limite
-     AND v_limite_credito > 0
-     AND p_tipo IN ('debito', 'ajuste')
-     AND p_monto > 0
-     AND v_nuevo_saldo > v_limite_credito THEN
-    RAISE EXCEPTION 'limite_credito_excedido: saldo proyectado % excede limite %',
-      v_nuevo_saldo, v_limite_credito
-      USING ERRCODE = 'P0003';
+  IF v_previa.estado = 'pendiente' THEN
+    RAISE EXCEPTION 'liquidacion_no_cerrada: la liquidacion ya esta pendiente, no hay nada que reabrir'
+      USING ERRCODE = 'P0001';
   END IF;
 
-  INSERT INTO movimientos_cuenta_corriente (
-    cliente_id, envio_id, pago_id, tipo, monto, saldo_posterior,
-    descripcion, creado_por, ip_address, user_agent
+  -- Habilita la unica via legitima de nular el sello (4.x ALTA 6). El flag es transaccion-local.
+  PERFORM set_config('app.reabrir_rpc', '1', true);
+
+  -- Vuelta a pendiente. Los campos de cierre + montos finales VUELVEN a NULL: el re-cierre los
+  -- reconstruye desde el set vigente (4.2). monto_total_esperado queda como estaba: cerrar lo
+  -- sobrescribe; no se nulea porque el CHECK no lo exige y no se lee en pendiente.
+  UPDATE liquidaciones_repartidor
+     SET estado               = 'pendiente',
+         cerrada_por          = NULL,
+         cerrada_en           = NULL,
+         monto_total_recibido = NULL,
+         tarifa_retenida      = NULL,
+         payout_tienda        = NULL,
+         notas                = NULL,
+         updated_at           = NOW()
+   WHERE id = p_liquidacion_id
+  RETURNING * INTO v_actual;
+
+  -- Cierra el flag apenas pasa el UPDATE legitimo: ningun statement posterior puede reabrir.
+  PERFORM set_config('app.reabrir_rpc', '0', true);
+
+  -- Des-conciliar: update/anular_pago vuelven a permitir correccion y el envio queda elegible
+  -- para re-snapshot al cerrar de nuevo. Corre con el header ya pendiente (rama allow del 039).
+  UPDATE liquidacion_envios
+     SET conciliado = FALSE
+   WHERE liquidacion_id = p_liquidacion_id;
+
+  v_descrip := format(
+    'Liquidacion reabierta (estaba %s, esperado %s Gs, recibido %s Gs). Motivo: %s',
+    v_previa.estado, v_previa.monto_total_esperado,
+    COALESCE(v_previa.monto_total_recibido, 0), p_motivo
+  );
+
+  INSERT INTO auditoria_log (
+    usuario, usuario_id, accion, entidad, entidad_id,
+    descripcion, valor_anterior, valor_nuevo, ip_address, user_agent
   ) VALUES (
-    p_cliente_id, p_envio_id, p_pago_id, p_tipo, p_monto, v_nuevo_saldo,
-    p_descripcion, p_creado_por, p_ip, p_user_agent
-  )
-  RETURNING * INTO v_movimiento;
+    p_usuario_nombre, p_actor, 'reabrir', 'liquidacion', v_actual.id::TEXT,
+    v_descrip, to_jsonb(v_previa), to_jsonb(v_actual), p_ip, p_user_agent
+  );
 
-  UPDATE clientes
-     SET saldo_cuenta_corriente = v_nuevo_saldo
-   WHERE id = p_cliente_id;
-
-  RETURN v_movimiento;
+  RETURN v_actual;
 END;
 $$;
 
 
 --
--- Name: FUNCTION registrar_movimiento_cc(p_cliente_id uuid, p_envio_id uuid, p_pago_id uuid, p_tipo public.tipo_movimiento_cc, p_monto bigint, p_descripcion text, p_creado_por uuid, p_ip inet, p_user_agent text, p_bypass_limite boolean); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reabrir_liquidacion(p_liquidacion_id uuid, p_motivo text, p_actor uuid, p_usuario_nombre text, p_ip inet, p_user_agent text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.registrar_movimiento_cc(p_cliente_id uuid, p_envio_id uuid, p_pago_id uuid, p_tipo public.tipo_movimiento_cc, p_monto bigint, p_descripcion text, p_creado_por uuid, p_ip inet, p_user_agent text, p_bypass_limite boolean) IS 'Unica via para mutar saldo_cuenta_corriente. Inserta movimiento (append-only) y recalcula el cache de saldo del cliente atomicamente bajo SELECT FOR UPDATE. Valida limite de credito bajo el mismo lock; p_bypass_limite=TRUE lo saltea (override admin). Firma canonica de 10 argumentos, p_bypass_limite DEFAULT FALSE (preserva migracion 019; el 10mo arg es opcional, asi que callers de 9 args siguen validos).';
+COMMENT ON FUNCTION public.reabrir_liquidacion(p_liquidacion_id uuid, p_motivo text, p_actor uuid, p_usuario_nombre text, p_ip inet, p_user_agent text) IS 'Reabre una liquidacion cerrada o con_diferencia: la vuelve a pendiente (nulando cerrada_por/cerrada_en/monto_total_recibido para respetar liquidacion_estado_coherente), des-concilia sus envios y audita. Habilita el flujo reabrir->corregir->cerrar que los mensajes de pago_en_liquidacion_cerrada instruyen. Errores: motivo_insuficiente, liquidacion_no_encontrada, liquidacion_no_cerrada.';
 
 
 --
@@ -1123,6 +1091,27 @@ $$;
 
 
 --
+-- Name: tarifa_norm_ciudad(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tarifa_norm_ciudad(p_in text) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+  -- Espeja normalizeCiudad (src/lib/ciudad.ts): lower, quita tildes/dieresis/enie, colapsa espacios.
+  SELECT regexp_replace(
+           btrim(
+             translate(
+               lower(p_in),
+               'áàäâãéèëêíìïîóòöôõúùüûñç',
+               'aaaaaeeeeiiiiooooouuuunc'
+             )
+           ),
+           '\s+', ' ', 'g'
+         );
+$$;
+
+
+--
 -- Name: trg_ciudades_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1131,6 +1120,38 @@ CREATE FUNCTION public.trg_ciudades_updated_at() RETURNS trigger
     AS $$
 BEGIN
   NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_envio_block_cod_monto_change_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_envio_block_cod_monto_change_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Solo importa si efectivamente cambia alguno de los campos que alimentan el ledger.
+  IF NEW.monto_a_cobrar     IS NOT DISTINCT FROM OLD.monto_a_cobrar
+     AND NEW.costo          IS NOT DISTINCT FROM OLD.costo
+     AND NEW.costo_seguro   IS NOT DISTINCT FROM OLD.costo_seguro THEN
+    RETURN NEW;
+  END IF;
+
+  -- Cobro real asentado: el monto y la tarifa quedan congelados. Anular el pago primero.
+  IF EXISTS (SELECT 1 FROM pagos WHERE envio_id = NEW.id AND anulado = FALSE) THEN
+    RAISE EXCEPTION 'cod_monto_no_modificable: el envio ya tiene un pago activo, anular el pago antes de cambiar monto/costo'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Ya esta en una liquidacion: el split se sella con la tarifa de ese momento. Reabrir/recrear.
+  IF EXISTS (SELECT 1 FROM liquidacion_envios WHERE envio_id = NEW.id) THEN
+    RAISE EXCEPTION 'cod_monto_no_modificable: el envio ya esta en una liquidacion, no se puede cambiar monto/costo'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -1167,71 +1188,108 @@ COMMENT ON FUNCTION public.trg_envio_block_tipo_pago_change_fn() IS 'Rechaza cam
 
 
 --
--- Name: trg_envio_cc_debito_fn(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: trg_envio_i1_cubre_tarifa_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.trg_envio_cc_debito_fn() RETURNS trigger
+CREATE FUNCTION public.trg_envio_i1_cubre_tarifa_fn() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_monto       BIGINT;
-  v_descripcion TEXT;
-  v_actor       UUID;
+  v_tarifa bigint := NEW.costo + COALESCE(NEW.costo_seguro, 0);
 BEGIN
-  IF NEW.tipo_pago <> 'cuenta_corriente' OR NEW.eliminado = TRUE THEN
-    RETURN NEW;
+  IF NEW.tipo_pago = 'anticipado' THEN
+    -- anticipado: el cobro en calle es exactamente la tarifa. payout_tienda = monto - tarifa = 0.
+    IF NEW.monto_a_cobrar <> v_tarifa THEN
+      RAISE EXCEPTION 'anticipado_monto_invalido: anticipado requiere monto_a_cobrar (%) = costo+seguro (%)',
+        NEW.monto_a_cobrar, v_tarifa USING ERRCODE = 'P0001';
+    END IF;
+  ELSE
+    -- contra_entrega: el COD debe cubrir al menos la tarifa; el excedente es el producto de la tienda.
+    IF NEW.monto_a_cobrar < v_tarifa THEN
+      RAISE EXCEPTION 'monto_a_cobrar_insuficiente: monto_a_cobrar (%) debe cubrir costo+seguro (%)',
+        NEW.monto_a_cobrar, v_tarifa USING ERRCODE = 'P0001';
+    END IF;
   END IF;
-
-  v_monto := NEW.costo + COALESCE(NEW.costo_seguro, 0);
-
-  IF v_monto <= 0 THEN
-    RETURN NEW;
-  END IF;
-
-  v_descripcion := 'Envio ' || NEW.tracking_number;
-  v_actor := '00000000-0000-4000-a000-000000000001';
-
-  PERFORM registrar_movimiento_cc(
-    NEW.cliente_id, NEW.id, NULL, 'debito', v_monto,
-    v_descripcion, v_actor, NULL, NULL,
-    COALESCE(NEW.bypass_limite_credito, FALSE)
-  );
-
   RETURN NEW;
 END;
 $$;
 
 
 --
--- Name: trg_pago_cc_credito_fn(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: trg_liquidacion_envios_inmutable_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.trg_pago_cc_credito_fn() RETURNS trigger
+CREATE FUNCTION public.trg_liquidacion_envios_inmutable_fn() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_envio       RECORD;
-  v_descripcion TEXT;
+  v_cerrada_en timestamptz;
+  v_liq_id     uuid;
 BEGIN
-  IF NEW.monto_recibido <= 0 THEN
+  v_liq_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.liquidacion_id ELSE NEW.liquidacion_id END;
+
+  SELECT cerrada_en INTO v_cerrada_en
+    FROM public.liquidaciones_repartidor
+   WHERE id = v_liq_id;
+
+  -- Padre pendiente (o inexistente, p.ej. CASCADE de un DELETE de header pendiente): todo permitido.
+  -- El header pendiente es la unica superficie de escritura legitima del detalle: crear inserta con
+  -- el header recien creado; cerrar arma el set (DELETE/UPSERT) con el padre todavia pendiente;
+  -- reabrir nula cerrada_en antes de des-conciliar.
+  IF v_cerrada_en IS NULL THEN
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  END IF;
+
+  -- Padre sellado. Unica mutacion permitida: la transicion de sellado de cerrar_liquidacion, que
+  -- flipa conciliado FALSE->TRUE SIN tocar montos ni el envio. Cualquier otro INSERT/UPDATE/DELETE
+  -- bajo sello (incluido un UPDATE que se cuele en la excepcion para forjar montos) se rechaza.
+  IF TG_OP = 'UPDATE'
+     AND OLD.conciliado = FALSE
+     AND NEW.conciliado = TRUE
+     AND NEW.monto_esperado IS NOT DISTINCT FROM OLD.monto_esperado
+     AND NEW.monto_cobrado  IS NOT DISTINCT FROM OLD.monto_cobrado
+     AND NEW.envio_id       =  OLD.envio_id
+     AND NEW.liquidacion_id =  OLD.liquidacion_id
+  THEN
     RETURN NEW;
   END IF;
 
-  SELECT cliente_id, tipo_pago, tracking_number
-    INTO v_envio
-    FROM envios
-   WHERE id = NEW.envio_id;
+  RAISE EXCEPTION 'liquidacion_envios_inmutable: el detalle del envio % pertenece a la liquidacion sellada %; reabrila para corregir',
+    CASE WHEN TG_OP = 'DELETE' THEN OLD.envio_id ELSE NEW.envio_id END, v_liq_id
+    USING ERRCODE = 'P0001';
+END;
+$$;
 
-  IF NOT FOUND OR v_envio.tipo_pago <> 'cuenta_corriente' THEN
-    RETURN NEW;
+
+--
+-- Name: trg_liquidacion_inmutable_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_liquidacion_inmutable_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.cerrada_en IS NOT NULL THEN
+      RAISE EXCEPTION 'liquidacion_cerrada_inmutable: no se puede eliminar la liquidacion cerrada %, reabrila primero', OLD.id
+        USING ERRCODE = 'P0001';
+    END IF;
+    RETURN OLD;
   END IF;
 
-  v_descripcion := 'Pago envio ' || v_envio.tracking_number;
+  -- Sello vivo: ningun UPDATE mantiene cerrada_en NOT NULL (forje de payout/tarifa bajo sello).
+  IF OLD.cerrada_en IS NOT NULL AND NEW.cerrada_en IS NOT NULL THEN
+    RAISE EXCEPTION 'liquidacion_cerrada_inmutable: la liquidacion cerrada % solo se modifica via reabrir_liquidacion', OLD.id
+      USING ERRCODE = 'P0001';
+  END IF;
 
-  PERFORM registrar_movimiento_cc(
-    v_envio.cliente_id, NEW.envio_id, NEW.id, 'credito', -NEW.monto_recibido,
-    v_descripcion, NEW.creado_por, NULL, NULL
-  );
+  -- Reapertura (cerrada_en NOT NULL -> NULL): SOLO via reabrir_liquidacion. Un UPDATE crudo que
+  -- nule el sello sin esa marca borra la traza forense (auditoria_log) y deja el detalle desync.
+  IF OLD.cerrada_en IS NOT NULL AND NEW.cerrada_en IS NULL
+     AND current_setting('app.reabrir_rpc', true) IS DISTINCT FROM '1' THEN
+    RAISE EXCEPTION 'liquidacion_reapertura_invalida: una liquidacion cerrada solo se reabre via reabrir_liquidacion (deja auditoria y des-concilia el detalle)'
+      USING ERRCODE = 'P0001';
+  END IF;
 
   RETURN NEW;
 END;
@@ -1246,15 +1304,17 @@ CREATE FUNCTION public.trg_pago_sync_envio_cobrado_fn() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_envio_tipo_pago TEXT;
+  v_tipo_pago        TEXT;
   v_efectivo_cobrado BIGINT;
+  v_pendiente        BOOLEAN;
 BEGIN
-  -- Solo actuamos sobre pagos de envios contra_entrega
-  SELECT tipo_pago INTO v_envio_tipo_pago
+  SELECT tipo_pago INTO v_tipo_pago
     FROM envios
    WHERE id = NEW.envio_id;
 
-  IF v_envio_tipo_pago IS NULL OR v_envio_tipo_pago <> 'contra_entrega' THEN
+  -- COD-only: ambos modos cobran efectivo en la calle. cuenta_corriente ya no existe (bloqueado
+  -- por CHECK), pero el guard explicito mantiene el trigger inerte ante cualquier otro valor.
+  IF v_tipo_pago IS NULL OR v_tipo_pago NOT IN ('anticipado', 'contra_entrega') THEN
     RETURN NEW;
   END IF;
 
@@ -1264,9 +1324,32 @@ BEGIN
     v_efectivo_cobrado := NEW.monto_recibido;
   END IF;
 
-  UPDATE envios
-     SET monto_cobrado = v_efectivo_cobrado
-   WHERE id = NEW.envio_id;
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.anulado = TRUE THEN
+      v_pendiente := TRUE;
+    ELSE
+      v_pendiente := (NEW.estado_pago <> 'pagado');
+    END IF;
+
+    UPDATE envios
+       SET monto_cobrado      = v_efectivo_cobrado,
+           cod_pago_pendiente = v_pendiente
+     WHERE id = NEW.envio_id;
+
+    RETURN NEW;
+  END IF;
+
+  -- UPDATE. Anular reabre la cola; cualquier otro UPDATE solo sincroniza el efectivo.
+  IF NEW.anulado = TRUE AND OLD.anulado = FALSE THEN
+    UPDATE envios
+       SET monto_cobrado      = 0,
+           cod_pago_pendiente = TRUE
+     WHERE id = NEW.envio_id;
+  ELSE
+    UPDATE envios
+       SET monto_cobrado = v_efectivo_cobrado
+     WHERE id = NEW.envio_id;
+  END IF;
 
   RETURN NEW;
 END;
@@ -1278,6 +1361,44 @@ $$;
 --
 
 COMMENT ON FUNCTION public.trg_pago_sync_envio_cobrado_fn() IS 'Sincroniza envios.monto_cobrado desde pagos.monto_recibido para envios contra_entrega. Cache unidireccional: pagos es la fuente de verdad, envios.monto_cobrado es derivado. Anular un pago resetea el cache a 0.';
+
+
+--
+-- Name: trg_pagos_no_delete_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_pagos_no_delete_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'pago_no_eliminable: un pago no se borra, se anula via anular_pago_atomico'
+    USING ERRCODE = 'P0001';
+END;
+$$;
+
+
+--
+-- Name: trg_pagos_no_update_fisico_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_pagos_no_update_fisico_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Solo las RPCs atomicas (que setean SET LOCAL app.pago_rpc='1' bajo SECURITY DEFINER) pueden
+  -- mutar un pago. Cualquier UPDATE directo sobre pagos es un intento de tocar plata por fuera
+  -- del ledger y se rechaza a nivel DB. El flag es transaccion-local: no persiste ni se puede
+  -- setear desde fuera de la RPC sin abrir la transaccion explicitamente.
+  -- El flag es '1' SOLO durante el UPDATE que la RPC dispara, y la RPC lo resetea a '0' apenas
+  -- termina ese UPDATE. Asi un UPDATE ad-hoc posterior en la misma transaccion (despues de la
+  -- RPC) tampoco pasa: el flag ya no esta en '1'.
+  IF current_setting('app.pago_rpc', true) IS DISTINCT FROM '1' THEN
+    RAISE EXCEPTION 'pago_no_modificable: un pago no se edita fisicamente; usar update_pago_atomico o anular_pago_atomico'
+      USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -1410,11 +1531,11 @@ CREATE TABLE public.envios (
     incidencia_nota text,
     incidencia_reportada_en timestamp with time zone,
     incidencia_reportada_por uuid,
-    bypass_limite_credito boolean DEFAULT false NOT NULL,
     cod_pago_pendiente boolean DEFAULT false NOT NULL,
     CONSTRAINT envios_costo_check CHECK ((costo >= 0)),
     CONSTRAINT envios_monto_a_cobrar_check CHECK ((monto_a_cobrar >= 0)),
     CONSTRAINT envios_peso_check CHECK ((peso >= (0)::numeric)),
+    CONSTRAINT envios_tipo_pago_no_cc CHECK ((tipo_pago <> 'cuenta_corriente'::public.tipo_pago)),
     CONSTRAINT envios_valor_declarado_check CHECK ((valor_declarado >= 0))
 );
 
@@ -1462,17 +1583,17 @@ COMMENT ON COLUMN public.envios.tiene_incidencia IS 'Flag que el repartidor acti
 
 
 --
--- Name: COLUMN envios.bypass_limite_credito; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.envios.bypass_limite_credito IS 'TRUE solo cuando el admin invoco POST con forzarSobreLimite=true + motivoOverride. El trigger trg_envio_cc_debito_fn lee esta bandera y la propaga al RPC registrar_movimiento_cc para saltar la validacion de limite. La justificacion textual queda en auditoria_log.';
-
-
---
 -- Name: COLUMN envios.cod_pago_pendiente; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.envios.cod_pago_pendiente IS 'TRUE si un envio COD se marco entregado pero el registro del pago fallo (cobrado en la calle sin asiento). Cola de reconciliacion manual. Se limpia cuando el pago se registra correctamente.';
+
+
+--
+-- Name: CONSTRAINT envios_tipo_pago_no_cc ON envios; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT envios_tipo_pago_no_cc ON public.envios IS 'Modelo COD-only (036). cuenta_corriente queda fuera del sistema; solo anticipado y contra_entrega son validos. El valor del enum no se dropea (dependencias), se bloquea aca.';
 
 
 --
@@ -1606,6 +1727,9 @@ DECLARE
   v_monto_real   BIGINT;
   v_descripcion  TEXT;
 BEGIN
+  PERFORM set_config('app.pago_rpc', '1', true);
+
+  -- P: lock del pago.
   SELECT * INTO v_pago_previo
     FROM pagos
    WHERE id = p_pago_id
@@ -1619,31 +1743,44 @@ BEGIN
     RAISE EXCEPTION 'pago_ya_anulado: %', p_pago_id USING ERRCODE = 'P0001';
   END IF;
 
-  -- Tipo de pago + monto real del envio bajo el que vive este pago. monto_total no se
-  -- confia del caller: la fuente de verdad del importe a cobrar es el envio.
-  SELECT tipo_pago, (costo + COALESCE(costo_seguro, 0))::BIGINT
-    INTO v_tipo_pago, v_monto_real
-    FROM envios
-   WHERE id = v_pago_previo.envio_id;
+  -- L: lock de la liquidacion del envio en el orden canonico antes de leer su estado.
+  PERFORM 1
+     FROM liquidacion_envios le
+     JOIN liquidaciones_repartidor l ON l.id = le.liquidacion_id
+    WHERE le.envio_id = v_pago_previo.envio_id
+    FOR UPDATE OF l;
 
-  -- Opcion A: pago a cuenta corriente es inmutable. Si cambia el monto_recibido, se exige
-  -- anular y rehacer. Editar otros campos (metodo, fecha, referencia, notas) tampoco se
-  -- permite por la misma puerta para no abrir una via parcial que confunda el ledger.
-  IF v_tipo_pago = 'cuenta_corriente'
-     AND p_monto_recibido <> v_pago_previo.monto_recibido THEN
-    RAISE EXCEPTION 'pago_cc_no_editable: un pago a cuenta corriente no se edita, se anula y se rehace'
+  -- 4.4: ambos estados settled bloquean. La correccion pasa por reabrir_liquidacion.
+  IF EXISTS (
+    SELECT 1
+      FROM liquidacion_envios le
+      JOIN liquidaciones_repartidor l ON l.id = le.liquidacion_id
+     WHERE le.envio_id = v_pago_previo.envio_id
+       AND l.estado IN ('cerrada', 'con_diferencia')
+  ) THEN
+    RAISE EXCEPTION 'pago_en_liquidacion_cerrada: el envio pertenece a una liquidacion sellada; reabrir la liquidacion antes de editar el pago'
       USING ERRCODE = 'P0001';
   END IF;
+
+  -- E: lock del envio. Importe segun modo (COD = monto_a_cobrar; anticipado = costo+seguro).
+  SELECT tipo_pago,
+         CASE
+           WHEN tipo_pago = 'contra_entrega' THEN monto_a_cobrar
+           ELSE (costo + COALESCE(costo_seguro, 0))
+         END::BIGINT
+    INTO v_tipo_pago, v_monto_real
+    FROM envios
+   WHERE id = v_pago_previo.envio_id
+   FOR UPDATE;
 
   IF p_monto_recibido < 0 THEN
     RAISE EXCEPTION 'pago_monto_recibido_invalido: monto_recibido debe ser >= 0'
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- monto_recibido no puede exceder el importe real del envio (no el monto_total guardado,
-  -- que pudo haberse persistido mal en su momento).
+  -- Tope (I7).
   IF v_monto_real IS NOT NULL AND p_monto_recibido > v_monto_real THEN
-    RAISE EXCEPTION 'pago_monto_recibido_invalido: monto_recibido % excede el costo real del envio %',
+    RAISE EXCEPTION 'pago_monto_recibido_invalido: monto_recibido % excede el importe del envio %',
       p_monto_recibido, v_monto_real
       USING ERRCODE = 'P0001';
   END IF;
@@ -1660,6 +1797,10 @@ BEGIN
 
   UPDATE pagos
      SET monto_recibido = p_monto_recibido,
+         -- Re-sync del total al importe real del envio cuando difiere (MEDIA 8): evita quedar
+         -- 'pagado' con un monto_total stale que no refleja el envio. Si no hay importe real
+         -- legible, conserva el previo.
+         monto_total    = COALESCE(v_monto_real, monto_total),
          estado_pago    = v_estado,
          metodo_pago    = CASE WHEN p_apply_metodo     THEN p_metodo_pago ELSE metodo_pago END,
          fecha_pago     = CASE WHEN p_apply_fecha      THEN p_fecha_pago   ELSE fecha_pago  END,
@@ -1668,6 +1809,9 @@ BEGIN
          updated_at     = NOW()
    WHERE id = p_pago_id
   RETURNING * INTO v_pago_actual;
+
+  -- Cierra el flag apenas pasa el UPDATE legitimo: ningun statement posterior puede mutar pagos.
+  PERFORM set_config('app.pago_rpc', '0', true);
 
   v_descripcion := format(
     'Pago actualizado: %s/%s Gs. (%s)',
@@ -1706,35 +1850,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
---
--- Name: verificar_saldo_cc(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.verificar_saldo_cc() RETURNS TABLE(cliente_id uuid, saldo_cache bigint, saldo_ledger bigint, diferencia bigint)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  SELECT c.id,
-         c.saldo_cuenta_corriente AS saldo_cache,
-         COALESCE(m.suma, 0)::BIGINT AS saldo_ledger,
-         (c.saldo_cuenta_corriente - COALESCE(m.suma, 0))::BIGINT AS diferencia
-    FROM clientes c
-    LEFT JOIN (
-      SELECT cliente_id, SUM(monto) AS suma
-        FROM movimientos_cuenta_corriente
-       GROUP BY cliente_id
-    ) m ON m.cliente_id = c.id
-   WHERE c.saldo_cuenta_corriente <> COALESCE(m.suma, 0);
-$$;
-
-
---
--- Name: FUNCTION verificar_saldo_cc(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.verificar_saldo_cc() IS 'Invariante de dinero: saldo_cuenta_corriente == SUM(movimientos) por cliente. Devuelve solo filas desincronizadas. Cero filas = verde. Read-only, corrible en cualquier momento.';
 
 
 --
@@ -1824,7 +1939,6 @@ CREATE TABLE public.clientes (
     ciudad character varying(100),
     estado public.cliente_estado DEFAULT 'activo'::public.cliente_estado NOT NULL,
     plan public.cliente_plan DEFAULT 'basico'::public.cliente_plan NOT NULL,
-    saldo_cuenta_corriente bigint DEFAULT 0 NOT NULL,
     total_envios integer DEFAULT 0 NOT NULL,
     envios_activos integer DEFAULT 0 NOT NULL,
     notas text,
@@ -1837,24 +1951,8 @@ CREATE TABLE public.clientes (
     portal_activo boolean DEFAULT false NOT NULL,
     portal_status public.portal_status_tipo DEFAULT 'sin_invitar'::public.portal_status_tipo NOT NULL,
     portal_invited_at timestamp with time zone,
-    limite_credito bigint DEFAULT 0 NOT NULL,
-    es_mostrador boolean DEFAULT false NOT NULL,
-    CONSTRAINT clientes_limite_credito_nonneg CHECK ((limite_credito >= 0))
+    es_mostrador boolean DEFAULT false NOT NULL
 );
-
-
---
--- Name: COLUMN clientes.saldo_cuenta_corriente; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.clientes.saldo_cuenta_corriente IS 'Saldo actual de cuenta corriente (Gs). Positivo: el cliente debe a GoExpress. Negativo: GoExpress debe al cliente (saldo a favor por sobrepago). Mantenido por trigger via registrar_movimiento_cc.';
-
-
---
--- Name: COLUMN clientes.limite_credito; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.clientes.limite_credito IS 'Tope de saldo de cuenta corriente que el cliente puede acumular (Gs). 0 = sin limite configurado (no se aplica restriccion). Se valida en creacion de envios cuenta_corriente.';
 
 
 --
@@ -2420,14 +2518,6 @@ ALTER TABLE ONLY public.movimientos_almacen
 
 
 --
--- Name: movimientos_cuenta_corriente movimientos_cuenta_corriente_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.movimientos_cuenta_corriente
-    ADD CONSTRAINT movimientos_cuenta_corriente_pkey PRIMARY KEY (id);
-
-
---
 -- Name: notas_internas notas_internas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2876,34 +2966,6 @@ CREATE INDEX idx_liquidaciones_repartidor_fecha ON public.liquidaciones_repartid
 
 
 --
--- Name: idx_movcc_cliente_fecha; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_movcc_cliente_fecha ON public.movimientos_cuenta_corriente USING btree (cliente_id, created_at DESC);
-
-
---
--- Name: idx_movcc_envio; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_movcc_envio ON public.movimientos_cuenta_corriente USING btree (envio_id) WHERE (envio_id IS NOT NULL);
-
-
---
--- Name: idx_movcc_pago; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_movcc_pago ON public.movimientos_cuenta_corriente USING btree (pago_id) WHERE (pago_id IS NOT NULL);
-
-
---
--- Name: idx_movcc_tipo_fecha; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_movcc_tipo_fecha ON public.movimientos_cuenta_corriente USING btree (tipo, created_at DESC);
-
-
---
 -- Name: idx_movimientos_paquete; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3079,6 +3141,13 @@ COMMENT ON INDEX public.pagos_envio_id_unique_active IS 'Un unico pago activo po
 
 
 --
+-- Name: tarifas_ruta_servicio_unica; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tarifas_ruta_servicio_unica ON public.tarifas USING btree (public.tarifa_norm_ciudad((origen)::text), public.tarifa_norm_ciudad((destino)::text), tipo_servicio) WHERE ((activo = true) AND (eliminado = false));
+
+
+--
 -- Name: ciudades trg_ciudades_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3107,6 +3176,13 @@ CREATE TRIGGER trg_departamentos_updated_at BEFORE UPDATE ON public.departamento
 
 
 --
+-- Name: envios trg_envio_block_cod_monto_change; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_envio_block_cod_monto_change BEFORE UPDATE OF monto_a_cobrar, costo, costo_seguro ON public.envios FOR EACH ROW EXECUTE FUNCTION public.trg_envio_block_cod_monto_change_fn();
+
+
+--
 -- Name: envios trg_envio_block_tipo_pago_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3114,10 +3190,10 @@ CREATE TRIGGER trg_envio_block_tipo_pago_change BEFORE UPDATE OF tipo_pago ON pu
 
 
 --
--- Name: envios trg_envio_cuenta_corriente_debito; Type: TRIGGER; Schema: public; Owner: -
+-- Name: envios trg_envio_i1_cubre_tarifa; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_envio_cuenta_corriente_debito AFTER INSERT ON public.envios FOR EACH ROW EXECUTE FUNCTION public.trg_envio_cc_debito_fn();
+CREATE TRIGGER trg_envio_i1_cubre_tarifa BEFORE INSERT OR UPDATE OF monto_a_cobrar, costo, costo_seguro, tipo_pago ON public.envios FOR EACH ROW EXECUTE FUNCTION public.trg_envio_i1_cubre_tarifa_fn();
 
 
 --
@@ -3142,10 +3218,17 @@ CREATE TRIGGER trg_inventario_updated_at BEFORE UPDATE ON public.inventario_alma
 
 
 --
--- Name: pagos trg_pago_cuenta_corriente_credito; Type: TRIGGER; Schema: public; Owner: -
+-- Name: liquidacion_envios trg_liquidacion_envios_inmutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_pago_cuenta_corriente_credito AFTER INSERT ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.trg_pago_cc_credito_fn();
+CREATE TRIGGER trg_liquidacion_envios_inmutable BEFORE INSERT OR DELETE OR UPDATE ON public.liquidacion_envios FOR EACH ROW EXECUTE FUNCTION public.trg_liquidacion_envios_inmutable_fn();
+
+
+--
+-- Name: liquidaciones_repartidor trg_liquidacion_inmutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_liquidacion_inmutable BEFORE DELETE OR UPDATE ON public.liquidaciones_repartidor FOR EACH ROW EXECUTE FUNCTION public.trg_liquidacion_inmutable_fn();
 
 
 --
@@ -3153,6 +3236,20 @@ CREATE TRIGGER trg_pago_cuenta_corriente_credito AFTER INSERT ON public.pagos FO
 --
 
 CREATE TRIGGER trg_pago_sync_envio_cobrado AFTER INSERT OR UPDATE OF monto_recibido, anulado ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.trg_pago_sync_envio_cobrado_fn();
+
+
+--
+-- Name: pagos trg_pagos_no_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pagos_no_delete BEFORE DELETE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.trg_pagos_no_delete_fn();
+
+
+--
+-- Name: pagos trg_pagos_no_update_fisico; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pagos_no_update_fisico BEFORE UPDATE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.trg_pagos_no_update_fisico_fn();
 
 
 --
@@ -3358,38 +3455,6 @@ ALTER TABLE ONLY public.movimientos_almacen
 
 
 --
--- Name: movimientos_cuenta_corriente movimientos_cuenta_corriente_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.movimientos_cuenta_corriente
-    ADD CONSTRAINT movimientos_cuenta_corriente_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE RESTRICT;
-
-
---
--- Name: movimientos_cuenta_corriente movimientos_cuenta_corriente_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.movimientos_cuenta_corriente
-    ADD CONSTRAINT movimientos_cuenta_corriente_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id);
-
-
---
--- Name: movimientos_cuenta_corriente movimientos_cuenta_corriente_envio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.movimientos_cuenta_corriente
-    ADD CONSTRAINT movimientos_cuenta_corriente_envio_id_fkey FOREIGN KEY (envio_id) REFERENCES public.envios(id) ON DELETE SET NULL;
-
-
---
--- Name: movimientos_cuenta_corriente movimientos_cuenta_corriente_pago_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.movimientos_cuenta_corriente
-    ADD CONSTRAINT movimientos_cuenta_corriente_pago_id_fkey FOREIGN KEY (pago_id) REFERENCES public.pagos(id) ON DELETE SET NULL;
-
-
---
 -- Name: notas_internas notas_internas_envio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3434,7 +3499,7 @@ ALTER TABLE ONLY public.pagos
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_envio_id_fkey FOREIGN KEY (envio_id) REFERENCES public.envios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT pagos_envio_id_fkey FOREIGN KEY (envio_id) REFERENCES public.envios(id) ON DELETE RESTRICT;
 
 
 --
@@ -3590,13 +3655,6 @@ CREATE POLICY deny_anon ON public.movimientos_almacen TO anon USING (false) WITH
 
 
 --
--- Name: movimientos_cuenta_corriente deny_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY deny_anon ON public.movimientos_cuenta_corriente TO anon USING (false) WITH CHECK (false);
-
-
---
 -- Name: notas_internas deny_anon; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3716,13 +3774,6 @@ CREATE POLICY deny_authenticated ON public.movimientos_almacen TO authenticated 
 
 
 --
--- Name: movimientos_cuenta_corriente deny_authenticated; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY deny_authenticated ON public.movimientos_cuenta_corriente TO authenticated USING (false) WITH CHECK (false);
-
-
---
 -- Name: notas_internas deny_authenticated; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3834,12 +3885,6 @@ ALTER TABLE public.liquidaciones_repartidor ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.movimientos_almacen ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: movimientos_cuenta_corriente; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.movimientos_cuenta_corriente ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: notas_internas; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3903,5 +3948,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict D73RD9QgH1bITdb47jZdbJoksNTiVExOdX2G89Z4K11byBf1DScLeZW14xNr5pN
+\unrestrict eYHA9OiZfyDObI2Rl001sLBqlBq7ED0IRBi4Q8PVrKi54YvmmsHW723yZJ4p4u6
 

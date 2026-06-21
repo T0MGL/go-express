@@ -399,17 +399,10 @@ class EnvioService {
     ipAddress?: string,
     userAgent?: string,
     options: {
-      forzarSobreLimite?: boolean;
-      motivoOverride?: string;
       forzarCostoManual?: boolean;
       motivoCostoManual?: string;
     } = {}
   ): Promise<Envio> {
-    if (options.forzarSobreLimite && (!options.motivoOverride || options.motivoOverride.trim().length < 10)) {
-      throw AppError.badRequest(
-        'forzarSobreLimite requiere motivoOverride con al menos 10 caracteres'
-      );
-    }
     if (options.forzarCostoManual && (!options.motivoCostoManual || options.motivoCostoManual.trim().length < 10)) {
       throw AppError.badRequest(
         'forzarCostoManual requiere motivoCostoManual con al menos 10 caracteres'

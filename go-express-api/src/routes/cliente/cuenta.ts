@@ -24,8 +24,6 @@ function mapClienteRow(row: ClienteRow): Cliente {
     ciudad: row.ciudad,
     estado: row.estado,
     plan: row.plan,
-    saldoCuentaCorriente: row.saldo_cuenta_corriente,
-    limiteCredito: row.limite_credito,
     totalEnvios: row.total_envios,
     enviosActivos: row.envios_activos,
     notas: row.notas,

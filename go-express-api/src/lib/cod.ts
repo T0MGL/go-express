@@ -1,22 +1,17 @@
 /**
  * COD (cash-on-delivery) business rules.
  *
- * La validacion de diferencia de cobro vive aca para que sea testable sin montar el
- * middleware de repartidor. El route handler importa y aplica esta regla antes de
- * tocar DB. Cierra el hallazgo 3.3 del hard debug original (monto_cobrado sin check
- * contra monto_a_cobrar).
+ * La validacion de cobro vive aca para que sea testable sin montar el middleware de
+ * repartidor. El route handler la aplica antes de tocar DB. Cierra el hallazgo 3.3 del
+ * hard debug original (monto_cobrado sin check contra monto_a_cobrar) y el ALTA 4 de la
+ * re-auditoria Step 6: COD es all-or-nothing. Un cobro menor al esperado NO se registra como
+ * pago parcial silencioso (efectivo real que la liquidacion nunca exige rendir), va por el
+ * flujo de incidencia/no-entrega. La entrega solo procede con el monto exacto.
  */
-
-export const DIFERENCIA_COD_TOLERADA = 0.10;
-
-export interface CodValidationResult {
-  hayIncidencia: boolean;
-  diferenciaPct: number;
-}
 
 export class CodValidationError extends Error {
   constructor(
-    public readonly code: 'diferencia_cobro_excesiva' | 'sobrecobro_no_permitido',
+    public readonly code: 'cobro_incompleto' | 'sobrecobro_no_permitido',
     message: string,
   ) {
     super(message);
@@ -25,26 +20,25 @@ export class CodValidationError extends Error {
 }
 
 /**
- * Valida la diferencia entre el monto reportado por el repartidor y el esperado.
- * Si la diferencia relativa supera DIFERENCIA_COD_TOLERADA y no hay nota de incidencia,
- * lanza CodValidationError. Si la supera y hay nota, marca hayIncidencia = true.
+ * Valida el monto cobrado por el repartidor contra el esperado del envio. Politica
+ * all-or-nothing: solo el monto exacto cierra la entrega como pagada.
  *
- * Si el monto esperado es 0 no hay validacion posible (un envio COD con monto 0 es
- * data invalido aguas arriba, pero no lo chequeamos aca para no duplicar reglas).
+ * - montoReportado > esperado: sobrecobro, no registrable en el ledger. Rechazado.
+ * - montoReportado < esperado: cobro incompleto. Rechazado: el repartidor reporta la
+ *   incidencia (no pudo cobrar / cobro parcial) por el endpoint de incidencia y la entrega
+ *   no se marca pagada. Asi no queda efectivo real fuera de toda liquidacion.
+ * - montoReportado == esperado: entrega COD valida.
+ *
+ * montoEsperado <= 0 (data invalido aguas arriba) no se valida aca para no duplicar reglas.
  */
 export function validarDiferenciaCobroCod(args: {
   montoEsperado: number;
   montoReportado: number;
-  notaIncidencia?: string | null | undefined;
-}): CodValidationResult {
+}): void {
   if (args.montoEsperado <= 0) {
-    return { hayIncidencia: false, diferenciaPct: 0 };
+    return;
   }
 
-  // El COD nunca puede exceder el monto_a_cobrar del envio. Un sobrecobro no es registrable en
-  // el ledger (create_pago_atomico topa por monto_a_cobrar) y dejaba plata fuera del libro en
-  // cod_pago_pendiente irresoluble (causa raiz D, sobrecobro). Se rechaza ARRIBA: el repartidor
-  // no puede marcar la entrega con un monto mayor al esperado.
   if (args.montoReportado > args.montoEsperado) {
     throw new CodValidationError(
       'sobrecobro_no_permitido',
@@ -52,19 +46,10 @@ export function validarDiferenciaCobroCod(args: {
     );
   }
 
-  const diferenciaPct = Math.abs(args.montoReportado - args.montoEsperado) / args.montoEsperado;
-
-  if (diferenciaPct <= DIFERENCIA_COD_TOLERADA) {
-    return { hayIncidencia: false, diferenciaPct };
-  }
-
-  const notaTrim = args.notaIncidencia?.trim() ?? '';
-  if (notaTrim.length < 10) {
+  if (args.montoReportado < args.montoEsperado) {
     throw new CodValidationError(
-      'diferencia_cobro_excesiva',
-      `La diferencia de cobro supera el ${Math.round(DIFERENCIA_COD_TOLERADA * 100)}% y requiere nota de incidencia`,
+      'cobro_incompleto',
+      `El monto cobrado (${args.montoReportado}) es menor al monto a cobrar (${args.montoEsperado}). El COD se cobra completo: si no se pudo cobrar el total, reporta la incidencia desde la opcion de incidencia en vez de marcar la entrega.`,
     );
   }
-
-  return { hayIncidencia: true, diferenciaPct };
 }

@@ -85,8 +85,6 @@ export interface ClienteRow {
   ciudad: string | null;
   estado: ClienteEstado;
   plan: ClientePlan;
-  saldo_cuenta_corriente: number;
-  limite_credito: number;
   total_envios: number;
   envios_activos: number;
   notas: string | null;
@@ -363,8 +361,6 @@ export interface Cliente {
   ciudad: string | null;
   estado: ClienteEstado;
   plan: ClientePlan;
-  saldoCuentaCorriente: number;
-  limiteCredito: number;
   totalEnvios: number;
   enviosActivos: number;
   notas: string | null;

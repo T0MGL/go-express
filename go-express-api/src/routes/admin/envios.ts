@@ -52,14 +52,9 @@ router.get(
   })
 );
 
-// Admin puede pasar forzarSobreLimite=true + motivoOverride en query string para crear
-// envios cuenta_corriente que excederian el limite del cliente. El override queda en
-// auditoria. Sin el flag, el insert falla con 422 limite_credito_excedido.
+// Override explicito del costo cotizado server-side. Sin este flag, costo se ignora y se
+// cotiza desde la tarifa. Con el flag, requiere motivoCostoManual y queda en auditoria.
 const createEnvioBodyWithOverride = createEnvioSchema.extend({
-  forzarSobreLimite: z.boolean().optional(),
-  motivoOverride: z.string().min(10).max(500).optional(),
-  // Override explicito del costo cotizado server-side. Sin este flag, costo se ignora y se
-  // cotiza desde la tarifa. Con el flag, requiere motivoCostoManual y queda en auditoria.
   forzarCostoManual: z.boolean().optional(),
   motivoCostoManual: z.string().min(10).max(500).optional(),
 });
@@ -68,10 +63,7 @@ router.post(
   '/',
   validate({ body: createEnvioBodyWithOverride }),
   asyncHandler(async (req, res) => {
-    const { forzarSobreLimite, motivoOverride, forzarCostoManual, motivoCostoManual, ...envioInput } = req.body;
-    if (forzarSobreLimite && !motivoOverride) {
-      throw AppError.badRequest('motivoOverride es obligatorio cuando forzarSobreLimite=true');
-    }
+    const { forzarCostoManual, motivoCostoManual, ...envioInput } = req.body;
     if (forzarCostoManual) {
       if (envioInput.costo === undefined) {
         throw AppError.badRequest('forzarCostoManual=true requiere un costo explicito');
@@ -86,7 +78,7 @@ router.post(
       req.userName!,
       req.ip ?? undefined,
       req.headers['user-agent'] ?? undefined,
-      { forzarSobreLimite, motivoOverride, forzarCostoManual, motivoCostoManual }
+      { forzarCostoManual, motivoCostoManual }
     );
     sseService.broadcast({ entity: ['envios', 'list'], action: 'created' });
     sseService.broadcast({ entity: ['dashboard'], action: 'updated' });

@@ -29,12 +29,11 @@ const misEnviosQuerySchema = z.object({
 const entregadoBodySchema = z.object({
   nombreRecibe: z.string().min(1).max(200),
   documento: z.string().max(50).optional(),
+  // COD all-or-nothing (ALTA 4): si viene, debe ser el monto exacto del envio. Un cobro menor va
+  // por incidencia, no por entrega. Si se omite, se asume el monto_a_cobrar del envio.
   montoCobrado: z.number().int().min(0).optional(),
   fotoPath: z.string().max(500).optional(),
   notas: z.string().max(500).optional(),
-  // Nota forzada por el repartidor cuando la diferencia COD supera el 10%. El backend la
-  // exige en ese caso y la deja en pagos.notas ademas de envios.incidencia_nota.
-  notaIncidencia: z.string().trim().min(10).max(500).optional(),
 });
 
 const incidenciaBodySchema = z.object({
@@ -201,7 +200,7 @@ router.patch(
   validate({ params: idParamSchema, body: entregadoBodySchema }),
   asyncHandler(async (req, res) => {
     const { id } = req.params as { id: string };
-    const { nombreRecibe, documento, montoCobrado, fotoPath, notas, notaIncidencia } = req.body as z.infer<typeof entregadoBodySchema>;
+    const { nombreRecibe, documento, montoCobrado, fotoPath, notas } = req.body as z.infer<typeof entregadoBodySchema>;
     const repartidorId = req.repartidorId!;
     const repartidorNombre = req.repartidorNombre ?? 'Repartidor';
     const ipAddress = req.ip ?? undefined;
@@ -250,16 +249,16 @@ router.patch(
     // metodo_pago refleja como entro el efectivo: contra_entrega es el COD clasico; en anticipado el
     // repartidor cobra el flete en efectivo. cuenta_corriente ya no existe en el modelo.
     const metodoPago = envio.tipo_pago === 'contra_entrega' ? 'contra_entrega' : 'efectivo';
-    let hayIncidencia = false;
 
+    // COD all-or-nothing (ALTA 4): la entrega solo procede con el monto exacto. Sobrecobro y cobro
+    // incompleto se rechazan; un cobro parcial real va por el endpoint de incidencia, no deja
+    // efectivo registrado como cobrado que la liquidacion nunca exige rendir.
     if (cobraEfectivo && montoCobradoCod !== null) {
       try {
-        const validation = validarDiferenciaCobroCod({
+        validarDiferenciaCobroCod({
           montoEsperado: envio.monto_a_cobrar,
           montoReportado: montoCobradoCod,
-          notaIncidencia,
         });
-        hayIncidencia = validation.hayIncidencia;
       } catch (err) {
         if (err instanceof CodValidationError) {
           throw AppError.unprocessable(err.message, err.code);
@@ -268,7 +267,7 @@ router.patch(
       }
     }
 
-    // UPDATE del envio (estado, POD, incidencia) con OCC sobre estado previo. Si otra
+    // UPDATE del envio (estado, POD) con OCC sobre estado previo. Si otra
     // sesion del mismo repartidor (doble tap o reintentos por red intermitente) o el
     // admin marcaron problema/fallido en paralelo, este UPDATE retorna 0 filas y
     // respondemos 409 sin clobberar datos. El trigger de pagos sincroniza envios.monto_cobrado
@@ -277,16 +276,10 @@ router.patch(
       estado: 'entregado',
       fecha_entrega_real: nowISO(),
       entregado_por_nombre: nombreRecibe,
-      tiene_incidencia: hayIncidencia,
     };
     if (documento) update['entregado_por_documento'] = documento;
     if (fotoPath) update['foto_entrega_url'] = fotoPath;
     if (notas) update['entrega_notas'] = notas;
-    if (hayIncidencia && notaIncidencia) {
-      update['incidencia_nota'] = notaIncidencia;
-      update['incidencia_reportada_en'] = nowISO();
-      update['incidencia_reportada_por'] = repartidorId;
-    }
     // No seteamos monto_cobrado en este UPDATE: el trigger de sync lo escribe desde el pago COD
     // (ambos modos pasan por el pago, abajo). Set directo seria un segundo camino para el mismo dato
     // y reabriria el hallazgo 3.2.
@@ -314,13 +307,11 @@ router.patch(
     // actualiza envios.monto_cobrado. Si el RPC falla, envios queda como entregado sin
     // pago: estado operativamente correcto, la liquidacion simplemente no podra tomar
     // este envio hasta que se cree el pago manualmente desde admin.
-    // Guard !== null (no > 0): un COD entregado SIEMPRE registra el hecho del cobro, incluso
-    // cuando el repartidor reporto 0 (no pudo cobrar, con nota). Asi el envio nunca queda con
-    // monto_cobrado NULL y sin pago ni flag, invisible a la liquidacion (causa raiz D). Un pago
-    // de monto_recibido 0 queda estado 'pendiente' y el trigger lo deja fuera de cobrado, pero
-    // dentro del sistema y de la cola.
+    // COD all-or-nothing (ALTA 4): si llegamos aca el monto ya esta validado exacto, asi que el
+    // pago entra siempre como 'pagado'. cod_pago_pendiente queda reservado para fallas reales de
+    // asentamiento (RPC caido, o pago existente con monto divergente), NO para cobros parciales:
+    // un parcial nunca llega a este punto, se rechaza arriba y va por incidencia.
     if (cobraEfectivo && montoCobradoCod !== null) {
-      const notaPago = hayIncidencia && notaIncidencia ? notaIncidencia : null;
       try {
         await pagoService.create(
           {
@@ -329,7 +320,6 @@ router.patch(
             montoRecibido: montoCobradoCod,
             metodoPago,
             fechaPago: todayPY(),
-            ...(notaPago ? { notas: notaPago } : {}),
           },
           SISTEMA_USER_ID,
           ipAddress,
@@ -387,7 +377,7 @@ router.patch(
     }
 
     const descripcion = cobraEfectivo
-      ? `Entregado a ${nombreRecibe}. Cobrado Gs. ${(montoCobradoCod ?? 0).toLocaleString('es-PY')}.${hayIncidencia ? ' Incidencia: ' + (notaIncidencia ?? '') : ''}`
+      ? `Entregado a ${nombreRecibe}. Cobrado Gs. ${(montoCobradoCod ?? 0).toLocaleString('es-PY')}.`
       : `Entregado a ${nombreRecibe}.`;
 
     await supabase.from('eventos_envio').insert({
@@ -405,7 +395,7 @@ router.patch(
       accion: 'cambio_estado',
       entidad: 'envio',
       entidadId: id,
-      descripcion: `Repartidor ${repartidorNombre} marco entregado: ${envio.tracking_number}${cobraEfectivo ? '. COD Gs. ' + (montoCobradoCod ?? 0).toLocaleString('es-PY') : ''}${hayIncidencia ? ' (incidencia)' : ''}`,
+      descripcion: `Repartidor ${repartidorNombre} marco entregado: ${envio.tracking_number}${cobraEfectivo ? '. COD Gs. ' + (montoCobradoCod ?? 0).toLocaleString('es-PY') : ''}`,
       ipAddress,
       userAgent,
     });
@@ -417,7 +407,7 @@ router.patch(
       sseService.broadcast({ entity: ['pagos'], action: 'created' });
     }
 
-    res.json({ ok: true, incidencia: hayIncidencia });
+    res.json({ ok: true });
   }),
 );
 

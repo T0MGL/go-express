@@ -1,14 +1,11 @@
--- GO EXPRESS, baseline del schema VIVO de prod (oxyvhexsgppnkgcnqpkl).
--- Regenerado 2026-06-21 con pg_dump 17 tras aplicar migraciones 036-041 (nucleo COD-only).
--- Source of truth del estado actual. Las migraciones 001-041 quedan como historial.
--- Incluye: I1 (037), inmutabilidad header/detalle liquidaciones (038/039), remediacion Step6 (040),
--- payout vs esperado / faltante del repartidor no absorbido por la tienda (041).
+-- GO EXPRESS baseline del schema VIVO de prod (oxyvhexsgppnkgcnqpkl). Regenerado 2026-06-23 tras 036-042.
+-- 042: bloquea re-parenting de detalle de liquidacion (A1-A3 Step6). Source of truth del estado actual.
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict eYHA9OiZfyDObI2Rl001sLBqlBq7ED0IRBi4Q8PVrKi54YvmmsHW723yZJ4p4u6
+\restrict IEdHvqQ068KuprJfYsWKhqKhkrxl75XTVIvd9dQFu3WcLEb1draR26WM6XdW1Cn
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -1223,40 +1220,43 @@ CREATE FUNCTION public.trg_liquidacion_envios_inmutable_fn() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_cerrada_en timestamptz;
-  v_liq_id     uuid;
+  v_old_cerrada timestamptz;
+  v_new_cerrada timestamptz;
 BEGIN
-  v_liq_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.liquidacion_id ELSE NEW.liquidacion_id END;
-
-  SELECT cerrada_en INTO v_cerrada_en
-    FROM public.liquidaciones_repartidor
-   WHERE id = v_liq_id;
-
-  -- Padre pendiente (o inexistente, p.ej. CASCADE de un DELETE de header pendiente): todo permitido.
-  -- El header pendiente es la unica superficie de escritura legitima del detalle: crear inserta con
-  -- el header recien creado; cerrar arma el set (DELETE/UPSERT) con el padre todavia pendiente;
-  -- reabrir nula cerrada_en antes de des-conciliar.
-  IF v_cerrada_en IS NULL THEN
-    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP = 'INSERT' THEN
+    SELECT cerrada_en INTO v_new_cerrada FROM public.liquidaciones_repartidor WHERE id = NEW.liquidacion_id;
+    IF v_new_cerrada IS NOT NULL THEN
+      RAISE EXCEPTION 'liquidacion_envios_inmutable: no se inserta detalle en liquidacion sellada %', NEW.liquidacion_id USING ERRCODE = 'P0001';
+    END IF;
+    RETURN NEW;
   END IF;
-
-  -- Padre sellado. Unica mutacion permitida: la transicion de sellado de cerrar_liquidacion, que
-  -- flipa conciliado FALSE->TRUE SIN tocar montos ni el envio. Cualquier otro INSERT/UPDATE/DELETE
-  -- bajo sello (incluido un UPDATE que se cuele en la excepcion para forjar montos) se rechaza.
-  IF TG_OP = 'UPDATE'
-     AND OLD.conciliado = FALSE
-     AND NEW.conciliado = TRUE
+  IF TG_OP = 'DELETE' THEN
+    SELECT cerrada_en INTO v_old_cerrada FROM public.liquidaciones_repartidor WHERE id = OLD.liquidacion_id;
+    IF v_old_cerrada IS NOT NULL THEN
+      RAISE EXCEPTION 'liquidacion_envios_inmutable: no se elimina detalle de liquidacion sellada %', OLD.liquidacion_id USING ERRCODE = 'P0001';
+    END IF;
+    RETURN OLD;
+  END IF;
+  -- UPDATE: ningun flujo legitimo cambia el padre del detalle. Bloquear re-parenting de raiz.
+  IF NEW.liquidacion_id <> OLD.liquidacion_id THEN
+    RAISE EXCEPTION 'liquidacion_envios_inmutable: re-parenting prohibido, el detalle del envio % no se mueve de la liquidacion % a %',
+      OLD.envio_id, OLD.liquidacion_id, NEW.liquidacion_id USING ERRCODE = 'P0001';
+  END IF;
+  SELECT cerrada_en INTO v_old_cerrada FROM public.liquidaciones_repartidor WHERE id = OLD.liquidacion_id;
+  -- Padre pendiente: superficie de escritura legitima (crear/cerrar arman el set bajo header pendiente).
+  IF v_old_cerrada IS NULL THEN
+    RETURN NEW;
+  END IF;
+  -- Padre sellado: unica mutacion permitida, el flip de sellado de cerrar (conciliado FALSE->TRUE) sin tocar montos/envio.
+  IF OLD.conciliado = FALSE AND NEW.conciliado = TRUE
      AND NEW.monto_esperado IS NOT DISTINCT FROM OLD.monto_esperado
      AND NEW.monto_cobrado  IS NOT DISTINCT FROM OLD.monto_cobrado
      AND NEW.envio_id       =  OLD.envio_id
-     AND NEW.liquidacion_id =  OLD.liquidacion_id
   THEN
     RETURN NEW;
   END IF;
-
-  RAISE EXCEPTION 'liquidacion_envios_inmutable: el detalle del envio % pertenece a la liquidacion sellada %; reabrila para corregir',
-    CASE WHEN TG_OP = 'DELETE' THEN OLD.envio_id ELSE NEW.envio_id END, v_liq_id
-    USING ERRCODE = 'P0001';
+  RAISE EXCEPTION 'liquidacion_envios_inmutable: el detalle del envio % pertenece a la liquidacion sellada %; reabrir para corregir',
+    OLD.envio_id, OLD.liquidacion_id USING ERRCODE = 'P0001';
 END;
 $$;
 
@@ -3948,5 +3948,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eYHA9OiZfyDObI2Rl001sLBqlBq7ED0IRBi4Q8PVrKi54YvmmsHW723yZJ4p4u6
+\unrestrict IEdHvqQ068KuprJfYsWKhqKhkrxl75XTVIvd9dQFu3WcLEb1draR26WM6XdW1Cn
 

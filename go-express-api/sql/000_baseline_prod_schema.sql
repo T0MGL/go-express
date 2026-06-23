@@ -1,11 +1,11 @@
--- GO EXPRESS baseline del schema VIVO de prod (oxyvhexsgppnkgcnqpkl). Regenerado 2026-06-23 tras 036-042.
--- 042: bloquea re-parenting de detalle de liquidacion (A1-A3 Step6). Source of truth del estado actual.
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-043.
+-- 043: lock del envio antes del guard en anular/update_pago_atomico (cierra TOCTOU C1/C2). Source of truth.
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict IEdHvqQ068KuprJfYsWKhqKhkrxl75XTVIvd9dQFu3WcLEb1draR26WM6XdW1Cn
+\restrict snWQhheqQe3vVw80AGZ7LQp8p3VQOIKhmm7oSAYWGzmTPMSyyh2p1Mju4bT7loV
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -401,6 +401,7 @@ BEGIN
     RAISE EXCEPTION 'pago_ya_anulado: %', p_pago_id USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM 1 FROM envios WHERE id = v_pago_previo.envio_id FOR UPDATE;  -- E: lock del envio (recurso comun) ANTES del guard; serializa contra crear/cerrar_liquidacion aunque el detalle aun no exista (cierra TOCTOU C1/C2)
   -- L: lock de liquidacion en orden canonico antes de leer estado.
   PERFORM 1
      FROM liquidacion_envios le
@@ -1743,6 +1744,7 @@ BEGIN
     RAISE EXCEPTION 'pago_ya_anulado: %', p_pago_id USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM 1 FROM envios WHERE id = v_pago_previo.envio_id FOR UPDATE;  -- E: lock del envio (recurso comun) ANTES del guard; serializa contra crear/cerrar_liquidacion aunque el detalle aun no exista (cierra TOCTOU C1/C2)
   -- L: lock de la liquidacion del envio en el orden canonico antes de leer su estado.
   PERFORM 1
      FROM liquidacion_envios le
@@ -3948,5 +3950,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IEdHvqQ068KuprJfYsWKhqKhkrxl75XTVIvd9dQFu3WcLEb1draR26WM6XdW1Cn
+\unrestrict snWQhheqQe3vVw80AGZ7LQp8p3VQOIKhmm7oSAYWGzmTPMSyyh2p1Mju4bT7loV
 

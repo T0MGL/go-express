@@ -53,9 +53,21 @@ app.use((_req, res, next) => {
 
 const corsOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
 
+// Origen permitido: la lista explicita de CORS_ORIGINS (dev/localhost, previews) mas cualquier
+// subdominio de goexpressparaguay.com (www, app, bare). Asi un CORS_ORIGINS incompleto en el
+// entorno no rompe el panel: el dominio propio y sus subdominios quedan siempre habilitados.
+const PROD_DOMAIN = /^https:\/\/([a-z0-9-]+\.)*goexpressparaguay\.com$/;
+const isAllowedOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void): void => {
+  if (!origin || corsOrigins.includes(origin) || PROD_DOMAIN.test(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(new Error(`Origin ${origin} no permitido por CORS`));
+};
+
 app.use(
   cors({
-    origin: corsOrigins,
+    origin: isAllowedOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Cliente-Id'],

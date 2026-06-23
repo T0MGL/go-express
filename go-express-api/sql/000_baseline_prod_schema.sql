@@ -1,11 +1,11 @@
--- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-044.
--- 044: pago COD exige repartidor asignado (cierra A4). Source of truth.
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-045.
+-- 045: marcar entregado por admin sella fecha_entrega_real (cierra A1). Source of truth.
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict 71QmnCZ6xqmt2PCgtbx0v1CAiVvT685JhSKdZd9k1gi5tCTCFvdSZasTVa6folX
+\restrict 9BfDwBcxHwi5cIhsMl8dl8WY9gZmN8QQlwfgENp5pPuKT9AnDmb5V6giFX8gkBu
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -1691,6 +1691,12 @@ BEGIN
          recolectado_en          = CASE
            WHEN p_nuevo_estado = 'recolectado' AND v_envio_previo.recolectado_en IS NULL THEN NOW()
            ELSE recolectado_en
+         END,
+         -- A1: marcar entregado por admin debe sellar la fecha de entrega, igual que el flujo
+         -- del repartidor. Sin esto el envio entregado nunca entra a una liquidacion.
+         fecha_entrega_real      = CASE
+           WHEN p_nuevo_estado = 'entregado' AND v_envio_previo.fecha_entrega_real IS NULL THEN NOW()
+           ELSE fecha_entrega_real
          END,
          updated_at              = NOW()
    WHERE id = p_envio_id
@@ -3976,5 +3982,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 71QmnCZ6xqmt2PCgtbx0v1CAiVvT685JhSKdZd9k1gi5tCTCFvdSZasTVa6folX
+\unrestrict 9BfDwBcxHwi5cIhsMl8dl8WY9gZmN8QQlwfgENp5pPuKT9AnDmb5V6giFX8gkBu
 

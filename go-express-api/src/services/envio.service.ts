@@ -965,47 +965,112 @@ class EnvioService {
       )
     );
 
+    // Seguro server-side, misma fuente de verdad que el unitario y que el bulk del portal cliente
+    // (cliente/envios.ts): una sola lectura de seguro_config para todo el batch. El bulk admin antes
+    // persistia costo_seguro=0 (GO EXPRESS subfacturaba su tarifa, A3) y mandaba monto_a_cobrar crudo
+    // (el trigger I1 rechazaba anticipado y, por ser un insert monolitico, tumbaba el batch entero, A2).
+    const { data: seguroConfigData, error: seguroConfigError } = await supabase
+      .from('configuracion')
+      .select('value')
+      .eq('key', 'seguro_config')
+      .maybeSingle();
+
+    if (seguroConfigError) {
+      logger.error({ error: seguroConfigError }, 'Bulk import: error fetching seguro config');
+      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+    }
+
+    const seguroConfig = parseSeguroConfig((seguroConfigData as { value: unknown } | null)?.value ?? null);
+
     const today = todayPY();
-    const insertRows = validEnvios.map(({ input, clienteNombre }, i) => ({
-      tracking_number: trackingNumbers[i]!,
-      cliente_id: input.clienteId,
-      cliente_nombre: clienteNombre,
-      codigo_referencia: input.codigoReferencia ?? null,
-      origen: input.origen,
-      destino: input.destino,
-      destinatario_nombre: input.destinatarioNombre,
-      destinatario_direccion: input.destinatarioDireccion,
-      destinatario_telefono: input.destinatarioTelefono,
-      destinatario_telefono2: input.destinatarioTelefono2 ?? null,
-      destinatario_cedula: input.destinatarioCedula ?? null,
-      destinatario_ciudad: input.destinatarioCiudad ?? '',
-      destinatario_departamento: input.destinatarioDepartamento ?? '',
-      destinatario_barrio: input.destinatarioBarrio ?? null,
-      destinatario_referencia: input.destinatarioReferencia ?? null,
-      destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
-      destinatario_email: input.destinatarioEmail ?? null,
-      cantidad: input.cantidad,
-      producto: input.producto ?? '',
-      peso: input.peso,
-      dimensiones_largo: input.dimensiones?.largo ?? null,
-      dimensiones_ancho: input.dimensiones?.ancho ?? null,
-      dimensiones_alto: input.dimensiones?.alto ?? null,
-      fragil: input.fragil,
-      valor_declarado: input.valorDeclarado ?? 0,
-      instrucciones_entrega: input.instruccionesEntrega ?? null,
-      horario_entrega: input.horarioEntrega ?? null,
-      notas: input.notas ?? null,
-      estado: 'pendiente' as const,
-      // Costo y tarifa derivados server-side (cotizaciones[i]), nunca del caller. tipo_pago y
-      // monto_a_cobrar siguen siendo intent operativo del admin (COD vs CC), pero el costo que
-      // alimenta el ledger es siempre el recotizado.
-      costo: cotizaciones[i]!.costo,
-      monto_a_cobrar: input.montoACobrar,
-      tipo_pago: input.tipoPago,
-      tags: input.tags ?? [],
-      tarifa_id: cotizaciones[i]!.tarifaId,
-      fecha: today,
-    }));
+    const insertRows: Record<string, unknown>[] = [];
+
+    for (let i = 0; i < validEnvios.length; i++) {
+      const { input, index, clienteNombre } = validEnvios[i]!;
+      const cot = cotizaciones[i]!;
+      const valorDeclarado = input.valorDeclarado ?? 0;
+
+      // Filas invalidas se desvian a fallidos ANTES del insert: una fila mala no tumba las otras 499.
+      if (valorDeclarado > seguroConfig.maximoAsegurable) {
+        fallidos.push({
+          fila: index + 1,
+          errores: [`Valor declarado ${valorDeclarado} supera el maximo asegurable (${seguroConfig.maximoAsegurable} Gs)`],
+        });
+        continue;
+      }
+
+      let seguroAdicional = false;
+      let costoSeguro = 0;
+      if (input.seguroAdicional && puedeAsegurar(valorDeclarado, seguroConfig)) {
+        seguroAdicional = true;
+        costoSeguro = calcularSeguroAdicional(valorDeclarado, seguroConfig);
+      }
+
+      // I1 (trg_envio_i1_cubre_tarifa_fn): tarifa = costo + seguro. anticipado exige igualdad exacta,
+      // contra_entrega exige cobertura (>=) y el excedente es producto de la tienda. Se reconcilia aca,
+      // server-side, en lugar de confiar en el monto_a_cobrar crudo del caller.
+      const tarifa = cot.costo + costoSeguro;
+      let montoACobrar: number;
+      if (input.tipoPago === 'anticipado') {
+        montoACobrar = tarifa;
+      } else {
+        montoACobrar = input.montoACobrar;
+        if (montoACobrar < tarifa) {
+          fallidos.push({
+            fila: index + 1,
+            errores: [`monto_a_cobrar (${montoACobrar}) no cubre costo + seguro (${tarifa})`],
+          });
+          continue;
+        }
+      }
+
+      insertRows.push({
+        tracking_number: trackingNumbers[i]!,
+        cliente_id: input.clienteId,
+        cliente_nombre: clienteNombre,
+        codigo_referencia: input.codigoReferencia ?? null,
+        origen: input.origen,
+        destino: input.destino,
+        destinatario_nombre: input.destinatarioNombre,
+        destinatario_direccion: input.destinatarioDireccion,
+        destinatario_telefono: input.destinatarioTelefono,
+        destinatario_telefono2: input.destinatarioTelefono2 ?? null,
+        destinatario_cedula: input.destinatarioCedula ?? null,
+        destinatario_ciudad: input.destinatarioCiudad ?? '',
+        destinatario_departamento: input.destinatarioDepartamento ?? '',
+        destinatario_barrio: input.destinatarioBarrio ?? null,
+        destinatario_referencia: input.destinatarioReferencia ?? null,
+        destinatario_ubicacion_url: input.destinatarioUbicacionUrl ?? null,
+        destinatario_email: input.destinatarioEmail ?? null,
+        cantidad: input.cantidad,
+        producto: input.producto ?? '',
+        peso: input.peso,
+        dimensiones_largo: input.dimensiones?.largo ?? null,
+        dimensiones_ancho: input.dimensiones?.ancho ?? null,
+        dimensiones_alto: input.dimensiones?.alto ?? null,
+        fragil: input.fragil,
+        valor_declarado: valorDeclarado,
+        instrucciones_entrega: input.instruccionesEntrega ?? null,
+        horario_entrega: input.horarioEntrega ?? null,
+        notas: input.notas ?? null,
+        estado: 'pendiente' as const,
+        // Costo y tarifa derivados server-side (cot), nunca del caller. tipo_pago es intent operativo
+        // del admin (anticipado vs contra_entrega); monto_a_cobrar y costo_seguro se reconcilian aca
+        // para cumplir I1 y cobrar el seguro real.
+        costo: cot.costo,
+        monto_a_cobrar: montoACobrar,
+        tipo_pago: input.tipoPago,
+        seguro_adicional: seguroAdicional,
+        costo_seguro: costoSeguro,
+        tags: input.tags ?? [],
+        tarifa_id: cot.tarifaId,
+        fecha: today,
+      });
+    }
+
+    if (insertRows.length === 0) {
+      return { exitosos: 0, fallidos, trackingNumbers: [] };
+    }
 
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
@@ -1014,7 +1079,16 @@ class EnvioService {
 
     if (insertError) {
       logger.error({ error: insertError }, 'Bulk import batch insert failed');
-      throw new AppError(`Error importing envios: ${insertError.message}`, 500, 'DB_ERROR');
+      // I1 (anticipado/contra_entrega) se pre-valida por fila arriba; si igual llega aca es una fila
+      // que se escapo del pre-check. Mapear a 422 con mensaje claro en vez de 500 opaco, igual que
+      // updateEstado, y no filtrar el mensaje crudo de Postgres al cliente.
+      const msg = insertError.message ?? '';
+      if (msg.includes('anticipado_monto_invalido') || msg.includes('monto_a_cobrar_insuficiente')) {
+        throw AppError.unprocessable(
+          'Una fila tiene un monto a cobrar incoherente con el costo del envio. Revisa los montos del archivo e intenta de nuevo.'
+        );
+      }
+      throw new AppError('Error importing envios', 500, 'DB_ERROR');
     }
 
     const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;

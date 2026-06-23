@@ -1,11 +1,11 @@
--- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-043.
--- 043: lock del envio antes del guard en anular/update_pago_atomico (cierra TOCTOU C1/C2). Source of truth.
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-044.
+-- 044: pago COD exige repartidor asignado (cierra A4). Source of truth.
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict snWQhheqQe3vVw80AGZ7LQp8p3VQOIKhmm7oSAYWGzmTPMSyyh2p1Mju4bT7loV
+\restrict 71QmnCZ6xqmt2PCgtbx0v1CAiVvT685JhSKdZd9k1gi5tCTCFvdSZasTVa6folX
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -1292,6 +1292,25 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_pago_requiere_repartidor_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_pago_requiere_repartidor_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE v_rep uuid;
+BEGIN
+  SELECT repartidor_id INTO v_rep FROM public.envios WHERE id = NEW.envio_id;
+  IF v_rep IS NULL THEN
+    RAISE EXCEPTION 'pago_sin_repartidor: el envio % no tiene repartidor asignado; un cobro requiere repartidor para ser liquidable (A4)', NEW.envio_id
+      USING ERRCODE = 'P0001';
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -3234,6 +3253,13 @@ CREATE TRIGGER trg_liquidacion_inmutable BEFORE DELETE OR UPDATE ON public.liqui
 
 
 --
+-- Name: pagos trg_pago_requiere_repartidor; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pago_requiere_repartidor BEFORE INSERT ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.trg_pago_requiere_repartidor_fn();
+
+
+--
 -- Name: pagos trg_pago_sync_envio_cobrado; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3950,5 +3976,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict snWQhheqQe3vVw80AGZ7LQp8p3VQOIKhmm7oSAYWGzmTPMSyyh2p1Mju4bT7loV
+\unrestrict 71QmnCZ6xqmt2PCgtbx0v1CAiVvT685JhSKdZd9k1gi5tCTCFvdSZasTVa6folX
 

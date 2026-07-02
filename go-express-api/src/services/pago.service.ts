@@ -2,6 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { todayPY } from '../lib/datetime.js';
+import { rpcWithRetry } from '../lib/rpcRetry.js';
 import type {
   PagoRow,
   Pago,
@@ -243,7 +244,7 @@ class PagoService {
       throw AppError.badRequest('No se puede crear un pago para un envio eliminado');
     }
 
-    const { data, error } = await supabase.rpc('create_pago_atomico', {
+    const { data, error } = await rpcWithRetry('create_pago_atomico', () => supabase.rpc('create_pago_atomico', {
       p_envio_id: input.envioId,
       p_monto_total: input.montoTotal,
       p_monto_recibido: input.montoRecibido,
@@ -256,7 +257,7 @@ class PagoService {
       p_tracking_number: envio.tracking_number,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapRpcError(error, { envioId: input.envioId });
@@ -282,7 +283,7 @@ class PagoService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<Pago> {
-    const { data, error } = await supabase.rpc('update_pago_atomico', {
+    const { data, error } = await rpcWithRetry('update_pago_atomico', () => supabase.rpc('update_pago_atomico', {
       p_pago_id: id,
       p_monto_recibido: input.montoRecibido,
       p_metodo_pago: input.metodoPago ?? null,
@@ -297,7 +298,7 @@ class PagoService {
       p_usuario_nombre: ADMIN_USER_NAME,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapRpcError(error, { pagoId: id });
@@ -323,14 +324,14 @@ class PagoService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<Pago> {
-    const { data, error } = await supabase.rpc('anular_pago_atomico', {
+    const { data, error } = await rpcWithRetry('anular_pago_atomico', () => supabase.rpc('anular_pago_atomico', {
       p_pago_id: pagoId,
       p_motivo: motivo,
       p_anulado_por: anuladoPor,
       p_usuario_nombre: ADMIN_USER_NAME,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapRpcError(error, { pagoId });

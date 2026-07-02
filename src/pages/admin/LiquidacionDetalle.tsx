@@ -118,6 +118,22 @@ export default function LiquidacionDetalle() {
                   {formatCurrency(data.diferencia)}
                 </span>
               </p>
+              {data.ajustes.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {data.ajustes.map((a) => (
+                    <li key={a.id} className="text-[12px]">
+                      <span className="font-medium">
+                        {a.tipo === 'cobranza_repartidor'
+                          ? 'Cobranza al repartidor'
+                          : 'Sobrante a investigar'}
+                        :
+                      </span>{' '}
+                      <span className="font-data font-semibold">{formatCurrency(a.monto)}</span>
+                      <span className="text-muted-foreground"> · {a.motivo}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

@@ -20,7 +20,23 @@ export interface LiquidacionRepartidor {
   creadoPor: string;
   creadoEn: string;
   updatedAt: string;
+  tarifaRetenida: number | null;
+  payoutTienda: number | null;
   cantidadEnvios?: number;
+}
+
+export type TipoAjusteLiquidacion = 'cobranza_repartidor' | 'sobrante_a_investigar';
+
+// Asiento contable del cierre con diferencia (M2): cobranza_repartidor = faltante que el
+// repartidor debe; sobrante_a_investigar = efectivo excedente sin duenio conocido.
+export interface LiquidacionAjuste {
+  id: string;
+  liquidacionId: string;
+  tipo: TipoAjusteLiquidacion;
+  monto: number;
+  motivo: string;
+  creadoPor: string;
+  creadoEn: string;
 }
 
 export interface LiquidacionEnvioItem {
@@ -38,6 +54,7 @@ export interface LiquidacionEnvioItem {
 
 export interface LiquidacionDetalle extends LiquidacionRepartidor {
   envios: LiquidacionEnvioItem[];
+  ajustes: LiquidacionAjuste[];
 }
 
 interface PaginatedResponse<T> {
@@ -93,7 +110,7 @@ export function useCrearLiquidacion() {
     mutationFn: (payload: CrearLiquidacionPayload) =>
       api.post<LiquidacionRepartidor>('/admin/liquidaciones', payload),
     onSuccess: (created) => {
-      qc.setQueryData(liquidacionKeys.detail(created.id), { ...created, envios: [] });
+      qc.setQueryData(liquidacionKeys.detail(created.id), { ...created, envios: [], ajustes: [] });
       qc.invalidateQueries({ queryKey: liquidacionKeys.lists() });
     },
   });

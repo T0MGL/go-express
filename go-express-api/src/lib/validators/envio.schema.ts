@@ -111,7 +111,7 @@ export const bulkImportSchema = z.object({
 // Cliente portal: shape que puede enviar el cliente desde /portal/nuevo-paquete.
 // El cliente NO decide clienteId, origen, destino, costo ni tipoPago: el servidor
 // los deriva (clienteId desde auth, origen desde cliente.ciudad, destino desde
-// destinatarioCiudad, costo desde la tarifa que matchee, tipoPago default cuenta_corriente).
+// destinatarioCiudad, costo desde la tarifa que matchee, tipoPago siempre 'anticipado').
 export const createClienteEnvioSchema = z.object({
   codigoReferencia: z.string().max(100).optional(),
 

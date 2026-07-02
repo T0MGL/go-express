@@ -92,8 +92,8 @@ router.patch(
 );
 
 // Anulacion logica del pago. Libera el unique parcial sobre envio_id para poder
-// registrar un nuevo pago. Si el envio es cuenta_corriente, el RPC dispara el reverso
-// del saldo del cliente en la misma transaccion.
+// registrar un nuevo pago. El RPC revierte monto_cobrado y re-marca cod_pago_pendiente
+// en la misma transaccion; si el envio esta en una liquidacion sellada, rechaza.
 router.post(
   '/:id/anular',
   adminWriteLimiter,

@@ -14,6 +14,7 @@ import usuarioRoutes from './usuarios.js';
 import liquidacionRoutes from './liquidaciones.js';
 import ciudadRoutes from './ciudades.js';
 import maintenanceRoutes from './maintenance.js';
+import apiKeyRoutes from './api-keys.js';
 
 const router = Router();
 
@@ -39,5 +40,8 @@ router.use('/configuracion', configuracionRoutes);
 router.use('/usuarios', requireOnlyAdmin, usuarioRoutes);
 // Tareas operativas del sistema (jobs, retencion). Solo admin.
 router.use('/maintenance', maintenanceRoutes);
+// API keys del gateway v1: emiten acceso a datos de clientes, estrictamente admin.
+// Un operador no puede mintear ni rotar credenciales de terceros.
+router.use('/api-keys', requireOnlyAdmin, apiKeyRoutes);
 
 export default router;

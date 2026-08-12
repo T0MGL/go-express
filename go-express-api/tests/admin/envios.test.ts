@@ -356,3 +356,106 @@ describe('POST /api/admin/envios/:id/notas', () => {
     expect(res.status).toBe(400);
   });
 });
+
+// A2/A3 (re-audit Step6, fix en envio.service.ts bulkImport): el bulk import admin computa
+// seguro y reconcilia monto_a_cobrar SERVER-SIDE por fila, y una fila invalida va a fallidos
+// sin tumbar el batch. Antes: anticipado con monto crudo disparaba I1 y el insert monolitico
+// abortaba las 500 filas con un 500 opaco (A2), y costo_seguro persistia en 0 subfacturando la
+// tarifa de GO EXPRESS (A3).
+describe('POST /api/admin/envios/bulk-import (A2/A3 Step6)', () => {
+  async function fetchByTracking(tracking: string) {
+    const res = await request
+      .get(`/api/admin/envios?search=${tracking}`)
+      .set(adminHeaders());
+    expect(res.status).toBe(200);
+    const match = (res.body.data as Array<Record<string, unknown>>).find(
+      (e) => e['trackingNumber'] === tracking,
+    );
+    expect(match, `envio ${tracking} debe existir`).toBeDefined();
+    return match as Record<string, unknown>;
+  }
+
+  it('A2: fila anticipado con montoACobrar 0 se auto-reconcilia server-side y no tumba el batch', async () => {
+    const res = await request
+      .post('/api/admin/envios/bulk-import')
+      .set(adminHeaders())
+      .send({
+        envios: [
+          // El modo default operativo del portal: el caller manda monto 0 y el server deriva
+          // monto_a_cobrar = costo + costo_seguro (igualdad I1 de anticipado).
+          makeEnvioPayload(testData.clienteId, { tipoPago: 'anticipado', montoACobrar: 0 }),
+          makeEnvioPayload(testData.clienteId, {
+            tipoPago: 'contra_entrega',
+            montoACobrar: 150000,
+            destinatarioNombre: 'Bulk Dos Contra Entrega',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(2);
+    expect(res.body.failed).toBe(0);
+    expect(res.body.errors).toBeUndefined();
+
+    // La fila anticipado quedo reconciliada: monto = costo + seguro (seguro 0, sin valor declarado).
+    const anticipado = await fetchByTracking(res.body.results[0] as string);
+    expect(anticipado['tipoPago']).toBe('anticipado');
+    expect(anticipado['montoACobrar']).toBe(anticipado['costo']);
+    expect(anticipado['costoSeguro']).toBe(0);
+  });
+
+  it('A2: fila contra_entrega con monto < costo va a fallidos sin tumbar el resto', async () => {
+    const res = await request
+      .post('/api/admin/envios/bulk-import')
+      .set(adminHeaders())
+      .send({
+        envios: [
+          makeEnvioPayload(testData.clienteId, {
+            tipoPago: 'contra_entrega',
+            montoACobrar: 1000,
+            destinatarioNombre: 'Bulk Fila Invalida',
+          }),
+          makeEnvioPayload(testData.clienteId, {
+            tipoPago: 'contra_entrega',
+            montoACobrar: 200000,
+            destinatarioNombre: 'Bulk Fila Valida',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.failed).toBe(1);
+    expect(res.body.errors).toHaveLength(1);
+    expect(res.body.errors[0].fila).toBe(1);
+    expect(String(res.body.errors[0].errores[0])).toMatch(/no cubre costo/);
+  });
+
+  it('A3: seguroAdicional con valorDeclarado sobre umbral persiste costo_seguro computado server-side', async () => {
+    // seguro_config espejo de prod (seed): tasa 0.1, umbral 200000. valorDeclarado 1000000
+    // -> costo_seguro = 100000, y anticipado reconcilia monto = costo + 100000.
+    const res = await request
+      .post('/api/admin/envios/bulk-import')
+      .set(adminHeaders())
+      .send({
+        envios: [
+          makeEnvioPayload(testData.clienteId, {
+            tipoPago: 'anticipado',
+            montoACobrar: 0,
+            seguroAdicional: true,
+            valorDeclarado: 1000000,
+            destinatarioNombre: 'Bulk Con Seguro',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.failed).toBe(0);
+
+    const envio = await fetchByTracking(res.body.results[0] as string);
+    expect(envio['costoSeguro']).toBe(100000);
+    expect(envio['seguroAdicional']).toBe(true);
+    expect(envio['montoACobrar']).toBe((envio['costo'] as number) + 100000);
+  });
+});

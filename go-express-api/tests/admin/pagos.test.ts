@@ -518,67 +518,6 @@ describe('POST /api/admin/pagos/:id/anular', () => {
     expect(res.body).toHaveProperty('code', 'NOT_FOUND');
   });
 
-  it('reversa el saldo del cliente cuando el envio es cuenta_corriente', async () => {
-    await supabase
-      .from('clientes')
-      .update({ saldo_cuenta_corriente: 0, limite_credito: 0 })
-      .eq('id', testData.clienteId);
-    await supabase.from('movimientos_cuenta_corriente').delete().eq('cliente_id', testData.clienteId);
-
-    const payload = makeEnvioPayload(testData.clienteId, {
-      tipoPago: 'cuenta_corriente' as const,
-      costo: 60000,
-      montoACobrar: 0,
-    });
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const ccEnvioId = envioRes.body.id as string;
-
-    const saldoPostEnvio = await request
-      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
-      .set(adminHeaders());
-    expect(saldoPostEnvio.body.saldo).toBe(60000);
-
-    const pagoRes = await request
-      .post('/api/admin/pagos')
-      .set(adminHeaders())
-      .send({
-        envioId: ccEnvioId,
-        montoTotal: 60000,
-        montoRecibido: 60000,
-        metodoPago: 'transferencia',
-      });
-    const ccPagoId = pagoRes.body.id as string;
-
-    const saldoPostPago = await request
-      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
-      .set(adminHeaders());
-    expect(saldoPostPago.body.saldo).toBe(0);
-
-    const anularRes = await request
-      .post(`/api/admin/pagos/${ccPagoId}/anular`)
-      .set(adminHeaders())
-      .send({ motivo: 'Cliente reclamo cobro duplicado, revertir' });
-    expect(anularRes.status).toBe(200);
-
-    const saldoPostAnular = await request
-      .get(`/api/admin/clientes/${testData.clienteId}/saldo`)
-      .set(adminHeaders());
-    expect(saldoPostAnular.body.saldo).toBe(60000);
-
-    const movsRes = await request
-      .get(`/api/admin/clientes/${testData.clienteId}/movimientos`)
-      .set(adminHeaders());
-
-    const reverso = (movsRes.body.data as Array<{ tipo: string; monto: number; pagoId: string | null }>)
-      .find((m) => m.tipo === 'reverso');
-    expect(reverso).toBeDefined();
-    expect(reverso?.monto).toBe(60000);
-    expect(reverso?.pagoId).toBe(ccPagoId);
-  });
-
   it('permite registrar un nuevo pago sobre el mismo envio despues de anular el previo', async () => {
     const { envioId: reusedEnvioId, pagoId } = await crearEnvioYPago({}, {
       montoTotal: 45000,

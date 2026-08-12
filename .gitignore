@@ -50,3 +50,9 @@ e2e/.auth/
 test-results/
 playwright-report/
 blob-report/
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# Claude local state
+.claude/scheduled_tasks.lock

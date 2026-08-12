@@ -132,6 +132,83 @@ describe('POST /api/v1/envios en modo test', () => {
 
     expect(await contarEnvios()).toBe(0);
   });
+
+  it('simula un envio COD con el desglose real y sin escribir nada', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key sandbox cod',
+      permisos: ['crear_envios'],
+      modoTest: true,
+    });
+
+    const antes = await contarEnvios();
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 180000 }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.simulated).toBe(true);
+    expect(res.body.tipoPago).toBe('contra_entrega');
+    expect(res.body.costo).toBe(35000);
+    expect(res.body.costoSeguro).toBe(0);
+    expect(res.body.montoACobrar).toBe(180000);
+
+    expect(await contarEnvios()).toBe(antes);
+  });
+
+  it('COD con Idempotency-Key valida el header pero no hay replay: cada POST simula un envio nuevo', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key sandbox cod idem',
+      permisos: ['crear_envios'],
+      modoTest: true,
+    });
+    const idem = `sandbox-cod-${crypto.randomUUID()}`;
+    const body = envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 180000 });
+
+    const primera = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': idem })
+      .send(body);
+    const segunda = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': idem })
+      .send(body);
+
+    expect(primera.status).toBe(201);
+    expect(segunda.status).toBe(201);
+    expect(segunda.body.trackingNumber).not.toBe(primera.body.trackingNumber);
+
+    const invalida = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': 'corta' })
+      .send(body);
+    expect(invalida.status).toBe(400);
+
+    expect(await contarEnvios()).toBe(0);
+  });
+
+  it('el 422 MONTO_INSUFICIENTE del sandbox es identico al de live, con el minimo exacto', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key sandbox cod corto',
+      permisos: ['crear_envios'],
+      modoTest: true,
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 10000 }));
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('MONTO_INSUFICIENTE');
+    expect(res.body.details).toEqual({ minimo: 35000, costo: 35000, costoSeguro: 0, montoACobrar: 10000 });
+    expect(res.body.error).toContain('35000');
+
+    expect(await contarEnvios()).toBe(0);
+  });
 });
 
 describe('GET fixtures en modo test', () => {

@@ -1,9 +1,9 @@
--- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-08-12 tras 053.
--- 053: api_keys del API Gateway v1 (hash-only, RLS deny, permisos por key) + columna e
--- indice parcial de idempotencia api_idempotency_key en envios. Source of truth.
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-08-12 tras 054.
+-- 054: webhooks salientes (endpoints + deliveries outbox, RLS deny), modo test por key y
+-- fingerprint del body en la idempotencia del gateway. Source of truth.
 --
 
-\restrict rd4efFyKNHsniRUYc3PCBaHaOPvdypGL2JazaPnCiWibFr0gk5qelmVeiAE74cm
+\restrict RMC1V2A3qXxr22j12NO1Xch4mTcEwUQLx9HDGaenGf2yzUiRbZlwUQCkXFODqGW
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -72,7 +72,8 @@ CREATE TYPE public.auditoria_entidad AS ENUM (
     'sistema',
     'cuenta_corriente',
     'liquidacion',
-    'api_key'
+    'api_key',
+    'webhook_endpoint'
 );
 
 
@@ -1651,6 +1652,7 @@ CREATE TABLE public.envios (
     incidencia_reportada_por uuid,
     cod_pago_pendiente boolean DEFAULT false NOT NULL,
     api_idempotency_key text,
+    api_idempotency_body_hash text,
     CONSTRAINT envios_costo_check CHECK ((costo >= 0)),
     CONSTRAINT envios_i1_monto_cubre_tarifa CHECK (((eliminado = true) OR ((tipo_pago = 'anticipado'::public.tipo_pago) AND (monto_a_cobrar = (costo + costo_seguro))) OR ((tipo_pago = 'contra_entrega'::public.tipo_pago) AND (monto_a_cobrar >= (costo + costo_seguro))))),
     CONSTRAINT envios_monto_a_cobrar_check CHECK ((monto_a_cobrar >= 0)),
@@ -1714,6 +1716,13 @@ COMMENT ON COLUMN public.envios.cod_pago_pendiente IS 'TRUE si un envio COD se m
 --
 
 COMMENT ON COLUMN public.envios.api_idempotency_key IS 'Idempotency-Key del POST /api/v1/envios, unica por cliente. Un retry con la misma key devuelve el envio original en vez de crear otro. NULL en envios creados por portal/admin.';
+
+
+--
+-- Name: COLUMN envios.api_idempotency_body_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.envios.api_idempotency_body_hash IS 'sha256 hex del body normalizado del POST /api/v1/envios que creo el envio. En un replay con la misma Idempotency-Key pero body distinto, el gateway responde 409 en vez de devolver un envio que no corresponde al payload. NULL fuera del gateway.';
 
 
 --
@@ -2012,8 +2021,9 @@ CREATE TABLE public.api_keys (
     creado_por uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    modo_test boolean DEFAULT false NOT NULL,
     CONSTRAINT api_keys_nombre_no_vacio CHECK ((length(TRIM(BOTH FROM nombre)) >= 3)),
-    CONSTRAINT api_keys_permisos_validos CHECK (((cardinality(permisos) > 0) AND (permisos <@ ARRAY['crear_envios'::text, 'consultar_envios'::text, 'consultar_tarifas'::text])))
+    CONSTRAINT api_keys_permisos_validos CHECK (((cardinality(permisos) > 0) AND (permisos <@ ARRAY['crear_envios'::text, 'consultar_envios'::text, 'consultar_tarifas'::text, 'webhooks'::text])))
 );
 
 
@@ -2035,7 +2045,7 @@ COMMENT ON COLUMN public.api_keys.key_hash IS 'sha256 hex de la key completa. Nu
 -- Name: COLUMN api_keys.key_prefix; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.api_keys.key_prefix IS 'Primeros 12 caracteres de la key (ge_live_ + 4). Unico dato mostrable en UI y logs para identificarla.';
+COMMENT ON COLUMN public.api_keys.key_prefix IS 'Primeros 12 caracteres de la key (ge_live_/ge_test_ + 4). Unico dato mostrable en UI y logs para identificarla.';
 
 
 --
@@ -2043,6 +2053,13 @@ COMMENT ON COLUMN public.api_keys.key_prefix IS 'Primeros 12 caracteres de la ke
 --
 
 COMMENT ON COLUMN public.api_keys.expira_en IS 'Fin de la ventana de rotacion. La key sigue operativa hasta esta fecha aunque exista una sucesora. NULL = sin expiracion.';
+
+
+--
+-- Name: COLUMN api_keys.modo_test; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.api_keys.modo_test IS 'TRUE = key de sandbox (prefijo ge_test_). POST /api/v1/envios valida y cotiza real pero no inserta; GET devuelve fixtures. El flag de la DB es la fuente de verdad, no el prefijo.';
 
 
 --
@@ -2603,6 +2620,68 @@ CREATE TABLE public.usuarios (
 
 
 --
+-- Name: webhook_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.webhook_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    endpoint_id uuid NOT NULL,
+    evento text NOT NULL,
+    payload jsonb NOT NULL,
+    intento integer DEFAULT 0 NOT NULL,
+    status text DEFAULT 'pendiente'::text NOT NULL,
+    http_status integer,
+    respuesta text,
+    proximo_intento_en timestamp with time zone DEFAULT now() NOT NULL,
+    entregado_en timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT webhook_deliveries_intento_check CHECK ((intento >= 0)),
+    CONSTRAINT webhook_deliveries_status_check CHECK ((status = ANY (ARRAY['pendiente'::text, 'entregado'::text, 'fallido'::text])))
+);
+
+
+--
+-- Name: TABLE webhook_deliveries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.webhook_deliveries IS 'Outbox y log de webhooks salientes. Una fila por (evento, endpoint). El dispatcher in-process toma status=pendiente con proximo_intento_en vencido, entrega con backoff (1m/5m/25m tras el intento inmediato) y marca entregado o fallido definitivo. Estado 100% en DB: sobrevive restarts.';
+
+
+--
+-- Name: webhook_endpoints; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.webhook_endpoints (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    cliente_id uuid NOT NULL,
+    url text NOT NULL,
+    secreto text NOT NULL,
+    eventos text[] DEFAULT ARRAY['envio.estado_cambiado'::text] NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    creado_por uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT webhook_endpoints_eventos_validos CHECK (((cardinality(eventos) > 0) AND (eventos <@ ARRAY['envio.estado_cambiado'::text]))),
+    CONSTRAINT webhook_endpoints_secreto_check CHECK ((length(secreto) >= 20)),
+    CONSTRAINT webhook_endpoints_url_check CHECK (((url ~ '^https://'::text) OR (url ~ '^http://127\.0\.0\.1[:/]'::text)))
+);
+
+
+--
+-- Name: TABLE webhook_endpoints; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.webhook_endpoints IS 'Destinos de webhooks salientes del API Gateway v1 (Fase 2). Un endpoint pertenece a UN cliente y recibe solo eventos de sus envios. La baja es logica (activo=FALSE) para conservar el historial de deliveries. El secreto se entrega una sola vez al crear/regenerar.';
+
+
+--
+-- Name: COLUMN webhook_endpoints.secreto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.webhook_endpoints.secreto IS 'Secreto HMAC-SHA256 (whsec_...). Plaintext por necesidad de firma; ver comentario en la definicion de la tabla. No exponer en listados: solo en el response de crear/regenerar.';
+
+
+--
 -- Name: api_keys api_keys_key_hash_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2879,6 +2958,22 @@ ALTER TABLE ONLY public.usuarios
 
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: webhook_deliveries webhook_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhook_deliveries
+    ADD CONSTRAINT webhook_deliveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: webhook_endpoints webhook_endpoints_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhook_endpoints
+    ADD CONSTRAINT webhook_endpoints_pkey PRIMARY KEY (id);
 
 
 --
@@ -3414,6 +3509,34 @@ CREATE INDEX idx_usuarios_auth_id ON public.usuarios USING btree (auth_id) WHERE
 
 
 --
+-- Name: idx_webhook_deliveries_endpoint; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_webhook_deliveries_endpoint ON public.webhook_deliveries USING btree (endpoint_id);
+
+
+--
+-- Name: idx_webhook_deliveries_pendientes; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_webhook_deliveries_pendientes ON public.webhook_deliveries USING btree (status, proximo_intento_en) WHERE (status = 'pendiente'::text);
+
+
+--
+-- Name: idx_webhook_endpoints_cliente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_webhook_endpoints_cliente ON public.webhook_endpoints USING btree (cliente_id);
+
+
+--
+-- Name: idx_webhook_endpoints_creado_por; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_webhook_endpoints_creado_por ON public.webhook_endpoints USING btree (creado_por);
+
+
+--
 -- Name: liquidacion_envios_unique_conciliado; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3642,6 +3765,13 @@ CREATE TRIGGER trg_tarifas_updated_at BEFORE UPDATE ON public.tarifas FOR EACH R
 --
 
 CREATE TRIGGER trg_usuarios_updated_at BEFORE UPDATE ON public.usuarios FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: webhook_endpoints trg_webhook_endpoints_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_webhook_endpoints_updated_at BEFORE UPDATE ON public.webhook_endpoints FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 
 --
@@ -3973,6 +4103,30 @@ ALTER TABLE ONLY public.tarifas
 
 
 --
+-- Name: webhook_deliveries webhook_deliveries_endpoint_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhook_deliveries
+    ADD CONSTRAINT webhook_deliveries_endpoint_id_fkey FOREIGN KEY (endpoint_id) REFERENCES public.webhook_endpoints(id);
+
+
+--
+-- Name: webhook_endpoints webhook_endpoints_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhook_endpoints
+    ADD CONSTRAINT webhook_endpoints_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id);
+
+
+--
+-- Name: webhook_endpoints webhook_endpoints_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.webhook_endpoints
+    ADD CONSTRAINT webhook_endpoints_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id);
+
+
+--
 -- Name: api_keys; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -4122,6 +4276,20 @@ CREATE POLICY deny_anon ON public.usuarios TO anon USING (false) WITH CHECK (fal
 
 
 --
+-- Name: webhook_deliveries deny_anon; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_anon ON public.webhook_deliveries TO anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: webhook_endpoints deny_anon; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_anon ON public.webhook_endpoints TO anon USING (false) WITH CHECK (false);
+
+
+--
 -- Name: notificaciones_log deny_anon_notif_log; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -4248,6 +4416,20 @@ CREATE POLICY deny_authenticated ON public.usuarios TO authenticated USING (fals
 
 
 --
+-- Name: webhook_deliveries deny_authenticated; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_authenticated ON public.webhook_deliveries TO authenticated USING (false) WITH CHECK (false);
+
+
+--
+-- Name: webhook_endpoints deny_authenticated; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_authenticated ON public.webhook_endpoints TO authenticated USING (false) WITH CHECK (false);
+
+
+--
 -- Name: notificaciones_log deny_authenticated_notif_log; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -4369,8 +4551,20 @@ ALTER TABLE public.tarifas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: webhook_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.webhook_deliveries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: webhook_endpoints; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.webhook_endpoints ENABLE ROW LEVEL SECURITY;
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rd4efFyKNHsniRUYc3PCBaHaOPvdypGL2JazaPnCiWibFr0gk5qelmVeiAE74cm
+\unrestrict RMC1V2A3qXxr22j12NO1Xch4mTcEwUQLx9HDGaenGf2yzUiRbZlwUQCkXFODqGW
 

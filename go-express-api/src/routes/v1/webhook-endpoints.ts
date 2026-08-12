@@ -57,7 +57,7 @@ router.post(
       activo: endpoint.activo,
       creadoEn: endpoint.creadoEn,
       secreto,
-      aviso: 'Guarda este secreto ahora: no se vuelve a mostrar.',
+      aviso: 'Guardá este secreto ahora: no se vuelve a mostrar.',
     });
   })
 );

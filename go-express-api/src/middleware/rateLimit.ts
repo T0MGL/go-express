@@ -134,3 +134,21 @@ export const webhookLimiter = rateLimit({
   message: 'Too many webhook requests, please try again later',
   keyGenerator: (req) => req.ip ?? 'unknown',
 });
+
+/**
+ * API Gateway v1 rate limiter, keyed por API key (no por IP).
+ * 60 requests por minuto por key. Integraciones server-to-server suelen salir de una
+ * sola IP (o un pool NAT compartido); limitar por IP haria que una key ruidosa ahogue
+ * a las demas del mismo datacenter. Se monta DESPUES de requireApiKey, que popula
+ * req.apiKeyId; el fallback a IP solo aplica si algo se monta fuera de orden.
+ * El generalLimiter (100/min/IP) sigue actuando como piso anti-abuse pre-auth.
+ */
+export const apiKeyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many requests for this API key, please try again later',
+  keyGenerator: (req) => req.apiKeyId ?? req.ip ?? 'unknown',
+});

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema, paginationSchema, searchSchema, dateRangeSchema, uuidSchema } from './common.schema.js';
 
-// Envio states enum
-const envioEstadoEnum = z.enum(['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'entregado', 'fallido', 'problema']);
+// Envio states enum. Exportado: el filtro de estado del API v1 (api-key.schema.ts) reusa
+// exactamente este contrato para no divergir cuando aparezca un estado nuevo.
+export const envioEstadoEnum = z.enum(['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'entregado', 'fallido', 'problema']);
 const tipoPagoEnum = z.enum(['anticipado', 'contra_entrega']);
 
 export const createEnvioSchema = z.object({

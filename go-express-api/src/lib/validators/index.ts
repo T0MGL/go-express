@@ -7,3 +7,4 @@ export * from './repartidor.schema.js';
 export * from './warehouse.schema.js';
 export * from './auditoria.schema.js';
 export * from './liquidacion.schema.js';
+export * from './api-key.schema.js';

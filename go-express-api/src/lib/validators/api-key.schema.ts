@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { uuidSchema, paginationSchema, dateRangeSchema } from './common.schema.js';
 import { envioEstadoEnum } from './envio.schema.js';
 
-// Fuente de verdad de los permisos del gateway. El CHECK de api_keys.permisos (sql/053)
-// lista los mismos valores; si se agrega uno, va en ambos lados.
-export const API_KEY_PERMISOS = ['crear_envios', 'consultar_envios', 'consultar_tarifas'] as const;
+// Fuente de verdad de los permisos del gateway. El CHECK de api_keys.permisos (sql/053,
+// ampliado en 054) lista los mismos valores; si se agrega uno, va en ambos lados.
+export const API_KEY_PERMISOS = ['crear_envios', 'consultar_envios', 'consultar_tarifas', 'webhooks'] as const;
 
 export const apiKeyPermisoEnum = z.enum(API_KEY_PERMISOS);
 
@@ -16,6 +16,9 @@ export const createApiKeySchema = z.object({
     .min(1)
     .max(API_KEY_PERMISOS.length)
     .transform((p) => [...new Set(p)]),
+  // Sandbox por key (Fase 2): ge_test_ valida y cotiza real pero nunca escribe en envios.
+  // El admin elige el modo al crear; no se puede cambiar despues (emitir otra key).
+  modoTest: z.boolean().default(false),
   // Expiracion opcional al crear (para keys de prueba con vida corta). Default: no expira.
   // Solo fechas futuras: una key que nace muerta es un error del operador, no un caso de uso.
   expiraEn: z
@@ -47,6 +50,18 @@ export const apiKeyListQuerySchema = z.object({
 
 export const v1EnviosQuerySchema = paginationSchema.merge(dateRangeSchema).extend({
   estado: envioEstadoEnum.optional(),
+});
+
+// Tracking del gateway: ademas del formato live (alfanumerico) acepta los trackings del
+// sandbox (GE-TEST-XXXX), que llevan guion. El lookup live nunca matchea un guion, asi
+// que ampliar el charset aca no abre nada.
+export const v1TrackingParamSchema = z.object({
+  trackingNumber: z
+    .string()
+    .min(3)
+    .max(25)
+    .regex(/^[A-Za-z0-9-]+$/, 'Tracking number invalido')
+    .transform((v) => v.toUpperCase()),
 });
 
 export const v1TarifaQuerySchema = z

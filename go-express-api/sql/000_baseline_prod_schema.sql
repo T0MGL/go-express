@@ -1,9 +1,9 @@
--- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-08-12 tras 046-052.
--- 046-052: cierre MEDIA/BAJA Step6 (unseal por permisos, lock E antes de L, truncate guard,
--- CHECK I1 declarativo, asiento de diferencia de caja, drop enum CC). Source of truth.
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-08-12 tras 053.
+-- 053: api_keys del API Gateway v1 (hash-only, RLS deny, permisos por key) + columna e
+-- indice parcial de idempotencia api_idempotency_key en envios. Source of truth.
 --
 
-\restrict lYsUonMDH2ozB6XmZkxVBwPophbPRWuM96U66skKBJPjFKi7hqvxUQVsMATn1Mw
+\restrict rd4efFyKNHsniRUYc3PCBaHaOPvdypGL2JazaPnCiWibFr0gk5qelmVeiAE74cm
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -71,7 +71,8 @@ CREATE TYPE public.auditoria_entidad AS ENUM (
     'almacen',
     'sistema',
     'cuenta_corriente',
-    'liquidacion'
+    'liquidacion',
+    'api_key'
 );
 
 
@@ -1649,6 +1650,7 @@ CREATE TABLE public.envios (
     incidencia_reportada_en timestamp with time zone,
     incidencia_reportada_por uuid,
     cod_pago_pendiente boolean DEFAULT false NOT NULL,
+    api_idempotency_key text,
     CONSTRAINT envios_costo_check CHECK ((costo >= 0)),
     CONSTRAINT envios_i1_monto_cubre_tarifa CHECK (((eliminado = true) OR ((tipo_pago = 'anticipado'::public.tipo_pago) AND (monto_a_cobrar = (costo + costo_seguro))) OR ((tipo_pago = 'contra_entrega'::public.tipo_pago) AND (monto_a_cobrar >= (costo + costo_seguro))))),
     CONSTRAINT envios_monto_a_cobrar_check CHECK ((monto_a_cobrar >= 0)),
@@ -1705,6 +1707,13 @@ COMMENT ON COLUMN public.envios.tiene_incidencia IS 'Flag que el repartidor acti
 --
 
 COMMENT ON COLUMN public.envios.cod_pago_pendiente IS 'TRUE si un envio COD se marco entregado pero el registro del pago fallo (cobrado en la calle sin asiento). Cola de reconciliacion manual. Se limpia cuando el pago se registra correctamente.';
+
+
+--
+-- Name: COLUMN envios.api_idempotency_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.envios.api_idempotency_key IS 'Idempotency-Key del POST /api/v1/envios, unica por cliente. Un retry con la misma key devuelve el envio original en vez de crear otro. NULL en envios creados por portal/admin.';
 
 
 --
@@ -1982,6 +1991,58 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: api_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.api_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    cliente_id uuid NOT NULL,
+    nombre text NOT NULL,
+    key_hash text NOT NULL,
+    key_prefix text NOT NULL,
+    permisos text[] NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    revocada_en timestamp with time zone,
+    revocada_por uuid,
+    expira_en timestamp with time zone,
+    last_used_at timestamp with time zone,
+    creado_por uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT api_keys_nombre_no_vacio CHECK ((length(TRIM(BOTH FROM nombre)) >= 3)),
+    CONSTRAINT api_keys_permisos_validos CHECK (((cardinality(permisos) > 0) AND (permisos <@ ARRAY['crear_envios'::text, 'consultar_envios'::text, 'consultar_tarifas'::text])))
+);
+
+
+--
+-- Name: TABLE api_keys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.api_keys IS 'Credenciales del API Gateway v1 (Fase 1). Una key pertenece a UN cliente y solo opera sobre sus envios. key_hash es sha256 hex del plaintext (que se entrega una sola vez al crear); el middleware valida activo + no revocada + no expirada y anota last_used_at. Revocar es definitivo (activo=FALSE); rotar crea una key nueva y deja la vieja con expira_en = ahora + ventana.';
+
+
+--
+-- Name: COLUMN api_keys.key_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.api_keys.key_hash IS 'sha256 hex de la key completa. Nunca plaintext. El lookup del middleware es por igualdad sobre el indice unico.';
+
+
+--
+-- Name: COLUMN api_keys.key_prefix; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.api_keys.key_prefix IS 'Primeros 12 caracteres de la key (ge_live_ + 4). Unico dato mostrable en UI y logs para identificarla.';
+
+
+--
+-- Name: COLUMN api_keys.expira_en; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.api_keys.expira_en IS 'Fin de la ventana de rotacion. La key sigue operativa hasta esta fecha aunque exista una sucesora. NULL = sin expiracion.';
 
 
 --
@@ -2542,6 +2603,22 @@ CREATE TABLE public.usuarios (
 
 
 --
+-- Name: api_keys api_keys_key_hash_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_key_hash_unique UNIQUE (key_hash);
+
+
+--
+-- Name: api_keys api_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: auditoria_log auditoria_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2805,6 +2882,27 @@ ALTER TABLE ONLY public.usuarios
 
 
 --
+-- Name: idx_api_keys_cliente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_api_keys_cliente ON public.api_keys USING btree (cliente_id);
+
+
+--
+-- Name: idx_api_keys_creado_por; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_api_keys_creado_por ON public.api_keys USING btree (creado_por);
+
+
+--
+-- Name: idx_api_keys_revocada_por; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_api_keys_revocada_por ON public.api_keys USING btree (revocada_por) WHERE (revocada_por IS NOT NULL);
+
+
+--
 -- Name: idx_auditoria_accion; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2921,6 +3019,13 @@ CREATE UNIQUE INDEX idx_clientes_ruc_unique ON public.clientes USING btree (ruc)
 --
 
 CREATE INDEX idx_departamentos_orden ON public.departamentos USING btree (orden);
+
+
+--
+-- Name: idx_envios_api_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_envios_api_idempotency ON public.envios USING btree (cliente_id, api_idempotency_key) WHERE (api_idempotency_key IS NOT NULL);
 
 
 --
@@ -3344,6 +3449,13 @@ CREATE UNIQUE INDEX tarifas_ruta_servicio_unica ON public.tarifas USING btree (p
 
 
 --
+-- Name: api_keys trg_api_keys_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_api_keys_updated_at BEFORE UPDATE ON public.api_keys FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: ciudades trg_ciudades_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3530,6 +3642,30 @@ CREATE TRIGGER trg_tarifas_updated_at BEFORE UPDATE ON public.tarifas FOR EACH R
 --
 
 CREATE TRIGGER trg_usuarios_updated_at BEFORE UPDATE ON public.usuarios FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: api_keys api_keys_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id);
+
+
+--
+-- Name: api_keys api_keys_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id);
+
+
+--
+-- Name: api_keys api_keys_revocada_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_revocada_por_fkey FOREIGN KEY (revocada_por) REFERENCES public.usuarios(id);
 
 
 --
@@ -3837,6 +3973,12 @@ ALTER TABLE ONLY public.tarifas
 
 
 --
+-- Name: api_keys; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: auditoria_log; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3859,6 +4001,13 @@ ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.configuracion ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: api_keys deny_anon; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_anon ON public.api_keys TO anon USING (false) WITH CHECK (false);
+
 
 --
 -- Name: auditoria_log deny_anon; Type: POLICY; Schema: public; Owner: -
@@ -3977,6 +4126,13 @@ CREATE POLICY deny_anon ON public.usuarios TO anon USING (false) WITH CHECK (fal
 --
 
 CREATE POLICY deny_anon_notif_log ON public.notificaciones_log TO anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: api_keys deny_authenticated; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY deny_authenticated ON public.api_keys TO authenticated USING (false) WITH CHECK (false);
 
 
 --
@@ -4216,5 +4372,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lYsUonMDH2ozB6XmZkxVBwPophbPRWuM96U66skKBJPjFKi7hqvxUQVsMATn1Mw
+\unrestrict rd4efFyKNHsniRUYc3PCBaHaOPvdypGL2JazaPnCiWibFr0gk5qelmVeiAE74cm
 

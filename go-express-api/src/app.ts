@@ -20,6 +20,7 @@ import publicTarifaRoutes from './routes/public/tarifas.js';
 import publicCiudadRoutes from './routes/public/ciudades.js';
 import webhookRoutes from './routes/public/webhooks.js';
 import repartidorRoutes from './routes/repartidor/index.js';
+import v1Routes from './routes/v1/index.js';
 import authRoutes from './routes/auth.js';
 import sseRoutes from './routes/sse.js';
 
@@ -94,7 +95,7 @@ if (env.NODE_ENV !== 'test') {
         requestId: req.headers['x-request-id'],
       }),
       redact: {
-        paths: ['req.headers.authorization', 'req.headers.cookie'],
+        paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'],
         censor: '[REDACTED]',
       },
       customLogLevel: (_req: IncomingMessage, res: { statusCode: number }) => {
@@ -175,6 +176,9 @@ app.use('/api/admin', (req, res, next) => {
 }, adminRoutes);
 app.use('/api/cliente', clienteRoutes);
 app.use('/api/repartidor', repartidorRoutes);
+// API Gateway para terceros (X-API-Key). El generalLimiter de arriba le da un piso
+// anti-abuse por IP pre-auth; adentro rige apiKeyLimiter, keyed por key.
+app.use('/api/v1', v1Routes);
 app.use('/api/public/tarifas', publicTarifaRoutes);
 app.use('/api/public/ciudades', publicCiudadRoutes);
 app.use('/api/public/webhooks', webhookRoutes);

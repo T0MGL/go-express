@@ -54,10 +54,26 @@ async function ensureSeguroConfig(): Promise<void> {
   }
 }
 
+// generate_tracking_number() lee estos keys de configuracion; sin ellos devuelve NULL y
+// cualquier INSERT de envios muere contra el NOT NULL de tracking_number.
+async function ensureTrackingConfig(): Promise<void> {
+  const { error } = await supabase.from('configuracion').upsert(
+    [
+      { key: 'tracking_prefix', value: 'GE' },
+      { key: 'tracking_year', value: '2026' },
+    ],
+    { onConflict: 'key', ignoreDuplicates: false }
+  );
+
+  if (error) {
+    throw new Error(`Seed: failed to ensure tracking config: ${error.message}`);
+  }
+}
+
 export async function seedTestData(): Promise<TestData> {
   if (seeded) return seeded;
 
-  await Promise.all([ensureAdminUser(), ensureSeguroConfig()]);
+  await Promise.all([ensureAdminUser(), ensureSeguroConfig(), ensureTrackingConfig()]);
 
   const clienteId = crypto.randomUUID();
   const repartidorId = crypto.randomUUID();

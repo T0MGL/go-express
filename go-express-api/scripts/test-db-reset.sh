@@ -44,7 +44,7 @@ SQL
 # Migraciones posteriores al baseline, en orden estricto.
 for f in "$HERE"/sql/046_*.sql "$HERE"/sql/047_*.sql "$HERE"/sql/048_*.sql \
          "$HERE"/sql/049_*.sql "$HERE"/sql/050_*.sql "$HERE"/sql/051_*.sql \
-         "$HERE"/sql/052_*.sql; do
+         "$HERE"/sql/052_*.sql "$HERE"/sql/053_*.sql; do
   echo "  aplicando $(basename "$f")"
   run -f "$f"
 done
@@ -59,6 +59,12 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.configuracion (key, value)
 VALUES ('seguro_config', '{"tasaAdicional":0.1,"umbralIncluido":200000,"minimoAdicional":5000,"maximoAsegurable":50000000}'::jsonb)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+-- generate_tracking_number() lee estos keys; sin ellos devuelve NULL y todo INSERT de
+-- envios revienta contra el NOT NULL de tracking_number. Espejo de prod (GE + anio).
+INSERT INTO public.configuracion (key, value)
+VALUES ('tracking_prefix', '"GE"'::jsonb), ('tracking_year', '"2026"'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 INSERT INTO public.tarifas (origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, eliminado, creado_por)

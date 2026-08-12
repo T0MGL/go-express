@@ -216,7 +216,7 @@ function triggerNotification(event: NotificationEvent, envio: Envio, previousEst
 
 // Explicit column lists
 
-const ENVIO_COLUMNS = [
+export const ENVIO_COLUMNS = [
   'id', 'tracking_number', 'cliente_id', 'cliente_nombre', 'codigo_referencia',
   'origen', 'destino',
   'destinatario_nombre', 'destinatario_direccion', 'destinatario_telefono',

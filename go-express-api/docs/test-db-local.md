@@ -48,5 +48,7 @@ INVARIANT_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres n
   (con nota) cuando el schema no las tiene aplicadas, asi la misma suite corre contra prod
   antes del deploy de las migraciones sin falsos rojos.
 - Seed y config que los asserts asumen: `seguro_config` espejo de prod (tasa 0.1, umbral
-  200000), tarifa Asunción -> Ciudad del Este (30000 Gs, peso base 3). Si cambian en prod,
-  actualizar `scripts/test-db-reset.sh` y `tests/setup/seed.ts`.
+  200000), tarifa Asunción -> Ciudad del Este (30000 Gs, peso base 3), y `tracking_prefix`
+  ("GE") + `tracking_year` ("2026") en configuracion, sin los cuales
+  `generate_tracking_number()` devuelve NULL y todo INSERT de envios revienta. Si cambian
+  en prod, actualizar `scripts/test-db-reset.sh` y `tests/setup/seed.ts`.

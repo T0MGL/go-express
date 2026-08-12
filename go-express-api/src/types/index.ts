@@ -50,9 +50,13 @@ export type AuditoriaEntidad =
   | 'usuario'
   | 'almacen'
   | 'sistema'
-  | 'liquidacion';
+  | 'liquidacion'
+  | 'api_key';
 
 export type EstadoLiquidacion = 'pendiente' | 'cerrada' | 'con_diferencia';
+
+// Permisos del API Gateway v1. Espejo del CHECK api_keys_permisos_validos (sql/053).
+export type ApiKeyPermiso = 'crear_envios' | 'consultar_envios' | 'consultar_tarifas';
 
 // DB Row types (snake_case, match PostgreSQL column names exactly)
 
@@ -95,6 +99,39 @@ export interface ClienteRow {
   motivo_eliminacion: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ApiKeyRow {
+  id: string;
+  cliente_id: string;
+  nombre: string;
+  key_hash: string;
+  key_prefix: string;
+  permisos: ApiKeyPermiso[];
+  activo: boolean;
+  revocada_en: string | null;
+  revocada_por: string | null;
+  expira_en: string | null;
+  last_used_at: string | null;
+  creado_por: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Shape que ve el panel admin. key_hash jamas sale del backend; el plaintext solo
+// viaja en el response de crear/rotar y no forma parte de este tipo.
+export interface ApiKey {
+  id: string;
+  clienteId: string;
+  clienteNombre: string | null;
+  nombre: string;
+  keyPrefix: string;
+  permisos: ApiKeyPermiso[];
+  activo: boolean;
+  revocadaEn: string | null;
+  expiraEn: string | null;
+  lastUsedAt: string | null;
+  creadoEn: string;
 }
 
 export interface EnvioRow {

@@ -50,10 +50,7 @@ export type AuditoriaEntidad =
   | 'usuario'
   | 'almacen'
   | 'sistema'
-  | 'cuenta_corriente'
   | 'liquidacion';
-
-export type TipoMovimientoCc = 'debito' | 'credito' | 'ajuste' | 'nota_credito' | 'reverso';
 
 export type EstadoLiquidacion = 'pendiente' | 'cerrada' | 'con_diferencia';
 
@@ -693,43 +690,6 @@ export interface PagoStats {
   enviosPendientesCobro: number;
 }
 
-export interface MovimientoCcRow {
-  id: string;
-  cliente_id: string;
-  envio_id: string | null;
-  pago_id: string | null;
-  tipo: TipoMovimientoCc;
-  monto: number;
-  saldo_posterior: number;
-  descripcion: string;
-  creado_por: string;
-  ip_address: string | null;
-  user_agent: string | null;
-  created_at: string;
-}
-
-export interface MovimientoCc {
-  id: string;
-  clienteId: string;
-  envioId: string | null;
-  pagoId: string | null;
-  tipo: TipoMovimientoCc;
-  monto: number;
-  saldoPosterior: number;
-  descripcion: string;
-  creadoPor: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  creadoEn: string;
-}
-
-export interface SaldoCuentaCorriente {
-  saldo: number;
-  limiteCredito: number;
-  disponible: number | null;
-  ultimaActualizacion: string | null;
-}
-
 export interface LiquidacionRepartidorRow {
   id: string;
   repartidor_id: string;
@@ -745,6 +705,30 @@ export interface LiquidacionRepartidorRow {
   creado_por: string;
   created_at: string;
   updated_at: string;
+  tarifa_retenida: number | null;
+  payout_tienda: number | null;
+}
+
+export type TipoAjusteLiquidacion = 'cobranza_repartidor' | 'sobrante_a_investigar';
+
+export interface LiquidacionAjusteRow {
+  id: string;
+  liquidacion_id: string;
+  tipo: TipoAjusteLiquidacion;
+  monto: number;
+  motivo: string;
+  creado_por: string;
+  created_at: string;
+}
+
+export interface LiquidacionAjuste {
+  id: string;
+  liquidacionId: string;
+  tipo: TipoAjusteLiquidacion;
+  monto: number;
+  motivo: string;
+  creadoPor: string;
+  creadoEn: string;
 }
 
 export interface LiquidacionEnvioRow {
@@ -772,6 +756,8 @@ export interface LiquidacionRepartidor {
   creadoPor: string;
   creadoEn: string;
   updatedAt: string;
+  tarifaRetenida: number | null;
+  payoutTienda: number | null;
   cantidadEnvios?: number;
 }
 

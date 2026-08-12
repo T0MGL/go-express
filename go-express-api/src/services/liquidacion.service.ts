@@ -2,11 +2,14 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { rpcWithRetry } from '../lib/rpcRetry.js';
 import type {
   LiquidacionRepartidorRow,
   LiquidacionEnvioRow,
   LiquidacionRepartidor,
   LiquidacionEnvio,
+  LiquidacionAjusteRow,
+  LiquidacionAjuste,
   PaginatedResponse,
 } from '../types/index.js';
 import type {
@@ -31,6 +34,18 @@ const LIQUIDACION_COLUMNS = [
   'creado_por',
   'created_at',
   'updated_at',
+  'tarifa_retenida',
+  'payout_tienda',
+].join(', ');
+
+const AJUSTE_COLUMNS = [
+  'id',
+  'liquidacion_id',
+  'tipo',
+  'monto',
+  'motivo',
+  'creado_por',
+  'created_at',
 ].join(', ');
 
 const LIQUIDACION_ENVIO_COLUMNS = [
@@ -58,6 +73,20 @@ function mapLiquidacionRowToApi(row: LiquidacionRepartidorRow): LiquidacionRepar
     creadoPor: row.creado_por,
     creadoEn: row.created_at,
     updatedAt: row.updated_at,
+    tarifaRetenida: row.tarifa_retenida,
+    payoutTienda: row.payout_tienda,
+  };
+}
+
+function mapAjusteRow(row: LiquidacionAjusteRow): LiquidacionAjuste {
+  return {
+    id: row.id,
+    liquidacionId: row.liquidacion_id,
+    tipo: row.tipo,
+    monto: row.monto,
+    motivo: row.motivo,
+    creadoPor: row.creado_por,
+    creadoEn: row.created_at,
   };
 }
 
@@ -178,7 +207,7 @@ class LiquidacionService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<LiquidacionRepartidor> {
-    const { data, error } = await supabase.rpc('crear_liquidacion', {
+    const { data, error } = await rpcWithRetry('crear_liquidacion', () => supabase.rpc('crear_liquidacion', {
       p_repartidor_id: input.repartidorId,
       p_fecha_desde: input.fechaDesde,
       p_fecha_hasta: input.fechaHasta,
@@ -186,7 +215,7 @@ class LiquidacionService {
       p_usuario_nombre: usuarioNombre,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapLiquidacionRpcError(error, { repartidorId: input.repartidorId });
@@ -210,7 +239,7 @@ class LiquidacionService {
   ): Promise<LiquidacionRepartidor> {
     const notas = input.notas && input.notas.length > 0 ? input.notas : null;
 
-    const { data, error } = await supabase.rpc('cerrar_liquidacion', {
+    const { data, error } = await rpcWithRetry('cerrar_liquidacion', () => supabase.rpc('cerrar_liquidacion', {
       p_liquidacion_id: id,
       p_monto_recibido: input.montoRecibido,
       p_notas: notas,
@@ -218,7 +247,7 @@ class LiquidacionService {
       p_usuario_nombre: usuarioNombre,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapLiquidacionRpcError(error, { liquidacionId: id });
@@ -257,14 +286,14 @@ class LiquidacionService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<LiquidacionRepartidor> {
-    const { data, error } = await supabase.rpc('reabrir_liquidacion', {
+    const { data, error } = await rpcWithRetry('reabrir_liquidacion', () => supabase.rpc('reabrir_liquidacion', {
       p_liquidacion_id: id,
       p_motivo: input.motivo,
       p_actor: actorId,
       p_usuario_nombre: usuarioNombre,
       p_ip: ipAddress ?? null,
       p_user_agent: userAgent ?? null,
-    });
+    }));
 
     if (error) {
       throw mapLiquidacionRpcError(error, { liquidacionId: id });
@@ -355,10 +384,10 @@ class LiquidacionService {
     };
   }
 
-  async getById(id: string): Promise<LiquidacionRepartidor & { envios: LiquidacionEnvio[] }> {
+  async getById(id: string): Promise<LiquidacionRepartidor & { envios: LiquidacionEnvio[]; ajustes: LiquidacionAjuste[] }> {
     const WITH_REPARTIDOR = `${LIQUIDACION_COLUMNS}, repartidores!inner(nombre)`;
 
-    const [headResult, enviosResult] = await Promise.all([
+    const [headResult, enviosResult, ajustesResult] = await Promise.all([
       supabase
         .from('liquidaciones_repartidor')
         .select(WITH_REPARTIDOR)
@@ -370,6 +399,12 @@ class LiquidacionService {
           `${LIQUIDACION_ENVIO_COLUMNS}, envios(tracking_number, cliente_nombre, destinatario_nombre, fecha_entrega_real)`,
         )
         .eq('liquidacion_id', id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('liquidacion_ajustes')
+        .select(AJUSTE_COLUMNS)
+        .eq('liquidacion_id', id)
+        .eq('eliminado', false)
         .order('created_at', { ascending: true }),
     ]);
 
@@ -393,6 +428,11 @@ class LiquidacionService {
       throw new AppError('Error fetching liquidacion envios', 500, 'DB_ERROR');
     }
 
+    if (ajustesResult.error) {
+      logger.error({ err: ajustesResult.error, id }, 'Error fetching liquidacion_ajustes');
+      throw new AppError('Error fetching liquidacion ajustes', 500, 'DB_ERROR');
+    }
+
     const envioRows = (enviosResult.data ?? []) as unknown as (LiquidacionEnvioRow & {
       envios?: {
         tracking_number?: string;
@@ -403,11 +443,13 @@ class LiquidacionService {
     })[];
 
     const envios = envioRows.map(mapLiquidacionEnvioRow);
+    const ajustes = ((ajustesResult.data ?? []) as unknown as LiquidacionAjusteRow[]).map(mapAjusteRow);
 
     return {
       ...liquidacion,
       cantidadEnvios: envios.length,
       envios,
+      ajustes,
     };
   }
 

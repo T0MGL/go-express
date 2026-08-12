@@ -14,8 +14,9 @@ const ADMIN_USER_ID = '00000000-0000-4000-a000-000000000001';
 
 const supabaseUrl = process.env['SUPABASE_URL'];
 const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+const skipSeed = process.env['SKIP_TEST_SEED'] === 'true';
 
-if (supabaseUrl && serviceRoleKey) {
+if (!skipSeed && supabaseUrl && serviceRoleKey) {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

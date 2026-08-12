@@ -248,7 +248,8 @@ router.get(
 //   - origen desde cliente.ciudad (fallback 'Asuncion')
 //   - destino desde destinatarioCiudad o destinatarioDepartamento
 //   - costo + tarifaId buscando la tarifa activa que matchee origen/destino (si no hay, costo=0 y admin lo setea)
-//   - tipoPago = 'cuenta_corriente' (cliente portal siempre factura a cuenta)
+//   - tipoPago = 'anticipado' (el repartidor cobra la tarifa en efectivo al entregar;
+//     monto_a_cobrar = costo + seguro por I1)
 
 router.post(
   '/',

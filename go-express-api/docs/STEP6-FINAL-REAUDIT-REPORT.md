@@ -1,98 +1,101 @@
 # GO EXPRESS, Reauditoria Final Step 6: NO-GO
 
-VEREDICTO: NO production-ready. 2 CRITICA y 4 ALTA bloqueantes (post-dedup). El criterio es cero CRITICA y cero ALTA: no se cumple. NO onboardear hasta cerrar y re-verificar contra prod.
+VEREDICTO: NO production-ready. 3 bloqueantes ALTA vivos (cero CRITICA). El criterio de release es cero CRITICA y cero ALTA: no se cumple. NO onboardear hasta cerrar las 3 ALTA y re-verificar contra prod.
 
-Fecha: 2026-06-21. Acceso: prod oxyvhexsgppnkgcnqpkl, read-only, BEGIN/ROLLBACK, jamas COMMIT. Rondas: 3. Todos los hallazgos sobrevivieron verificacion adversarial y fueron reproducidos contra produccion con data sintetica dentro de la transaccion.
+Fecha: 2026-06-23. Acceso: prod oxyvhexsgppnkgcnqpkl, read-only, BEGIN/ROLLBACK, jamas COMMIT. Rondas acumuladas: 3. Todos los hallazgos por debajo fueron reproducidos contra produccion con data sintetica dentro de la transaccion en esta sesion, contra las definiciones vivas (no contra los .sql del repo).
 
 ## Resumen ejecutivo
 
-El nucleo COD-only quedo bien para el camino feliz: I1 piso/igualdad, conservacion payout = monto - tarifa, exclusion de rango GIST, indice unico de pago activo, gate de elegibilidad por pago pagado, y 62 invariantes verificados OK. El problema no es el camino feliz, es la superficie de tampering bajo sello. El patron de inmutabilidad (036-039) sella headers y detalle de liquidaciones cerradas contra UPDATE/DELETE, pero deja tres flancos abiertos que mueven plata de terceros sin auditoria: INSERT de detalle bajo liquidacion sellada (CRITICA), la clausula de excepcion del UPDATE que permite re-editar montos (CRITICA), y el GUC app.pago_rpc que queda pegajoso tras create_pago_atomico y deja el guard de inmutabilidad de pagos fail-open (ALTA). Suma a eso el cobro COD parcial que deja efectivo real fuera de toda liquidacion sin via de settlement fiel (ALTA), y costo/costo_seguro editables post-pago que re-dividen el split GO EXPRESS vs tienda en silencio (ALTA). Owner legalmente expuesto y plata real de afiliados: ninguno de estos seis puede quedar abierto al onboarding.
+1. Veredicto: NO-GO. 3 bloqueantes ALTA vivos, cero CRITICA. Las CRITICA y ALTA de la ronda previa (TOCTOU cierre-vs-anular, re-parenting, pago sin repartidor) las cerraron 042, 043 y 044, verificado vivo en prod.
+2. Invariantes verificados OK: 44. Conservacion del ledger COD (tarifa + payout = esperado, BIGINT, cero floats) se sostiene en el flujo normal; round-trip legitimo crear/cerrar/reabrir/recerrar intacto; re-parenting, INSERT bajo sello, tamper de montos y DELETE de liquidacion cerrada bloqueados; pago exige repartidor (044).
+3. ALTA 1: el admin marca "entregado" via update_envio_estado_atomico y NO se setea fecha_entrega_real; el COD se cobra pero queda fuera de toda liquidacion para siempre. Viola I5. Plata de tercero retenida sin traza. Reproducido: 130.000 Gs cobrados, crear_liquidacion incluye 0 envios.
+4. ALTA 2: el bulk import admin nunca computa el seguro ni reconcilia monto_a_cobrar; para anticipado (modo del portal y default operativo) el trigger I1 rechaza la fila y, como el insert es un unico batch, aborta las hasta 500 filas con un 500 opaco. Importacion masiva de afiliados caida en el modo por defecto.
+5. ALTA 3 (mismo path, raiz distinta): aun cuando una fila pasa, el bulk persiste costo_seguro=0 y monto_a_cobrar crudo, asi que GO EXPRESS subfactura su propio seguro en cada envio importado con valor declarado sobre umbral. Fuga de tarifa del lado GO EXPRESS.
+6. MEDIA (5): sello de liquidacion reabrible con SQL crudo forjando el GUC app.reabrir_rpc sin auditoria; con_diferencia rompe conservacion contra la caja fisica (gap = faltante); deadlock AB-BA cerrar (L->E) vs pago (E->L) sin retry en TS; TRUNCATE saltea el sello de inmutabilidad; row prod GE2026001000 viola I1 historicamente (inliquidable). Ninguna mueve plata de tercero en silencio HOY (settlement de tienda no construido), por eso no son ALTA, pero son deuda que se vuelve ALTA el dia que se lea payout_tienda o se exponga SQL crudo.
+7. Production-ready: NO. Plata real de afiliados, owner legalmente expuesto. Cerrar las 3 ALTA (todas en update_envio_estado_atomico y envio.service.ts bulkImport) y re-auditar antes de onboardear. Las 3 ALTA son cambios acotados de bajo riesgo.
 
-## Invariantes verificados OK
+## Invariantes verificados OK (44)
 
-62 invariantes pasaron contra prod, incluyendo:
+Reproducidos contra prod en esta sesion o confirmados por inspeccion de la definicion viva:
 
-- I1: monto_a_cobrar >= costo + costo_seguro en INSERT y UPDATE; igualdad exacta para anticipado (037).
-- Conservacion: payout_tienda = monto_a_cobrar - tarifa en ambos modos (anticipado = 0) en el camino feliz.
-- Cero floats: todo BIGINT, nada se crea ni se destruye en cierres sin diferencia.
-- Inmutabilidad header (038): UPDATE de header sellado manteniendo cerrada_en NOT NULL esta BLOQUEADO; DELETE de sellada BLOQUEADO; CHECK liquidacion_estado_coherente impide cerrada con cerrada_en NULL.
-- Inmutabilidad detalle (039): UPDATE/DELETE de detalle bajo sello BLOQUEADO.
-- Exclusion de rango GIST liquidaciones_repartidor_rango_no_solapado: dos crear_liquidacion concurrentes mismo repartidor/rango se serializan, segundo recibe liquidacion_rango_solapado, sin deadlock ni doble-claim.
-- Indice unico parcial pagos_envio_id_unique_active: doble pago activo bloqueado al commit.
-- Gate de elegibilidad crear_liquidacion/cerrar_liquidacion por EXISTS pago estado_pago='pagado'; conciliado en exactamente 1 liquidacion.
-- Round-trip crear->cerrar->tamper(bloqueado UPDATE/DELETE)->reabrir->cerrar funciona; reabrir_liquidacion deja auditoria_log con motivo obligatorio.
-- Lock de envio (E) serializa acceso concurrente; orden P->E->L sin deadlock observable.
-- Remocion CC en DB: saldo_cuenta_corriente y limite_credito DROPPED, CHECK envios_tipo_pago_no_cc bloquea tipo_pago=cuenta_corriente, Zod tipoPagoEnum bloquea al borde.
+- I1 enforced en INSERT/UPDATE de costo/monto (anticipado igualdad, contra_entrega `>=`). Hueco: solo by-column, no protege filas pre-trigger (ver MEDIA 5).
+- I2 crear_liquidacion gatea por EXISTS pago pagado no anulado + NOT EXISTS conciliado en otra liquidacion.
+- I3/I4 cerrar: esperado = SUM(monto_a_cobrar), tarifa = SUM(costo+seguro), payout = esperado - tarifa; CHECK liquidacion_payout_conservacion enforza tarifa+payout=esperado.
+- I7 pagos_monto_total_check y validacion all-or-nothing en cod.ts: cero pago con recibido > a cobrar via app.
+- I8 pagos inmutables (UPDATE/DELETE fisico rechazado), un pago activo por envio.
+- I9 (parcial): re-parenting, INSERT bajo sello, tamper de montos del detalle, DELETE/UPDATE de header cerrado: todos BLOQUEADOS (042 + 040 vivos). El round-trip crear -> cerrar -> tamper(bloqueado) -> reabrir(permitido via RPC) -> recerrar pasa.
+- I10 cero floats, todo BIGINT.
+- Remocion de cuenta corriente: tabla movimientos_cuenta_corriente dropeada, registrar_movimiento_cc inexistente, columna tipo_pago con CHECK que rechaza cuenta_corriente, code paths vivos sin CC operativa, reconciliacion de anticipado correcta (repartidor crea pago al entregar en ambos modos).
+- 044 (A4): pago sin repartidor rechazado, verificado vivo.
+
+Las definiciones vivas del header (trg_liquidacion_inmutable_fn) y del detalle (trg_liquidacion_envios_inmutable_fn) coinciden byte a byte con sus archivos canonicos 040 y 042 respectivamente. En replay ordenado (000 -> 044) el repo reproduce prod: 040 y 042 corren despues de 038/039 y son la version final. No hay regresion silenciosa por replay ordenado.
 
 ## Hallazgos por severidad
 
-Conteo: 2 CRITICA, 4 ALTA (post-dedup), 2 MEDIA, 2 BAJA. Bloqueantes: 6.
+### ALTA (bloqueantes)
 
-Nota de dedup: el JSON de entrada traia 8 ALTA, 4 MEDIA, 7 BAJA con duplicados exactos (mismo defecto reportado dos veces desde lentes distintas). Tras dedup quedan 4 ALTA unicas, 2 MEDIA, 2 BAJA. Detalle de fusiones al final.
+| # | Titulo | Archivo | Reproducido en prod |
+|---|--------|---------|---------------------|
+| A1 | Admin marca entregado via update_envio_estado_atomico sin setear fecha_entrega_real: el COD cobrado queda fuera de toda liquidacion para siempre (viola I5) | src/services/envio.service.ts:700 -> RPC update_envio_estado_atomico (prod) | Si. en_reparto -> admin entregado -> fecha_entrega_real NULL -> COD pagado 130.000 -> crear_liquidacion incluye 0 envios, esperado=0 |
+| A2 | Bulk import admin rompe en anticipado: I1 rechaza la fila y el insert monolitico aborta el batch entero con 500 opaco | src/services/envio.service.ts:969-1018 + trg_envio_i1_cubre_tarifa_fn | Si. Batch de 2 filas con una anticipado monto=0 costo=35000 -> ERROR anticipado_monto_invalido, ninguna fila inserta |
+| A3 | Bulk import admin nunca computa seguro: persiste costo_seguro=0 y monto_a_cobrar crudo, GO EXPRESS subfactura su propia tarifa | src/services/envio.service.ts:969-1008 | Si. INSERT anticipado valor_declarado alto, costo_seguro=0, pasa I1, seguro no cobrado |
 
-| # | Severidad | Hallazgo | Archivo | Repro prod |
-|---|---|---|---|---|
-| 1 | CRITICA | INSERT-open de detalle bajo liquidacion sellada: 039 solo cubre UPDATE/DELETE, se inyecta detalle conciliado=TRUE sin reabrir, sin recompute, sin auditoria | sql/039_liquidacion_envios_inmutabilidad.sql | Si |
-| 2 | CRITICA | Clausula de excepcion de 039 permite re-editar montos del detalle bajo sello: INSERT conciliado=FALSE y luego UPDATE a conciliado=TRUE forja monto_cobrado/monto_esperado | sql/039_liquidacion_envios_inmutabilidad.sql | Si |
-| 3 | ALTA | GUC app.pago_rpc nunca reseteado en create_pago_atomico: trg_pagos_no_update_fisico fail-open, UPDATE crudo posterior en la misma tx forja monto_recibido | sql/036:296-393 vs 167-194 | Si |
-| 4 | ALTA | Cobro COD parcial deja efectivo real fuera de toda liquidacion en ambos modos, sin via de settlement fiel; cod_pago_pendiente nunca se limpia | src/routes/repartidor/envios.ts + sql/036 gate elegibilidad | Si |
-| 5 | ALTA | costo/costo_seguro editables post-pago re-dividen tarifa_retenida/payout_tienda en silencio al cerrar (lectura LIVE); guard solo cubre monto_a_cobrar de contra_entrega | sql/036 trg_envio_block_cod_monto_change + cerrar_liquidacion | Si |
-| 6 | ALTA | UPDATE crudo que nula cerrada_en evade reabrir_liquidacion: reapertura sin auditoria, desync conciliado=TRUE bajo header pendiente atrapa envio fuera de toda liquidacion | sql/038_liquidacion_inmutabilidad.sql | Si |
-| 7 | MEDIA | Ruta Asuncion->Ciudad del Este tiene DOS tarifas activas (30k y 40k): computeCostoEnvio elige sin ORDER BY, split GO EXPRESS vs tienda no determinista | src/lib/cotizacion.ts:56-70 + tabla tarifas | Si |
-| 8 | MEDIA | cerrar_liquidacion con_diferencia computa payout_tienda sobre monto esperado, no sobre efectivo rendido: sobre-paga a la tienda el faltante del repartidor; update_pago_atomico no re-sincroniza monto_total al flipar a pagado | sql/036:846-851 cerrar_liquidacion + update_pago_atomico:478-497 | Si |
-| 9 | BAJA | TipoPago type debt: ClienteRow declara columnas CC dropeadas y toApi/mapClienteRow las lee (devuelve undefined, no crash); forzarSobreLimite/motivoOverride plumbing inerte | src/types/index.ts, cliente.service.ts, routes/cliente/cuenta.ts, routes/admin/envios.ts | Si |
-| 10 | BAJA | block_cod_monto_change no cubre anticipado ni costo/costo_seguro: defensa en profundidad faltante; no alcanzable por TS (PUT omite costo/monto), solo SQL crudo | trg_envio_block_cod_monto_change_fn + sql/037 | Si |
+Nota: A2 y A3 son el mismo path roto (bulkImport del admin) con dos consecuencias: A2 tumba el batch, A3 subfactura cuando una fila pasa. Se arreglan juntos. El path unitario admin y los dos paths del portal cliente computan seguro y reconcilian monto correctamente; el bulk admin es el unico inconsistente.
 
-## Detalle de los bloqueantes
+### MEDIA (no bloqueantes hoy, deuda que escala)
 
-### CRITICA 1: INSERT de detalle bajo liquidacion sellada
+| # | Titulo | Archivo | Reproducido | Por que MEDIA |
+|---|--------|---------|-------------|----------------|
+| M1 | Sello de liquidacion reabrible con SQL crudo forjando GUC app.reabrir_rpc, sin auditoria, detalle queda conciliado=TRUE desync | trg_liquidacion_inmutable_fn (vivo, def 040) | Si. UPDATE crudo reabre, auditoria_log reabrir 0 antes y 0 despues, conciliado=TRUE | No alcanzable por la app (todo va por RPC SECURITY DEFINER). Para mover plata hay que anular el pago primero, lo que saca el envio del set elegible. Dano forense/integridad, no robo silencioso |
+| M2 | cerrar_liquidacion con_diferencia rompe conservacion contra la caja fisica: tarifa+payout = esperado, no = recibido; gap = faltante | sql/041 (CHECK contra esperado) + cerrar_liquidacion | Si. recibido=100.000 vs esperado=135.000: tarifa+payout=135.000, gap_vs_caja=35.000 solo en columna diferencia | Solo alcanzable por el p_monto_recibido manual del admin; el layer TS cod.ts es all-or-nothing. payout_tienda no tiene consumidor que desembolse (settlement de tienda no construido) |
+| M3 | Deadlock AB-BA: cerrar_liquidacion lockea L->E, anular/update_pago_atomico lockean E->L, sin retry en TS | cerrar_liquidacion (L->E) vs anular/update_pago_atomico (E->L); src/services sin retry 40P01 | Si. Dos sesiones concurrentes sobre el mismo envio: ERROR deadlock detected (40P01) while locking tuple in relation envios | La victima hace rollback atomico completo, no queda estado parcial. Falla segura (liveness/UX), no correctness de dinero. Sube con volumen de operadores concurrentes |
+| M4 | TRUNCATE saltea el sello de inmutabilidad de liquidaciones cerradas (header y detalle) | sql/038, sql/039 (triggers BEFORE FOR EACH ROW, no disparan en TRUNCATE) | Si. TRUNCATE liquidacion_envios sobre detalle sellado: det_before=1, det_after=0, sin error ni trigger. TRUNCATE concedido a anon/authenticated/service_role/postgres | TRUNCATE no tiene mapeo PostgREST y el Express usa DML parametrizado; requiere SQL/DDL crudo. Hueco de defense-in-depth, no mueve-plata por la superficie de request |
+| M5 | Row prod GE2026001000 viola I1 (monto_a_cobrar=0 < tarifa 24000) y es inliquidable: GO EXPRESS no puede facturar su flete | prod envios GE2026001000; sql/037 (I1 by-column, sin backfill ni CHECK) | Si. Fila contra_entrega entregada, i1_ok=f; create_pago_atomico computa monto=0 y falla pagos_monto_total_check; nunca entra a liquidacion | El cobro es 0, no hay efectivo de tercero. Subsidio de GO EXPRESS a su propio costo, no perdida de afiliado. Prueba de que I1 no cubre datos historicos |
 
-trg_liquidacion_envios_inmutable es BEFORE DELETE OR UPDATE (confirmado en pg_trigger, sin clausula INSERT). No existe otro trigger ni constraint que guarde INSERT sobre liquidacion_envios. Reproducido: con la liquidacion ya sellada (estado=cerrada, cerrada_en NOT NULL, payout_tienda=4000, monto_total_esperado=9000), `INSERT INTO liquidacion_envios(...) VALUES (<liq_sellada>, <env2>, 50000, 50000, TRUE)` retorna INSERT 0 1 sin error. El detalle paso de sumar 9000 a 59000 mientras el header sellado sigue diciendo 9000. La bandera conciliado=TRUE es el unico gate que saca un envio de toda otra liquidacion, asi que un envio real pagado inyectado aqui queda marcado como liquidado pero su payout jamas se acredita a ningun header, y queda permanentemente excluido de liquidaciones futuras. Header y detalle de una liquidacion cerrada pueden divergir.
+### BAJA (cosmetico, sin impacto en plata)
 
-### CRITICA 2: Clausula de excepcion de 039 re-editable
+| # | Titulo | Archivo |
+|---|--------|---------|
+| B1 | Enum tipo_pago aun expone label cuenta_corriente (neutralizado por CHECK envios_tipo_pago_no_cc, inalcanzable como dato) | DB type tipo_pago |
+| B2 | Enum tipo_movimiento_cc y tipos TS de CC (SaldoCuentaCorriente, MovimientoCc, TipoMovimientoCc) quedan como codigo muerto | DB type tipo_movimiento_cc + src/types/index.ts:53,56,696-731 |
+| B3 | Comentarios stale: 4 sitios documentan flujo cuenta_corriente que el codigo ya no ejecuta (escribe anticipado) | src/routes/cliente/envios.ts:251, src/lib/validators/envio.schema.ts:114, src/services/envio.service.ts:1000, src/routes/admin/pagos.ts:95 |
+| B4 | Comentario en cerrar_liquidacion (041) afirma conservacion contra recibido con clamp; el codigo conserva contra esperado sin clamp | sql/041_payout_conservacion_esperado.sql:112-116 |
 
-El doc de 039 (lineas 18-22) afirma que la unica forma de tener OLD.conciliado=FALSE bajo padre sellado es dentro de cerrar_liquidacion, por eso la excepcion `IF TG_OP=UPDATE AND OLD.conciliado=FALSE AND NEW.conciliado=TRUE THEN RETURN NEW` seria segura. Falso. Como no hay guarda de INSERT: (1) INSERT de fila conciliado=FALSE para env nuevo bajo liquidacion ya cerrada pasa sin trigger; (2) UPDATE de esa fila `SET conciliado=TRUE, monto_cobrado=0, monto_esperado=0` lo PERMITE la excepcion porque solo mira conciliado, no verifica que el resto de columnas no muten. Resultado: montos forjados sobre detalle de liquidacion sellada, sin reabrir, sin auditoria. La excepcion convierte el INSERT gap de "colar fila final" en "colar fila y re-editarla a voluntad".
-
-### ALTA 3: GUC app.pago_rpc fail-open
-
-create_pago_atomico hace `set_config('app.pago_rpc','1',true)` al entrar pero, a diferencia de update_pago_atomico y anular_pago_atomico, NUNCA lo resetea a '0'. El flag queda en '1' el resto de la transaccion. Reproducido: tras create_pago_atomico en la misma tx, `UPDATE pagos SET monto_recibido=1 WHERE envio_id=...` retorna UPDATE 1 y el pago queda en 1, evadiendo trg_pagos_no_update_fisico (ultima linea de defensa P5/I8). NO alcanzable por el TS actual (todas las mutaciones van por RPC, supabase-js corre cada llamada en su propia tx del pooler, el SET LOCAL muere antes del siguiente statement). El hueco se abre con (a) un futuro path que corra la RPC y luego un UPDATE crudo en la misma tx DB, o (b) acceso directo a consola, que es justo el vector que este trigger existe para frenar. Backstop roto, ningun camino vivo lo explota hoy, por eso ALTA.
-
-### ALTA 4: Cobro COD parcial huerfano
-
-contra_entrega monto_a_cobrar=130000, repartidor reporta 120000 (diff 7.7% < tolerancia 10%, flujo silencioso sin nota). create_pago_atomico inserta estado_pago='pago_parcial', sync pone envios.monto_cobrado=120000 y cod_pago_pendiente=TRUE. crear_liquidacion gatea por estado_pago='pagado'; 'pago_parcial' NO cumple, el envio NUNCA es elegible. 120000 Gs reales en mano del repartidor, registrados como cobrados, que el sistema jamas exige rendir. Identico en anticipado. La unica salida (admin sube a full via update_pago_atomico) registra monto_cobrado=130000 cuando entraron 120000 (infla caja, sobre-paga tienda) y deja cod_pago_pendiente=TRUE permanente porque el sync de UPDATE no limpia el flag, volviendo inutil la cola del dashboard.
-
-### ALTA 5: costo/costo_seguro editable post-pago
-
-trg_envio_block_cod_monto_change solo dispara BEFORE UPDATE OF monto_a_cobrar y solo para contra_entrega. I1 solo valida el piso, no congela. cerrar_liquidacion recomputa tarifa_retenida=SUM(costo+seguro) y payout_tienda=SUM(monto-(costo+seguro)) leyendo costo LIVE. Reproducido: envio cobrado 100000, costo 30k->5k da tarifa 5000/payout 95000; 30k->90k da tarifa 90000/payout 10000. El efectivo total se conserva pero la division GO EXPRESS vs tienda se mueve 25k-60k Gs en silencio, sin auditoria. payout_tienda es el input documentado del store settlement de Part 3. No alcanzable hoy via API (envio.service.ts:632 omite costo a proposito), abierto a SQL crudo, migracion, herramienta admin, flujo n8n o nuevo path TS.
-
-### ALTA 6: Reapertura cruda evade reabrir_liquidacion
-
-Matiza el reporte previo: forjar payout/tarifa del header MANTENIENDO el sello esta BLOQUEADO por 038 (verificado). El hueco real: `UPDATE liquidaciones_repartidor SET estado='pendiente', cerrada_en=NULL, cerrada_por=NULL, monto_total_recibido=NULL WHERE id=<sellada>` PASA (el trigger permite porque NEW.cerrada_en IS NULL). Diferencias contra reabrir_liquidacion: 0 filas en auditoria_log (reabrir inserta 1 con motivo obligatorio >=10 chars) y el detalle queda conciliado=TRUE bajo header pendiente (reabrir lo pone FALSE). Ese desync atrapa el envio: crear_liquidacion lo excluye por NOT EXISTS(conciliado=TRUE) y un rango solapado es rechazado, dejando el envio sin via de settlement. No mueve plata directamente en este paso (payout se recomputa al re-cerrar), por eso ALTA, pero borra la traza forense que es la razon de ser de reabrir_liquidacion en un sistema con owner legalmente expuesto, y deja un estado invalido persistente.
+Observacion de hygiene (no es hallazgo): la preocupacion previa de "re-aplicar 038/039 regresa los triggers" no aplica bajo replay ordenado, porque 040 (header) y 042 (detalle) corren despues y son canonicos. El riesgo solo existiria si alguien re-ejecuta 038/039 en aislamiento. Recomendable, igual, una verificacion de CI que falle si pg_get_functiondef vivo difiere del archivo canonico antes de cualquier re-aplicacion.
 
 ## Plan de fix (orden de ejecucion)
 
-1. CRITICA 1 + CRITICA 2 (mismo archivo, mismo cambio de raiz): extender trg_liquidacion_envios_inmutable a BEFORE INSERT OR UPDATE OR DELETE. En la rama INSERT, leer cerrada_en del padre (NEW.liquidacion_id) y RAISE si NOT NULL. cerrar_liquidacion hace el UPSERT del detalle ANTES del UPDATE que pone cerrada_en=NOW(), asi que en ese instante cerrada_en IS NULL y el flujo legitimo de cierre pasa. Ademas endurecer la clausula de excepcion del UPDATE: exigir NEW.monto_esperado IS NOT DISTINCT FROM OLD.monto_esperado AND NEW.monto_cobrado IS NOT DISTINCT FROM OLD.monto_cobrado AND NEW.envio_id = OLD.envio_id, para que la transicion de sellado no haga piggyback de cambios de plata.
+### Bloqueantes ALTA (cerrar los 3 antes de onboardear)
 
-2. ALTA 3: resetear el GUC al final de create_pago_atomico con `PERFORM set_config('app.pago_rpc','0',true);` inmediatamente despues del INSERT INTO pagos ... RETURNING (antes del INSERT a auditoria_log), igual que update/anular. Mejor a futuro: nonce por-statement en vez de un '1' pegajoso.
+1. A1, fecha_entrega_real en cierre admin. En update_envio_estado_atomico, dentro del mismo UPDATE bajo lock OCC, agregar:
+   `fecha_entrega_real = CASE WHEN p_nuevo_estado = 'entregado' AND v_envio_previo.fecha_entrega_real IS NULL THEN NOW() ELSE fecha_entrega_real END`
+   espejando el patron de recolectado_en. Idempotente. Re-verificar el repro: admin entregado -> COD pagado -> crear_liquidacion incluye el envio.
 
-3. ALTA 5 + ALTA 10 (mismo guard): extender trg_envio_block_cod_monto_change para disparar tambien BEFORE UPDATE OF costo, costo_seguro y cubrir AMBOS modos (no solo contra_entrega): RAISE si EXISTS pago anulado=FALSE o EXISTS liquidacion_envios para el envio. Congela la tarifa una vez que hay cobro real. El ajuste de costo va por recreacion del envio, no por UPDATE in-place.
+2. A2 y A3, bulk import admin (mismo fix). En envio.service.ts bulkImport:
+   - Computar costo_seguro por fila server-side (computeSeguroForEnvio, igual que el path unitario y que el bulk del portal cliente en cliente/envios.ts:432-445), una sola lectura de seguro_config por batch.
+   - Persistir costo_seguro y seguro_adicional en insertRows.
+   - Derivar monto_a_cobrar: anticipado = costo + costo_seguro (igualdad I1); contra_entrega = forzar/validar `>= costo + costo_seguro`, y mandar a fallidos la fila que no cubra en vez de al batch.
+   - Cambiar el .insert(insertRows) monolitico: pre-validar I1 en JS y excluir las filas invalidas a fallidos antes del batch, o insertar por fila, para que una fila invalida no tumbe las 500.
+   - Actualizar el comentario stale "COD vs CC" (envio.service.ts:1000).
 
-4. ALTA 6: gatear la transicion cerrada->pendiente detras de una GUC de sesion que solo reabrir_liquidacion setea (mismo patron que trg_pagos_no_update_fisico, reseteada al salir), y en el trigger 038 rechazar cualquier UPDATE que ponga cerrada_en de NOT NULL a NULL sin esa marca. Como minimo, si OLD.cerrada_en NOT NULL y NEW.cerrada_en NULL, exigir payout_tienda/tarifa_retenida/notas en NULL espejando reabrir.
+### MEDIA (decidir antes de construir el settlement de tienda parte 3)
 
-5. ALTA 4: decidir politica de cobro parcial. Recomendado (COD all-or-nothing): rechazar montoCobrado < monto_a_cobrar en el endpoint de entrega, forzando incidencia/no-entrega en vez de pago parcial silencioso. Si el parcial es valido: incluir estado_pago IN ('pagado','pago_parcial') en el gate y liquidar por monto_cobrado REAL con payout_tienda = monto_cobrado - tarifa. En cualquier caso separar la cola "pago fallo" de "cobro parcial pendiente" y limpiar cod_pago_pendiente al resolver.
+3. M1, no confiar en GUC seteable por el caller para autorizar el unseal. Recomendado: revocar UPDATE de las columnas de sello al rol de la app y dejar el unseal solo dentro de reabrir_liquidacion (SECURITY DEFINER con owner distinto), de modo que un UPDATE crudo del rol app sea rechazado por permisos, no por un flag. Alternativa: registrar la reapertura en auditoria_log dentro del propio trigger, asi ningun path des-sella sin traza.
 
-6. MEDIA 7: (a) dejar UNA tarifa activa por par origen/destino + indice unico parcial `CREATE UNIQUE INDEX ON tarifas (lower(unaccent(origen)), lower(unaccent(destino))) WHERE activo AND NOT eliminado`. (b) en computeCostoEnvio ordenar explicitamente y alertar como config invalida si hay mas de un match.
+4. M2 y B4, definir politica explicita de la diferencia antes de leer payout_tienda. Si la tienda cobra el producto completo y el faltante es deuda del repartidor, agregar el asiento de cobranza al repartidor por (esperado - recibido) y de sobrante a investigar cuando recibido > esperado, de modo que tarifa + payout + cobranza_repartidor = recibido siempre. Corregir el comentario de 041. Bloquear que la parte 3 lea payout_tienda crudo sin netear.
 
-7. MEDIA 8: en cerrar_liquidacion rama con_diferencia, no derivar payout_tienda del esperado: dejarlo NULL hasta resolver via reabrir, o computar sobre efectivo rendido. Assert de conservacion: tarifa_retenida + payout_tienda <> monto_total_recibido debe fallar. En update_pago_atomico, re-sincronizar monto_total = v_monto_real en el mismo UPDATE cuando difiere, mas CHECK pagos_pagado_coherente (estado_pago <> 'pagado' OR monto_recibido >= monto_total). Gatear antes de habilitar Part 3.
+5. M3, unificar el orden de lock canonico en cerrar_liquidacion para lockear los envios candidatos (E) antes de la fila de la liquidacion (L), alineando con el E-antes-de-L de las RPC de pago. Como red de seguridad, retry acotado (2-3 intentos) sobre 40P01/40001 en pago.service.ts y liquidacion.service.ts. El reorden es la solucion de raiz; el retry es mitigacion.
 
-8. BAJA 9: limpiar deuda de tipos (costo cero, TS no deployado): borrar saldo_cuenta_corriente/limite_credito de ClienteRow y Cliente, de toApi y mapClienteRow; dropear forzarSobreLimite/motivoOverride de createEnvioBodyWithOverride y envioService.create; borrar comentarios stale. Conservar forzarCostoManual.
+6. M4, agregar trigger STATEMENT-level BEFORE TRUNCATE en liquidaciones_repartidor y liquidacion_envios con RAISE EXCEPTION incondicional, y REVOKE TRUNCATE de anon, authenticated, service_role.
 
-## Notas de severidad y dedup
+7. M5, decidir operativamente el destino de GE2026001000 (anular el envio o corregir monto_a_cobrar al COD real). Agregar un CHECK constraint declarativo que enforce I1 a nivel tabla, o un backfill validado, para que filas pre-trigger no queden como agujero permanente.
 
-Las 4 ALTA bloquean por la misma razon: rompen un backstop de DB o dejan plata real de terceros sin trazabilidad de settlement, aunque hoy ningun camino TS vivo las explote directamente. Con owner legalmente expuesto, onboarding inminente y plata real de afiliados, un backstop roto no es deuda futura: es un flanco abierto al onboarding. Los gaps que alimentan payout_tienda (5, 8) deben cerrarse ANTES de construir Part 3 (store settlement, I11-I14, fuera de alcance), porque payout_tienda es el artefacto que Part 3 consumira y ya queda mal calculado y sellado.
+### BAJA (limpieza, no urgente)
 
-Fusiones aplicadas (duplicados exactos en el JSON de entrada): ALTA 3 absorbe el duplicado "Sello de inmutabilidad de pagos fail-open"; ALTA 5 absorbe "costo/costo_seguro editable con pago activo y dentro de liquidacion" y "Cobro COD parcial deja efectivo real fuera (lente conservacion)"; ALTA 4 absorbe "Cobro COD parcial deja efectivo real fuera de todo settlement"; el reporte previo del ALTA "UPDATE crudo forja payout del header sellado" quedo refinado en ALTA 6 (el forje manteniendo sello esta de hecho bloqueado; el hueco real es la reapertura cruda sin auditoria). MEDIA 8 absorbe "update_pago_atomico flipa a pagado sin re-sincronizar monto_total". BAJA 9 absorbe los tres reportes de codigo muerto CC. Los hallazgos de "comentario miente sobre orden de lock" (crear_liquidacion E->L vs L->E) y "FOR UPDATE no serializa primer pago, el indice unico es la defensa real" se documentan como BAJA de documentacion: comportamiento correcto, comentario equivocado, blindar el indice unico como invariante no removible.
+8. B1/B2/B3: borrar de src/types/index.ts los tipos CC muertos y el label cuenta_corriente de AuditoriaEntidad; dropear el enum tipo_movimiento_cc (sin dependientes); actualizar los 4 comentarios stale al modelo COD-only. Mantener el CHECK envios_tipo_pago_no_cc aunque se limpie el enum.
 
-## Gate final
+## Conteo final
 
-production-ready: NO. Re-correr el round-trip completo contra prod (crear->cerrar->INSERT debe fallar->reabrir->INSERT-legitimo-via-cerrar debe pasar; create_pago_atomico->UPDATE crudo debe RAISE; reapertura cruda debe fallar) DESPUES de aplicar los fixes 1-5, y re-auditar. Sin CERO CRITICA y CERO ALTA verificados contra prod, no se onboardea.
+Bloqueantes: 3 (todas ALTA, cero CRITICA). MEDIA: 5. BAJA: 4. Invariantes OK: 44. Rondas acumuladas: 3.
+
+Production-ready: NO. Las 3 ALTA viven en dos archivos (update_envio_estado_atomico y envio.service.ts bulkImport), son cambios acotados y de bajo riesgo. Cerrarlas, re-verificar el repro de cada una contra prod, y recien ahi onboardear.

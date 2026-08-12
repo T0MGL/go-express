@@ -1,11 +1,9 @@
--- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-06-23 tras 036-045.
--- 045: marcar entregado por admin sella fecha_entrega_real (cierra A1). Source of truth.
-
---
--- PostgreSQL database dump
+-- GO EXPRESS baseline del schema VIVO de prod. Regenerado 2026-08-12 tras 046-052.
+-- 046-052: cierre MEDIA/BAJA Step6 (unseal por permisos, lock E antes de L, truncate guard,
+-- CHECK I1 declarativo, asiento de diferencia de caja, drop enum CC). Source of truth.
 --
 
-\restrict 9BfDwBcxHwi5cIhsMl8dl8WY9gZmN8QQlwfgENp5pPuKT9AnDmb5V6giFX8gkBu
+\restrict lYsUonMDH2ozB6XmZkxVBwPophbPRWuM96U66skKBJPjFKi7hqvxUQVsMATn1Mw
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Homebrew)
@@ -256,15 +254,12 @@ CREATE TYPE public.repartidor_estado AS ENUM (
 
 
 --
--- Name: tipo_movimiento_cc; Type: TYPE; Schema: public; Owner: -
+-- Name: tipo_ajuste_liquidacion; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.tipo_movimiento_cc AS ENUM (
-    'debito',
-    'credito',
-    'ajuste',
-    'nota_credito',
-    'reverso'
+CREATE TYPE public.tipo_ajuste_liquidacion AS ENUM (
+    'cobranza_repartidor',
+    'sobrante_a_investigar'
 );
 
 
@@ -543,6 +538,7 @@ CREATE FUNCTION public.cerrar_liquidacion(p_liquidacion_id uuid, p_monto_recibid
     SET search_path TO 'public'
     AS $$
 DECLARE
+  v_snap           liquidaciones_repartidor;
   v_previa         liquidaciones_repartidor;
   v_actual         liquidaciones_repartidor;
   v_estado         estado_liquidacion;
@@ -550,6 +546,8 @@ DECLARE
   v_tarifa         BIGINT := 0;
   v_payout         BIGINT := 0;
   v_diferencia     BIGINT;
+  v_cobranza       BIGINT := 0;
+  v_sobrante       BIGINT := 0;
   v_descripcion    TEXT;
 BEGIN
   IF p_monto_recibido < 0 THEN
@@ -557,24 +555,23 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- L: lock de la liquidacion.
-  SELECT * INTO v_previa
+  -- Snapshot del header SIN lock: solo para armar el predicado del set elegible. El lock del
+  -- header va DESPUES de los envios (orden canonico E -> L, alineado con las RPCs de pago, 048).
+  SELECT * INTO v_snap
     FROM liquidaciones_repartidor
-   WHERE id = p_liquidacion_id
-   FOR UPDATE;
+   WHERE id = p_liquidacion_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'liquidacion_no_encontrada: %', p_liquidacion_id
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF v_previa.estado <> 'pendiente' THEN
+  IF v_snap.estado <> 'pendiente' THEN
     RAISE EXCEPTION 'liquidacion_ya_cerrada: %', p_liquidacion_id
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- E: lockear bajo el set elegible vigente (mismo predicado que 4.1). Materializa los envio_id
-  -- ELEGIBLES de ESTE rango/repartidor que NO esten conciliados en OTRA liquidacion.
+  -- E: lockear el set elegible vigente (mismo predicado que crear_liquidacion).
   DROP TABLE IF EXISTS tmp_elegibles;
   CREATE TEMP TABLE tmp_elegibles ON COMMIT DROP AS
   SELECT e.id AS envio_id,
@@ -582,13 +579,13 @@ BEGIN
          COALESCE(e.monto_cobrado, 0) AS monto_cobrado,
          (e.costo + COALESCE(e.costo_seguro, 0))::BIGINT AS tarifa
     FROM envios e
-   WHERE e.repartidor_id = v_previa.repartidor_id
+   WHERE e.repartidor_id = v_snap.repartidor_id
      AND e.estado = 'entregado'
      AND e.tipo_pago IN ('anticipado', 'contra_entrega')
      AND e.eliminado = FALSE
      AND e.fecha_entrega_real IS NOT NULL
      AND (e.fecha_entrega_real AT TIME ZONE 'America/Asuncion')::date
-         BETWEEN v_previa.fecha_desde AND v_previa.fecha_hasta
+         BETWEEN v_snap.fecha_desde AND v_snap.fecha_hasta
      AND EXISTS (
        SELECT 1 FROM pagos p
         WHERE p.envio_id = e.id
@@ -603,6 +600,25 @@ BEGIN
      )
    ORDER BY e.id
    FOR UPDATE OF e;
+
+  -- L: lock del header DESPUES de los envios; re-validar contra el snapshot (048). Si el header
+  -- cambio entre snapshot y lock, abortar con 40001 para que el retry del caller re-ejecute.
+  SELECT * INTO v_previa
+    FROM liquidaciones_repartidor
+   WHERE id = p_liquidacion_id
+   FOR UPDATE;
+
+  IF v_previa.estado <> 'pendiente' THEN
+    RAISE EXCEPTION 'liquidacion_ya_cerrada: %', p_liquidacion_id
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_previa.repartidor_id IS DISTINCT FROM v_snap.repartidor_id
+     OR v_previa.fecha_desde IS DISTINCT FROM v_snap.fecha_desde
+     OR v_previa.fecha_hasta IS DISTINCT FROM v_snap.fecha_hasta THEN
+    RAISE EXCEPTION 'liquidacion_snapshot_stale: el header % cambio durante el cierre, reintentar', p_liquidacion_id
+      USING ERRCODE = '40001';
+  END IF;
 
   -- DELETE las filas de ESTA liq que ya no califican (cobro anulado tras crear, etc).
   DELETE FROM liquidacion_envios le
@@ -627,21 +643,17 @@ BEGIN
 
   v_diferencia := p_monto_recibido - v_esperado;
 
+  -- 041: la tienda cobra su payout completo en ambas ramas; el faltante es del repartidor.
+  v_payout := v_esperado - v_tarifa;
+
   IF v_diferencia = 0 THEN
     v_estado := 'cerrada';
-    -- Sin diferencia: payout = esperado - tarifa = recibido - tarifa. Conservacion exacta.
-    v_payout := v_esperado - v_tarifa;
   ELSE
     v_estado := 'con_diferencia';
     IF p_notas IS NULL OR length(trim(p_notas)) < 10 THEN
       RAISE EXCEPTION 'notas_requeridas: cerrar con diferencia requiere notas de al menos 10 caracteres'
         USING ERRCODE = 'P0001';
     END IF;
-    -- Con diferencia: el payout sale del EFECTIVO REAL rendido, no del esperado. La tienda no
-    -- absorbe el faltante del repartidor por sobre-pago. Clamp a 0 si lo rendido no cubre la
-    -- tarifa GO EXPRESS (el faltante queda como diferencia a reclamar al repartidor, no como payout
-    -- negativo a la tienda). Conservacion: tarifa_retenida + payout_tienda = monto_total_recibido.
-    v_payout := v_esperado - v_tarifa;  -- 041: store cobra payout completo; faltante del repartidor = diferencia, no lo absorbe la tienda
   END IF;
 
   UPDATE liquidaciones_repartidor
@@ -656,6 +668,37 @@ BEGIN
          updated_at           = NOW()
    WHERE id = p_liquidacion_id
   RETURNING * INTO v_actual;
+
+  -- M2: asiento contable de la diferencia. Faltante = deuda del repartidor (cuenta por cobrar);
+  -- sobrante = efectivo sin duenio, a investigar. Exactamente un asiento activo por cierre.
+  IF v_diferencia < 0 THEN
+    v_cobranza := -v_diferencia;
+    INSERT INTO liquidacion_ajustes (liquidacion_id, tipo, monto, motivo, creado_por)
+    VALUES (
+      p_liquidacion_id, 'cobranza_repartidor', v_cobranza,
+      format('Faltante de caja al cerrar: esperado %s Gs, recibido %s Gs. Deuda del repartidor. Notas del cierre: %s',
+             v_esperado, p_monto_recibido, p_notas),
+      p_cerrado_por
+    );
+  ELSIF v_diferencia > 0 THEN
+    v_sobrante := v_diferencia;
+    INSERT INTO liquidacion_ajustes (liquidacion_id, tipo, monto, motivo, creado_por)
+    VALUES (
+      p_liquidacion_id, 'sobrante_a_investigar', v_sobrante,
+      format('Sobrante de caja al cerrar: esperado %s Gs, recibido %s Gs. Investigar origen antes de asignar. Notas del cierre: %s',
+             v_esperado, p_monto_recibido, p_notas),
+      p_cerrado_por
+    );
+  END IF;
+
+  -- Conservacion total (M2): tarifa + payout + sobrante = recibido + cobranza, SIEMPRE. Si el
+  -- asiento no cierra la ecuacion el cierre entero aborta: mejor un 500 que un ledger que no
+  -- cuadra al guarani.
+  IF v_tarifa + v_payout + v_sobrante <> p_monto_recibido + v_cobranza THEN
+    RAISE EXCEPTION 'conservacion_rota: tarifa % + payout % + sobrante % <> recibido % + cobranza %',
+      v_tarifa, v_payout, v_sobrante, p_monto_recibido, v_cobranza
+      USING ERRCODE = 'P0001';
+  END IF;
 
   -- RECIEN AHI sella: conciliado=TRUE sobre el set vigente (re-validado contra cobro real).
   UPDATE liquidacion_envios
@@ -684,7 +727,7 @@ $$;
 -- Name: FUNCTION cerrar_liquidacion(p_liquidacion_id uuid, p_monto_recibido bigint, p_notas text, p_cerrado_por uuid, p_usuario_nombre text, p_ip inet, p_user_agent text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.cerrar_liquidacion(p_liquidacion_id uuid, p_monto_recibido bigint, p_notas text, p_cerrado_por uuid, p_usuario_nombre text, p_ip inet, p_user_agent text) IS 'Cierra una liquidacion pendiente: calcula diferencia, setea estado (cerrada / con_diferencia), marca envios conciliados, audita. Todo en una sola transaccion con lock pesimista. Errores: liquidacion_no_encontrada, liquidacion_ya_cerrada, notas_requeridas, monto_invalido.';
+COMMENT ON FUNCTION public.cerrar_liquidacion(p_liquidacion_id uuid, p_monto_recibido bigint, p_notas text, p_cerrado_por uuid, p_usuario_nombre text, p_ip inet, p_user_agent text) IS 'Cierra la liquidacion sobre el set elegible vigente, orden de lock E -> L (048). Politica de diferencia (M2, decision Gaston): la tienda cobra su payout completo (payout_tienda = esperado - tarifa, SIN clamp contra el efectivo); el faltante (esperado - recibido) se asienta en liquidacion_ajustes como cobranza_repartidor (deuda del repartidor) y el sobrante como sobrante_a_investigar. Conservacion total: tarifa_retenida + payout_tienda + sobrante = monto_total_recibido + cobranza_repartidor, verificada con assert interno en cada cierre. CHECK complementario 041: tarifa_retenida + payout_tienda = monto_total_esperado.';
 
 
 --
@@ -976,11 +1019,11 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- Habilita la unica via legitima de nular el sello (4.x ALTA 6). El flag es transaccion-local.
+  -- Habilita la unica via legitima de nular el sello (040). El flag es transaccion-local.
   PERFORM set_config('app.reabrir_rpc', '1', true);
 
   -- Vuelta a pendiente. Los campos de cierre + montos finales VUELVEN a NULL: el re-cierre los
-  -- reconstruye desde el set vigente (4.2). monto_total_esperado queda como estaba: cerrar lo
+  -- reconstruye desde el set vigente. monto_total_esperado queda como estaba: cerrar lo
   -- sobrescribe; no se nulea porque el CHECK no lo exige y no se lee en pendiente.
   UPDATE liquidaciones_repartidor
      SET estado               = 'pendiente',
@@ -998,10 +1041,20 @@ BEGIN
   PERFORM set_config('app.reabrir_rpc', '0', true);
 
   -- Des-conciliar: update/anular_pago vuelven a permitir correccion y el envio queda elegible
-  -- para re-snapshot al cerrar de nuevo. Corre con el header ya pendiente (rama allow del 039).
+  -- para re-snapshot al cerrar de nuevo.
   UPDATE liquidacion_envios
      SET conciliado = FALSE
    WHERE liquidacion_id = p_liquidacion_id;
+
+  -- M2: los asientos del cierre que se des-sella quedan anulados (soft-delete, jamas DELETE):
+  -- documentaban ESE cierre. Si el re-cierre vuelve a dar diferencia, genera asientos nuevos.
+  UPDATE liquidacion_ajustes
+     SET eliminado          = TRUE,
+         eliminado_por      = p_actor,
+         eliminado_en       = NOW(),
+         motivo_eliminacion = format('Liquidacion reabierta: el asiento pertenece al cierre anterior. Motivo de reapertura: %s', p_motivo)
+   WHERE liquidacion_id = p_liquidacion_id
+     AND eliminado = FALSE;
 
   v_descrip := format(
     'Liquidacion reabierta (estaba %s, esperado %s Gs, recibido %s Gs). Motivo: %s',
@@ -1214,6 +1267,27 @@ $$;
 
 
 --
+-- Name: trg_ledger_no_truncate_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_ledger_no_truncate_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'truncate_prohibido: % es parte del ledger financiero, TRUNCATE no esta permitido (M4 Step6)', TG_TABLE_NAME
+    USING ERRCODE = 'P0001';
+END;
+$$;
+
+
+--
+-- Name: FUNCTION trg_ledger_no_truncate_fn(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trg_ledger_no_truncate_fn() IS 'M4 Step6: TRUNCATE no dispara los triggers FOR EACH ROW del sello de inmutabilidad. Este guard STATEMENT-level lo rechaza incondicionalmente en las tablas del ledger (liquidaciones, detalle, pagos, envios).';
+
+
+--
 -- Name: trg_liquidacion_envios_inmutable_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1286,15 +1360,38 @@ BEGIN
 
   -- Reapertura (cerrada_en NOT NULL -> NULL): SOLO via reabrir_liquidacion. Un UPDATE crudo que
   -- nule el sello sin esa marca borra la traza forense (auditoria_log) y deja el detalle desync.
-  IF OLD.cerrada_en IS NOT NULL AND NEW.cerrada_en IS NULL
-     AND current_setting('app.reabrir_rpc', true) IS DISTINCT FROM '1' THEN
-    RAISE EXCEPTION 'liquidacion_reapertura_invalida: una liquidacion cerrada solo se reabre via reabrir_liquidacion (deja auditoria y des-concilia el detalle)'
-      USING ERRCODE = 'P0001';
+  IF OLD.cerrada_en IS NOT NULL AND NEW.cerrada_en IS NULL THEN
+    IF current_setting('app.reabrir_rpc', true) IS DISTINCT FROM '1' THEN
+      RAISE EXCEPTION 'liquidacion_reapertura_invalida: una liquidacion cerrada solo se reabre via reabrir_liquidacion (deja auditoria y des-concilia el detalle)'
+        USING ERRCODE = 'P0001';
+    END IF;
+
+    -- M1: todo unseal permitido deja traza propia del trigger, ademas de la fila que
+    -- reabrir_liquidacion escribe con el actor real. Si alguien con la GUC seteada des-sella
+    -- por fuera de la RPC, esta fila es la unica evidencia forense.
+    INSERT INTO public.auditoria_log (
+      usuario, usuario_id, accion, entidad, entidad_id,
+      descripcion, valor_anterior, valor_nuevo, ip_address, user_agent
+    ) VALUES (
+      'trigger:liquidacion_unseal',
+      '00000000-0000-4000-a000-000000000001',
+      'reabrir', 'liquidacion', OLD.id::TEXT,
+      format('Unseal de liquidacion %s permitido por trigger (app.reabrir_rpc activo, estado %s -> %s)',
+             OLD.id, OLD.estado, NEW.estado),
+      to_jsonb(OLD), to_jsonb(NEW), NULL, NULL
+    );
   END IF;
 
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: FUNCTION trg_liquidacion_inmutable_fn(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trg_liquidacion_inmutable_fn() IS 'Sello de inmutabilidad del header de liquidacion (040 + 047). Cerrada: solo reabrir_liquidacion la des-sella (GUC transaccion-local app.reabrir_rpc). 047: el unseal ademas queda registrado en auditoria_log por el propio trigger, y el rol de la app no tiene UPDATE sobre la tabla (REVOKE), asi que el forje de la GUC desde un request es imposible por permisos.';
 
 
 --
@@ -1553,6 +1650,7 @@ CREATE TABLE public.envios (
     incidencia_reportada_por uuid,
     cod_pago_pendiente boolean DEFAULT false NOT NULL,
     CONSTRAINT envios_costo_check CHECK ((costo >= 0)),
+    CONSTRAINT envios_i1_monto_cubre_tarifa CHECK (((eliminado = true) OR ((tipo_pago = 'anticipado'::public.tipo_pago) AND (monto_a_cobrar = (costo + costo_seguro))) OR ((tipo_pago = 'contra_entrega'::public.tipo_pago) AND (monto_a_cobrar >= (costo + costo_seguro))))),
     CONSTRAINT envios_monto_a_cobrar_check CHECK ((monto_a_cobrar >= 0)),
     CONSTRAINT envios_peso_check CHECK ((peso >= (0)::numeric)),
     CONSTRAINT envios_tipo_pago_no_cc CHECK ((tipo_pago <> 'cuenta_corriente'::public.tipo_pago)),
@@ -1607,6 +1705,13 @@ COMMENT ON COLUMN public.envios.tiene_incidencia IS 'Flag que el repartidor acti
 --
 
 COMMENT ON COLUMN public.envios.cod_pago_pendiente IS 'TRUE si un envio COD se marco entregado pero el registro del pago fallo (cobrado en la calle sin asiento). Cola de reconciliacion manual. Se limpia cuando el pago se registra correctamente.';
+
+
+--
+-- Name: CONSTRAINT envios_i1_monto_cubre_tarifa ON envios; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT envios_i1_monto_cubre_tarifa ON public.envios IS 'I1 declarativo (M5 Step6): todo envio vivo cubre la tarifa GO EXPRESS. anticipado exige igualdad exacta (el cobro en calle ES la tarifa), contra_entrega exige cobertura (el excedente es producto de la tienda). eliminado=TRUE queda exento: la remediacion de historico irreconciliable es anular. Complementa (no reemplaza) el trigger trg_envio_i1_cubre_tarifa, que da mensajes de error de negocio.';
 
 
 --
@@ -2108,6 +2213,41 @@ CREATE TABLE public.inventario_almacen (
 
 
 --
+-- Name: liquidacion_ajustes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.liquidacion_ajustes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    liquidacion_id uuid NOT NULL,
+    tipo public.tipo_ajuste_liquidacion NOT NULL,
+    monto bigint NOT NULL,
+    motivo text NOT NULL,
+    creado_por uuid NOT NULL,
+    eliminado boolean DEFAULT false NOT NULL,
+    eliminado_por uuid,
+    eliminado_en timestamp with time zone,
+    motivo_eliminacion text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT liquidacion_ajustes_monto_positivo CHECK ((monto > 0))
+);
+
+
+--
+-- Name: TABLE liquidacion_ajustes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.liquidacion_ajustes IS 'Asientos contables de la diferencia de caja al cerrar una liquidacion (M2 Step6). cobranza_repartidor = faltante que el repartidor debe a GO EXPRESS (esperado - recibido). sobrante_a_investigar = efectivo excedente sin duenio conocido (recibido - esperado). Un cierre con_diferencia genera exactamente un asiento activo; reabrir la liquidacion lo anula (soft-delete) porque pertenece al cierre anterior.';
+
+
+--
+-- Name: COLUMN liquidacion_ajustes.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.liquidacion_ajustes.monto IS 'BIGINT Gs, siempre positivo. El signo lo da el tipo: cobranza_repartidor suma como cuenta por cobrar, sobrante_a_investigar resta del efectivo repartible.';
+
+
+--
 -- Name: liquidacion_envios; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2503,6 +2643,14 @@ ALTER TABLE ONLY public.intentos_contacto
 
 ALTER TABLE ONLY public.inventario_almacen
     ADD CONSTRAINT inventario_almacen_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: liquidacion_ajustes liquidacion_ajustes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.liquidacion_ajustes
+    ADD CONSTRAINT liquidacion_ajustes_pkey PRIMARY KEY (id);
 
 
 --
@@ -2972,6 +3120,27 @@ CREATE INDEX idx_inventario_tracking ON public.inventario_almacen USING btree (t
 
 
 --
+-- Name: idx_liquidacion_ajustes_creado_por; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_liquidacion_ajustes_creado_por ON public.liquidacion_ajustes USING btree (creado_por);
+
+
+--
+-- Name: idx_liquidacion_ajustes_liquidacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_liquidacion_ajustes_liquidacion ON public.liquidacion_ajustes USING btree (liquidacion_id) WHERE (eliminado = false);
+
+
+--
+-- Name: idx_liquidacion_ajustes_tipo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_liquidacion_ajustes_tipo ON public.liquidacion_ajustes USING btree (tipo) WHERE (eliminado = false);
+
+
+--
 -- Name: idx_liquidacion_envios_envio; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3245,6 +3414,13 @@ CREATE TRIGGER trg_inventario_updated_at BEFORE UPDATE ON public.inventario_alma
 
 
 --
+-- Name: liquidacion_ajustes trg_liquidacion_ajustes_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_liquidacion_ajustes_updated_at BEFORE UPDATE ON public.liquidacion_ajustes FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: liquidacion_envios trg_liquidacion_envios_inmutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3256,6 +3432,34 @@ CREATE TRIGGER trg_liquidacion_envios_inmutable BEFORE INSERT OR DELETE OR UPDAT
 --
 
 CREATE TRIGGER trg_liquidacion_inmutable BEFORE DELETE OR UPDATE ON public.liquidaciones_repartidor FOR EACH ROW EXECUTE FUNCTION public.trg_liquidacion_inmutable_fn();
+
+
+--
+-- Name: envios trg_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_no_truncate BEFORE TRUNCATE ON public.envios FOR EACH STATEMENT EXECUTE FUNCTION public.trg_ledger_no_truncate_fn();
+
+
+--
+-- Name: liquidacion_envios trg_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_no_truncate BEFORE TRUNCATE ON public.liquidacion_envios FOR EACH STATEMENT EXECUTE FUNCTION public.trg_ledger_no_truncate_fn();
+
+
+--
+-- Name: liquidaciones_repartidor trg_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_no_truncate BEFORE TRUNCATE ON public.liquidaciones_repartidor FOR EACH STATEMENT EXECUTE FUNCTION public.trg_ledger_no_truncate_fn();
+
+
+--
+-- Name: pagos trg_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_no_truncate BEFORE TRUNCATE ON public.pagos FOR EACH STATEMENT EXECUTE FUNCTION public.trg_ledger_no_truncate_fn();
 
 
 --
@@ -3430,6 +3634,30 @@ ALTER TABLE ONLY public.intentos_contacto
 
 ALTER TABLE ONLY public.inventario_almacen
     ADD CONSTRAINT inventario_almacen_envio_id_fkey FOREIGN KEY (envio_id) REFERENCES public.envios(id);
+
+
+--
+-- Name: liquidacion_ajustes liquidacion_ajustes_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.liquidacion_ajustes
+    ADD CONSTRAINT liquidacion_ajustes_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id);
+
+
+--
+-- Name: liquidacion_ajustes liquidacion_ajustes_eliminado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.liquidacion_ajustes
+    ADD CONSTRAINT liquidacion_ajustes_eliminado_por_fkey FOREIGN KEY (eliminado_por) REFERENCES public.usuarios(id);
+
+
+--
+-- Name: liquidacion_ajustes liquidacion_ajustes_liquidacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.liquidacion_ajustes
+    ADD CONSTRAINT liquidacion_ajustes_liquidacion_id_fkey FOREIGN KEY (liquidacion_id) REFERENCES public.liquidaciones_repartidor(id);
 
 
 --
@@ -3901,6 +4129,12 @@ ALTER TABLE public.intentos_contacto ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventario_almacen ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: liquidacion_ajustes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.liquidacion_ajustes ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: liquidacion_envios; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3982,5 +4216,5 @@ ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 9BfDwBcxHwi5cIhsMl8dl8WY9gZmN8QQlwfgENp5pPuKT9AnDmb5V6giFX8gkBu
+\unrestrict lYsUonMDH2ozB6XmZkxVBwPophbPRWuM96U66skKBJPjFKi7hqvxUQVsMATn1Mw
 

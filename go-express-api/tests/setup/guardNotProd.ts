@@ -30,6 +30,14 @@ if (testDatabaseUrl) {
 if (testSupabaseUrl) {
   process.env['SUPABASE_URL'] = testSupabaseUrl;
 }
+// Las keys del stack local acompanan a la URL local (mismo override que scripts/run-tests.mjs,
+// necesario cuando vitest corre directo sin pasar por el runner).
+if (process.env['TEST_SUPABASE_SERVICE_ROLE_KEY']) {
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] = process.env['TEST_SUPABASE_SERVICE_ROLE_KEY'];
+}
+if (process.env['TEST_SUPABASE_ANON_KEY']) {
+  process.env['SUPABASE_ANON_KEY'] = process.env['TEST_SUPABASE_ANON_KEY'];
+}
 
 const databaseHost = extractHost(process.env['DATABASE_URL']);
 const supabaseHost = extractHost(process.env['SUPABASE_URL']);

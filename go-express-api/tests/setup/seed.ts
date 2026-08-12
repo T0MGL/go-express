@@ -33,10 +33,31 @@ async function ensureAdminUser(): Promise<void> {
   }
 }
 
+// Espejo del seguro_config vivo de prod. Los tests de bulk import (A3) dependen de estos
+// valores para asserts exactos de costo_seguro; si cambia en prod, actualizar aca.
+async function ensureSeguroConfig(): Promise<void> {
+  const { error } = await supabase.from('configuracion').upsert(
+    {
+      key: 'seguro_config',
+      value: {
+        tasaAdicional: 0.1,
+        umbralIncluido: 200000,
+        minimoAdicional: 5000,
+        maximoAsegurable: 50000000,
+      },
+    },
+    { onConflict: 'key', ignoreDuplicates: false }
+  );
+
+  if (error) {
+    throw new Error(`Seed: failed to ensure seguro_config: ${error.message}`);
+  }
+}
+
 export async function seedTestData(): Promise<TestData> {
   if (seeded) return seeded;
 
-  await ensureAdminUser();
+  await Promise.all([ensureAdminUser(), ensureSeguroConfig()]);
 
   const clienteId = crypto.randomUUID();
   const repartidorId = crypto.randomUUID();
@@ -56,7 +77,6 @@ export async function seedTestData(): Promise<TestData> {
     plan: 'profesional',
     portal_activo: true,
     portal_status: 'activo',
-    saldo_cuenta_corriente: 0,
     total_envios: 0,
     envios_activos: 0,
     eliminado: false,

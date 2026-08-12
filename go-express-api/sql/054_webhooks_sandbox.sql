@@ -5,8 +5,8 @@
 -- secreto) cada vez que un envio suyo cambia de estado. El encolado es un INSERT en
 -- webhook_deliveries desde el service layer (post-RPC exitoso), NUNCA un trigger de DB
 -- haciendo HTTP: la DB no habla con internet. El dispatcher (mismo proceso Railway) toma
--- pendientes vencidas y las entrega con retry + backoff; todo el estado vive aca, asi un
--- restart no pierde ni duplica nada.
+-- pendientes vencidas y las entrega con retry + backoff; una delivery ya encolada vive
+-- aca y sobrevive restarts (at-least-once). El encolado post-commit es best-effort.
 --
 -- Idempotente (IF NOT EXISTS / guards). Transaccional. La aplica Gaston a prod con el
 -- deploy de Fase 2. NO aplicar a mano fuera de ese deploy.

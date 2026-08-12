@@ -16,10 +16,13 @@ import type { Envio, EnvioEstado, WebhookDeliveryRow } from '../types/index.js';
 // Outbox + dispatcher de webhooks salientes (Fase 2). Diseño:
 //  - Encolar = INSERT en webhook_deliveries desde el service layer, DESPUES de que el
 //    cambio de estado ya commiteo (post-RPC). Nunca un trigger de DB haciendo HTTP.
-//  - Entregar = loop in-process en el mismo servicio Railway. Todo el estado (intentos,
-//    proximo_intento_en, status) vive en la DB: un restart retoma donde quedo, sin
-//    perder ni duplicar deliveries mas alla de la semantica at-least-once estandar
-//    de webhooks (el receptor debe tolerar un duplicado raro, y se lo documentamos).
+//  - Entregar = loop in-process en el mismo servicio Railway. El estado (intentos,
+//    proximo_intento_en, status) vive en la DB: una delivery YA ENCOLADA sobrevive
+//    restarts con semantica at-least-once (el receptor debe tolerar un duplicado raro,
+//    y se lo documentamos). El encolado en si es best-effort post-commit: un crash en
+//    la ventana entre el RPC y el INSERT pierde ese evento (tradeoff aceptado a cambio
+//    de no meter HTTP ni outbox en la transaccion del estado; el integrador reconcilia
+//    con GET /envios, esta en la guia).
 
 const POLL_INTERVAL_MS = 20_000;
 const BATCH_SIZE = 20;

@@ -44,7 +44,7 @@ SQL
 # Migraciones posteriores al baseline, en orden estricto.
 for f in "$HERE"/sql/046_*.sql "$HERE"/sql/047_*.sql "$HERE"/sql/048_*.sql \
          "$HERE"/sql/049_*.sql "$HERE"/sql/050_*.sql "$HERE"/sql/051_*.sql \
-         "$HERE"/sql/052_*.sql "$HERE"/sql/053_*.sql; do
+         "$HERE"/sql/052_*.sql "$HERE"/sql/053_*.sql "$HERE"/sql/054_*.sql; do
   echo "  aplicando $(basename "$f")"
   run -f "$f"
 done

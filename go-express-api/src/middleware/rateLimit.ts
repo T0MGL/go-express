@@ -152,3 +152,18 @@ export const apiKeyLimiter = rateLimit({
   message: 'Too many requests for this API key, please try again later',
   keyGenerator: (req) => req.apiKeyId ?? req.ip ?? 'unknown',
 });
+
+/**
+ * POST /api/v1/test/webhook-event, keyed por API key. Muy estricto (5/min): cada request
+ * dispara un POST saliente firmado hacia la URL del tercero; sin este freno, una key de
+ * test alcanza para usar el server como cañon de requests contra un receptor.
+ */
+export const testWebhookEventLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitResponse,
+  message: 'Too many test webhook events, please try again later',
+  keyGenerator: (req) => req.apiKeyId ?? req.ip ?? 'unknown',
+});

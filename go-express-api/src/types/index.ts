@@ -51,12 +51,13 @@ export type AuditoriaEntidad =
   | 'almacen'
   | 'sistema'
   | 'liquidacion'
-  | 'api_key';
+  | 'api_key'
+  | 'webhook_endpoint';
 
 export type EstadoLiquidacion = 'pendiente' | 'cerrada' | 'con_diferencia';
 
-// Permisos del API Gateway v1. Espejo del CHECK api_keys_permisos_validos (sql/053).
-export type ApiKeyPermiso = 'crear_envios' | 'consultar_envios' | 'consultar_tarifas';
+// Permisos del API Gateway v1. Espejo del CHECK api_keys_permisos_validos (sql/053 + 054).
+export type ApiKeyPermiso = 'crear_envios' | 'consultar_envios' | 'consultar_tarifas' | 'webhooks';
 
 // DB Row types (snake_case, match PostgreSQL column names exactly)
 
@@ -108,6 +109,7 @@ export interface ApiKeyRow {
   key_hash: string;
   key_prefix: string;
   permisos: ApiKeyPermiso[];
+  modo_test: boolean;
   activo: boolean;
   revocada_en: string | null;
   revocada_por: string | null;
@@ -127,11 +129,53 @@ export interface ApiKey {
   nombre: string;
   keyPrefix: string;
   permisos: ApiKeyPermiso[];
+  modoTest: boolean;
   activo: boolean;
   revocadaEn: string | null;
   expiraEn: string | null;
   lastUsedAt: string | null;
   creadoEn: string;
+}
+
+// Webhooks salientes (Fase 2, sql/054)
+
+export type WebhookDeliveryStatus = 'pendiente' | 'entregado' | 'fallido';
+
+export interface WebhookEndpointRow {
+  id: string;
+  cliente_id: string;
+  url: string;
+  secreto: string;
+  eventos: string[];
+  activo: boolean;
+  creado_por: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Shape publico de un endpoint (admin y self-service v1). El secreto NUNCA forma parte
+// de este tipo: solo viaja en el response de crear/regenerar.
+export interface WebhookEndpoint {
+  id: string;
+  clienteId: string;
+  url: string;
+  eventos: string[];
+  activo: boolean;
+  creadoEn: string;
+}
+
+export interface WebhookDeliveryRow {
+  id: string;
+  endpoint_id: string;
+  evento: string;
+  payload: Record<string, unknown>;
+  intento: number;
+  status: WebhookDeliveryStatus;
+  http_status: number | null;
+  respuesta: string | null;
+  proximo_intento_en: string;
+  entregado_en: string | null;
+  created_at: string;
 }
 
 export interface EnvioRow {

@@ -13,6 +13,7 @@ declare global {
       apiKeyNombre?: string;
       apiKeyPrefix?: string;
       apiKeyPermisos?: ApiKeyPermiso[];
+      apiKeyModoTest?: boolean;
     }
   }
 }
@@ -23,6 +24,7 @@ interface ApiKeyAuthRow {
   nombre: string;
   key_prefix: string;
   permisos: ApiKeyPermiso[];
+  modo_test: boolean;
   activo: boolean;
   expira_en: string | null;
   clientes: {
@@ -59,7 +61,7 @@ export async function requireApiKey(req: Request, _res: Response, next: NextFunc
   try {
     const { data, error } = await supabase
       .from('api_keys')
-      .select('id, cliente_id, nombre, key_prefix, permisos, activo, expira_en, clientes!inner(estado, eliminado)')
+      .select('id, cliente_id, nombre, key_prefix, permisos, modo_test, activo, expira_en, clientes!inner(estado, eliminado)')
       .eq('key_hash', hashApiKey(key))
       .maybeSingle();
 
@@ -96,6 +98,7 @@ export async function requireApiKey(req: Request, _res: Response, next: NextFunc
     req.apiKeyNombre = row.nombre;
     req.apiKeyPrefix = row.key_prefix;
     req.apiKeyPermisos = row.permisos;
+    req.apiKeyModoTest = row.modo_test;
     req.clienteId = row.cliente_id;
 
     // Fire-and-forget: si el touch falla el request sigue, last_used_at es telemetria.

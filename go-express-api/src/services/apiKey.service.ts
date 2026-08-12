@@ -9,7 +9,7 @@ import type { CreateApiKeyInput } from '../lib/validators/api-key.schema.js';
 
 // key_hash JAMAS entra en este select: no sale del backend ni para el panel admin.
 const API_KEY_COLUMNS =
-  'id, cliente_id, nombre, key_prefix, permisos, activo, revocada_en, expira_en, last_used_at, created_at';
+  'id, cliente_id, nombre, key_prefix, permisos, modo_test, activo, revocada_en, expira_en, last_used_at, created_at';
 
 interface ActorContext {
   userId: string;
@@ -30,6 +30,7 @@ function mapApiKeyRow(row: ApiKeyListRow): ApiKey {
     nombre: row.nombre,
     keyPrefix: row.key_prefix,
     permisos: row.permisos,
+    modoTest: row.modo_test,
     activo: row.activo,
     revocadaEn: row.revocada_en,
     expiraEn: row.expira_en,
@@ -60,7 +61,7 @@ class ApiKeyService {
       throw AppError.badRequest('No se pueden emitir API keys para clientes inactivos o suspendidos');
     }
 
-    const key = generateApiKey();
+    const key = generateApiKey(input.modoTest);
 
     const { data, error } = await supabase
       .from('api_keys')
@@ -70,6 +71,7 @@ class ApiKeyService {
         key_hash: hashApiKey(key),
         key_prefix: apiKeyPrefix(key),
         permisos: input.permisos,
+        modo_test: input.modoTest,
         activo: true,
         expira_en: input.expiraEn ?? null,
         creado_por: actor.userId,
@@ -91,7 +93,7 @@ class ApiKeyService {
       accion: 'crear',
       entidad: 'api_key',
       entidadId: apiKey.id,
-      descripcion: `API key "${input.nombre}" (${apiKey.keyPrefix}) creada para ${cliente.razon_social}. Permisos: ${input.permisos.join(', ')}`,
+      descripcion: `API key "${input.nombre}" (${apiKey.keyPrefix})${input.modoTest ? ' [modo test]' : ''} creada para ${cliente.razon_social}. Permisos: ${input.permisos.join(', ')}`,
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
     });
@@ -167,7 +169,8 @@ class ApiKeyService {
   ): Promise<{ apiKey: ApiKey; key: string; keyAnteriorExpiraEn: string }> {
     const existing = await this.getActiva(id);
 
-    const key = generateApiKey();
+    // La sucesora hereda el modo: rotar una key de test jamas emite una live.
+    const key = generateApiKey(existing.modo_test);
 
     const { data: nuevaData, error: insertError } = await supabase
       .from('api_keys')
@@ -177,6 +180,7 @@ class ApiKeyService {
         key_hash: hashApiKey(key),
         key_prefix: apiKeyPrefix(key),
         permisos: existing.permisos,
+        modo_test: existing.modo_test,
         activo: true,
         creado_por: actor.userId,
       })
@@ -219,10 +223,10 @@ class ApiKeyService {
     return { apiKey: nueva, key, keyAnteriorExpiraEn: expiraEn };
   }
 
-  private async getActiva(id: string): Promise<Pick<ApiKeyRow, 'id' | 'cliente_id' | 'nombre' | 'key_prefix' | 'permisos' | 'activo'>> {
+  private async getActiva(id: string): Promise<Pick<ApiKeyRow, 'id' | 'cliente_id' | 'nombre' | 'key_prefix' | 'permisos' | 'modo_test' | 'activo'>> {
     const { data, error } = await supabase
       .from('api_keys')
-      .select('id, cliente_id, nombre, key_prefix, permisos, activo')
+      .select('id, cliente_id, nombre, key_prefix, permisos, modo_test, activo')
       .eq('id', id)
       .maybeSingle();
 
@@ -235,7 +239,7 @@ class ApiKeyService {
       throw AppError.notFound('API key', id);
     }
 
-    const row = data as unknown as Pick<ApiKeyRow, 'id' | 'cliente_id' | 'nombre' | 'key_prefix' | 'permisos' | 'activo'>;
+    const row = data as unknown as Pick<ApiKeyRow, 'id' | 'cliente_id' | 'nombre' | 'key_prefix' | 'permisos' | 'modo_test' | 'activo'>;
 
     if (!row.activo) {
       throw AppError.badRequest('La API key ya esta revocada');

@@ -10,13 +10,17 @@ import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio, mapEnvioRowToApi, ENVIO_COLUMNS } from '../../services/envio.service.js';
 import { computeCostoEnvio } from '../../lib/cotizacion.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
-import { todayPY } from '../../lib/datetime.js';
+import { todayPY, nowISO } from '../../lib/datetime.js';
+import { hashIdempotencyBody } from '../../lib/idempotency.js';
 import { createClienteEnvioSchema } from '../../lib/validators/envio.schema.js';
-import { v1EnviosQuerySchema, idempotencyKeySchema } from '../../lib/validators/api-key.schema.js';
-import { trackingParamSchema } from '../../lib/validators/common.schema.js';
+import { v1EnviosQuerySchema, v1TrackingParamSchema, idempotencyKeySchema } from '../../lib/validators/api-key.schema.js';
+import { toV1Envio } from './projection.js';
+import { SANDBOX_FIXTURES, findSandboxFixture, generateSandboxTracking } from './sandbox.js';
 import type { EnvioRow, EventoEnvioRow, Envio } from '../../types/index.js';
 import type { CreateClienteEnvioInput } from '../../lib/validators/envio.schema.js';
 import type { V1EnviosQuery } from '../../lib/validators/api-key.schema.js';
+import type { V1Envio } from './projection.js';
+import type { V1EnvioSimulado } from './sandbox.js';
 
 // Usuario SISTEMA (sql/032): actor FK-valido en auditoria_log para acciones sin usuario
 // humano. La identidad real de la API key va en el texto del log.
@@ -24,74 +28,16 @@ const SISTEMA_USER_ID = '00000000-0000-4000-a000-000000000001';
 
 const router = Router();
 
-// Proyeccion publica del gateway: el tercero identifica el envio por tracking number.
-// No se exponen ids internos, repartidor, incidencias ni campos de soft-delete.
-interface V1Envio {
-  trackingNumber: string;
-  codigoReferencia: string | null;
-  estado: string;
-  origen: string;
-  destino: string;
-  destinatarioNombre: string;
-  destinatarioDireccion: string;
-  destinatarioTelefono: string;
-  destinatarioCiudad: string;
-  destinatarioDepartamento: string;
-  cantidad: number;
-  producto: string;
-  peso: number;
-  dimensiones: { largo: number | null; ancho: number | null; alto: number | null };
-  fragil: boolean;
-  valorDeclarado: number;
-  costo: number;
-  costoSeguro: number;
-  montoACobrar: number;
-  tipoPago: string;
-  seguroAdicional: boolean;
-  fecha: string;
-  fechaEntregaReal: string | null;
-  creadoEn: string;
-}
-
-function toV1Envio(envio: Envio): V1Envio {
-  return {
-    trackingNumber: envio.trackingNumber,
-    codigoReferencia: envio.codigoReferencia,
-    estado: envio.estado,
-    origen: envio.origen,
-    destino: envio.destino,
-    destinatarioNombre: envio.destinatarioNombre,
-    destinatarioDireccion: envio.destinatarioDireccion,
-    destinatarioTelefono: envio.destinatarioTelefono,
-    destinatarioCiudad: envio.destinatarioCiudad,
-    destinatarioDepartamento: envio.destinatarioDepartamento,
-    cantidad: envio.cantidad,
-    producto: envio.producto,
-    peso: envio.peso,
-    dimensiones: envio.dimensiones,
-    fragil: envio.fragil,
-    valorDeclarado: envio.valorDeclarado,
-    costo: envio.costo,
-    costoSeguro: envio.costoSeguro,
-    montoACobrar: envio.montoACobrar,
-    tipoPago: envio.tipoPago,
-    seguroAdicional: envio.seguroAdicional,
-    fecha: envio.fecha,
-    fechaEntregaReal: envio.fechaEntregaReal,
-    creadoEn: envio.creadoEn,
-  };
-}
-
 // Replay de idempotencia: busca el envio original por (cliente_id, Idempotency-Key).
 // Sin filtro de eliminado a proposito: la key quedo consumida aunque el envio se haya
 // anulado despues, y ese caso es un conflicto explicito, no un duplicado silencioso.
 async function findEnvioByIdempotencyKey(
   clienteId: string,
   idempotencyKey: string
-): Promise<{ envio: Envio; eliminado: boolean } | null> {
+): Promise<{ envio: Envio; eliminado: boolean; bodyHash: string | null } | null> {
   const { data, error } = await supabase
     .from('envios')
-    .select(`${ENVIO_COLUMNS}, eliminado`)
+    .select(`${ENVIO_COLUMNS}, eliminado, api_idempotency_body_hash`)
     .eq('cliente_id', clienteId)
     .eq('api_idempotency_key', idempotencyKey)
     .maybeSingle();
@@ -103,8 +49,28 @@ async function findEnvioByIdempotencyKey(
 
   if (!data) return null;
 
-  const row = data as unknown as EnvioRow & { eliminado: boolean };
-  return { envio: mapEnvioRowToApi(row), eliminado: row.eliminado };
+  const row = data as unknown as EnvioRow & { eliminado: boolean; api_idempotency_body_hash: string | null };
+  return { envio: mapEnvioRowToApi(row), eliminado: row.eliminado, bodyHash: row.api_idempotency_body_hash };
+}
+
+// Un replay valido devuelve el envio original; reusar la key con un body DISTINTO es un
+// bug del integrador y responde 409 en vez de entregarle un envio que no pidio.
+function resolveReplay(
+  previo: { envio: Envio; eliminado: boolean; bodyHash: string | null },
+  bodyHash: string
+): V1Envio {
+  if (previo.eliminado) {
+    throw AppError.conflict('La Idempotency-Key corresponde a un envio anulado. Usa una key nueva.');
+  }
+  // bodyHash null = envio pre-054, sin fingerprint para comparar: replay permisivo.
+  if (previo.bodyHash !== null && previo.bodyHash !== bodyHash) {
+    throw new AppError(
+      'La Idempotency-Key ya fue usada con un payload distinto. Cada envio nuevo necesita su propia key.',
+      409,
+      'IDEMPOTENCY_KEY_REUSED'
+    );
+  }
+  return toV1Envio(previo.envio);
 }
 
 // POST /: crea un envio para el cliente duenio de la key.
@@ -113,7 +79,9 @@ async function findEnvioByIdempotencyKey(
 // cliente.ciudad, cotiza costo + seguro (computeCostoEnvio / computeSeguroForEnvio) y
 // factura anticipado con monto_a_cobrar = costo + seguro (I1).
 // Idempotencia: con el header Idempotency-Key, un retry devuelve el envio original (200)
-// en vez de duplicarlo. El unique parcial idx_envios_api_idempotency cierra el race.
+// en vez de duplicarlo; misma key con body distinto = 409 IDEMPOTENCY_KEY_REUSED.
+// Keys de test (ge_test_): validacion y cotizacion REALES, pero el envio se simula y no
+// se escribe NADA en la DB.
 
 router.post(
   '/',
@@ -122,9 +90,11 @@ router.post(
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
     const input = req.body as CreateClienteEnvioInput;
+    const modoTest = req.apiKeyModoTest === true;
 
     const rawIdempotencyKey = req.headers['idempotency-key'];
     let idempotencyKey: string | null = null;
+    let bodyHash: string | null = null;
     if (rawIdempotencyKey !== undefined) {
       const parsed = idempotencyKeySchema.safeParse(
         Array.isArray(rawIdempotencyKey) ? rawIdempotencyKey[0] : rawIdempotencyKey
@@ -133,14 +103,16 @@ router.post(
         throw AppError.badRequest('Idempotency-Key invalida', parsed.error.issues);
       }
       idempotencyKey = parsed.data;
+      bodyHash = hashIdempotencyBody(input);
 
-      const previo = await findEnvioByIdempotencyKey(clienteId, idempotencyKey);
-      if (previo) {
-        if (previo.eliminado) {
-          throw AppError.conflict('La Idempotency-Key corresponde a un envio anulado. Usa una key nueva.');
+      // En sandbox no hay persistencia, asi que tampoco hay replay: cada POST simula
+      // un envio nuevo. Se valida el header igual para que el integrador lo ejercite.
+      if (!modoTest) {
+        const previo = await findEnvioByIdempotencyKey(clienteId, idempotencyKey);
+        if (previo) {
+          res.status(200).json(resolveReplay(previo, bodyHash));
+          return;
         }
-        res.status(200).json(toV1Envio(previo.envio));
-        return;
       }
     }
 
@@ -179,8 +151,6 @@ router.post(
       );
     }
 
-    const trackingNumber = await generateTrackingNumber(supabase);
-
     const valorDeclarado = input.valorDeclarado ?? 0;
     const { seguroAdicional, costoSeguro } = await computeSeguroForEnvio(
       valorDeclarado,
@@ -188,6 +158,52 @@ router.post(
     );
 
     const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
+
+    // Sandbox: mismo pipeline de validacion y cotizacion que live, pero el envio se
+    // devuelve simulado. Cero escrituras: ni envios, ni eventos, ni auditoria, ni SSE.
+    if (modoTest) {
+      const simulado: V1EnvioSimulado = {
+        trackingNumber: generateSandboxTracking(),
+        codigoReferencia: input.codigoReferencia ?? null,
+        estado: 'pendiente',
+        origen: cotizacion.origen,
+        destino: cotizacion.destino,
+        destinatarioNombre: input.destinatarioNombre,
+        destinatarioDireccion: input.destinatarioDireccion,
+        destinatarioTelefono: input.destinatarioTelefono,
+        destinatarioCiudad: cotizacion.destino,
+        destinatarioDepartamento: input.destinatarioDepartamento ?? '',
+        cantidad: input.cantidad,
+        producto: input.producto ?? '',
+        peso: input.peso,
+        dimensiones: {
+          largo: hasDims ? input.dimensiones!.largo : null,
+          ancho: hasDims ? input.dimensiones!.ancho : null,
+          alto: hasDims ? input.dimensiones!.alto : null,
+        },
+        fragil: input.fragil,
+        valorDeclarado,
+        costo: cotizacion.costo,
+        costoSeguro,
+        montoACobrar: cotizacion.costo + costoSeguro,
+        tipoPago: 'anticipado',
+        seguroAdicional,
+        fecha: todayPY(),
+        fechaEntregaReal: null,
+        creadoEn: nowISO(),
+        simulated: true,
+      };
+
+      logger.info(
+        { keyPrefix: req.apiKeyPrefix, tracking: simulado.trackingNumber },
+        'Envio simulado via API v1 (modo test)'
+      );
+
+      res.status(201).json(simulado);
+      return;
+    }
+
+    const trackingNumber = await generateTrackingNumber(supabase);
 
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
@@ -230,17 +246,19 @@ router.post(
         tarifa_id: cotizacion.tarifaId,
         fecha: todayPY(),
         api_idempotency_key: idempotencyKey,
+        api_idempotency_body_hash: bodyHash,
       })
       .select(ENVIO_COLUMNS)
       .single();
 
     if (insertError || !insertedData) {
       // Race de dos retries simultaneos con la misma Idempotency-Key: el unique parcial
-      // rechaza al segundo. Se resuelve como replay del que gano, no como error.
-      if (idempotencyKey && insertError?.code === '23505' && insertError.message.includes('idx_envios_api_idempotency')) {
+      // rechaza al segundo. Se resuelve como replay del que gano (o 409 si el body
+      // difiere), no como error.
+      if (idempotencyKey && bodyHash && insertError?.code === '23505' && insertError.message.includes('idx_envios_api_idempotency')) {
         const previo = await findEnvioByIdempotencyKey(clienteId, idempotencyKey);
-        if (previo && !previo.eliminado) {
-          res.status(200).json(toV1Envio(previo.envio));
+        if (previo) {
+          res.status(200).json(resolveReplay(previo, bodyHash));
           return;
         }
       }
@@ -287,6 +305,7 @@ router.post(
 
 // GET /: envios del cliente duenio de la key. Paginado + filtros estado y rango de fechas.
 // El scope por cliente_id sale de la key, jamas del request: no existe consulta cross-cliente.
+// Keys de test: fixtures deterministas (3 envios, estados distintos) para probar el parseo.
 
 router.get(
   '/',
@@ -295,6 +314,24 @@ router.get(
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
     const { limit, page = 1, estado, fechaDesde, fechaHasta } = req.query as unknown as V1EnviosQuery;
+
+    if (req.apiKeyModoTest) {
+      const fixtures = SANDBOX_FIXTURES
+        .map((f) => f.envio)
+        .filter((e) => !estado || e.estado === estado);
+      res.json({
+        data: fixtures,
+        pagination: {
+          total: fixtures.length,
+          page: 1,
+          limit,
+          totalPages: 1,
+          hasMore: false,
+        },
+      });
+      return;
+    }
+
     const offset = (page - 1) * limit;
 
     let q = supabase
@@ -331,14 +368,24 @@ router.get(
 
 // GET /:trackingNumber: estado + historial de eventos, solo si el envio es del cliente
 // de la key. Un tracking ajeno responde el mismo 404 que uno inexistente.
+// Keys de test: responde el fixture que matchee (GE-TEST-...) o 404 con la forma real.
 
 router.get(
   '/:trackingNumber',
   requirePermiso('consultar_envios'),
-  validate({ params: trackingParamSchema }),
+  validate({ params: v1TrackingParamSchema }),
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
     const trackingNumber = req.params['trackingNumber'] as string;
+
+    if (req.apiKeyModoTest) {
+      const fixture = findSandboxFixture(trackingNumber);
+      if (!fixture) {
+        throw AppError.notFound('Envio', trackingNumber);
+      }
+      res.json({ ...fixture.envio, eventos: fixture.eventos });
+      return;
+    }
 
     const { data, error } = await supabase
       .from('envios')

@@ -5,6 +5,8 @@ import { apiKeyLimiter } from '../../middleware/rateLimit.js';
 
 import enviosRoutes from './envios.js';
 import tarifasRoutes from './tarifas.js';
+import webhookEndpointsRoutes from './webhook-endpoints.js';
+import testRoutes from './test.js';
 
 const router = Router();
 
@@ -16,5 +18,8 @@ if (env.NODE_ENV !== 'test') {
 
 router.use('/envios', enviosRoutes);
 router.use('/tarifas', tarifasRoutes);
+router.use('/webhook-endpoints', webhookEndpointsRoutes);
+// Herramientas de sandbox (solo keys ge_test_; el gate vive en la ruta).
+router.use('/test', testRoutes);
 
 export default router;

@@ -15,6 +15,7 @@ import liquidacionRoutes from './liquidaciones.js';
 import ciudadRoutes from './ciudades.js';
 import maintenanceRoutes from './maintenance.js';
 import apiKeyRoutes from './api-keys.js';
+import webhookEndpointRoutes from './webhook-endpoints.js';
 
 const router = Router();
 
@@ -43,5 +44,8 @@ router.use('/maintenance', maintenanceRoutes);
 // API keys del gateway v1: emiten acceso a datos de clientes, estrictamente admin.
 // Un operador no puede mintear ni rotar credenciales de terceros.
 router.use('/api-keys', requireOnlyAdmin, apiKeyRoutes);
+// Webhooks salientes: mismo criterio que las keys, tocan credenciales (secretos HMAC)
+// y destinos de datos de clientes. Estrictamente admin.
+router.use('/webhook-endpoints', requireOnlyAdmin, webhookEndpointRoutes);
 
 export default router;

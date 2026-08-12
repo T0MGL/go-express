@@ -4,6 +4,7 @@ import { logger } from './config/logger.js';
 import { testConnection } from './config/database.js';
 import { sseService } from './services/sse.service.js';
 import { startPodCleanupScheduler, stopPodCleanupScheduler } from './services/podCleanup.service.js';
+import { webhookDispatcher } from './services/webhookDispatcher.service.js';
 
 const server = app.listen(env.PORT, async () => {
   logger.info(
@@ -24,6 +25,9 @@ const server = app.listen(env.PORT, async () => {
   // En test no arranca para no contaminar el env de vitest.
   if (env.NODE_ENV !== 'test') {
     startPodCleanupScheduler();
+    // Dispatcher de webhooks salientes (Fase 2). In-process a proposito: el estado vive
+    // en webhook_deliveries, asi que no necesita worker aparte y sobrevive restarts.
+    webhookDispatcher.start();
   }
 });
 
@@ -35,6 +39,7 @@ function gracefulShutdown(signal: string) {
   logger.info({ signal }, 'Received shutdown signal, closing server...');
   sseService.shutdown();
   stopPodCleanupScheduler();
+  webhookDispatcher.stop();
 
   server.close((err) => {
     if (err) {

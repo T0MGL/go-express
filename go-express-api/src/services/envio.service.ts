@@ -3,6 +3,7 @@ import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditoriaService } from './auditoria.service.js';
 import { notificacionesService } from './notificaciones.service.js';
+import { webhookDispatcher } from './webhookDispatcher.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
 import { computeCostoEnvio } from '../lib/cotizacion.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
@@ -697,6 +698,16 @@ class EnvioService {
     const actorNombre = userName ?? 'Admin GoExpress';
     const actorAuditId = auditActorId ?? userId;
 
+    // Estado previo para el payload del webhook saliente. Lectura best-effort fuera del
+    // lock del RPC: en el peor race reporta un anterior levemente desfasado, y ese
+    // tradeoff es preferible a serializar el hot path por un campo informativo.
+    const { data: prevData } = await supabase
+      .from('envios')
+      .select('estado')
+      .eq('id', id)
+      .maybeSingle();
+    const estadoAnterior = (prevData as { estado: EnvioEstado } | null)?.estado ?? null;
+
     const { data, error } = await supabase.rpc('update_envio_estado_atomico', {
       p_envio_id: id,
       p_nuevo_estado: input.estado,
@@ -748,6 +759,11 @@ class EnvioService {
     else if (input.estado === 'fallido') event = 'fallido';
 
     triggerNotification(event, envio);
+
+    // Outbox de webhooks salientes (Fase 2): se encola DESPUES del commit del RPC, desde
+    // el service layer, nunca via trigger de DB. Await deliberado: el INSERT es barato y
+    // garantiza que el evento quedo persistido antes de responder; enqueue nunca lanza.
+    await webhookDispatcher.enqueueEstadoCambiado(envio, estadoAnterior);
 
     return envio;
   }

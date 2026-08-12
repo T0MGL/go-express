@@ -424,4 +424,54 @@ describe('outbox y delivery', () => {
     expect(verifySignature(secreto, recibida.rawBody, header)).toBe(false);
     expect(verifySignature(secretoNuevo, recibida.rawBody, header)).toBe(true);
   });
+
+  // COD entra al webhook por el mismo choke point de updateEstado: el payload no debe
+  // sumar campos nuevos (montoACobrar, tipoPago) ni perder los existentes.
+  it('un envio COD emite el evento con exactamente el mismo shape que anticipado', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key outbox cod',
+      permisos: ['crear_envios', 'webhooks'],
+    });
+
+    const endpoint = await request.post('/api/v1/webhook-endpoints').set(apiHeaders(key)).send({ url: receiver.url });
+    expect(endpoint.status).toBe(201);
+
+    const creado = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 180000, codigoReferencia: 'COD-WH-001' }));
+    expect(creado.status).toBe(201);
+
+    const { data } = await supabase
+      .from('envios')
+      .select('id')
+      .eq('tracking_number', creado.body.trackingNumber)
+      .single();
+    const envioId = (data as { id: string }).id;
+
+    await request
+      .patch(`/api/admin/envios/${envioId}/estado`)
+      .set(adminHeaders())
+      .send({ estado: 'recolectado', descripcion: 'Recolectado' });
+
+    await forzarVencimiento(endpoint.body.id as string);
+    await webhookDispatcher.processPendingDeliveries();
+
+    expect(receiver.received).toHaveLength(1);
+    const body = JSON.parse(receiver.received[0]!.rawBody.toString('utf8')) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual([
+      'codigoReferencia',
+      'estadoAnterior',
+      'estadoNuevo',
+      'evento',
+      'timestamp',
+      'tracking',
+    ]);
+    expect(body['evento']).toBe('envio.estado_cambiado');
+    expect(body['tracking']).toBe(creado.body.trackingNumber);
+    expect(body['estadoAnterior']).toBe('pendiente');
+    expect(body['estadoNuevo']).toBe('recolectado');
+    expect(body['codigoReferencia']).toBe('COD-WH-001');
+  });
 });

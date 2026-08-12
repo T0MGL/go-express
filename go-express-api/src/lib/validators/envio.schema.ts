@@ -160,6 +160,37 @@ export const createClienteEnvioSchema = z.object({
 
 export type CreateClienteEnvioInput = z.infer<typeof createClienteEnvioSchema>;
 
+// Gateway v1: a diferencia del portal, el integrador SI elige tipoPago. Default
+// anticipado para que las integraciones existentes no cambien de contrato. Con
+// contra_entrega manda montoACobrar (lo que el repartidor cobra al destinatario:
+// mercaderia + flete segun el modelo del integrador); con anticipado ese campo se
+// rechaza con 400 en vez de ignorarse, para que el integrador no crea que controla
+// un monto que fija el servidor. La cobertura de tarifa (I1: monto >= costo+seguro)
+// se valida en la ruta, que es donde existe la cotizacion.
+export const createV1EnvioSchema = createClienteEnvioSchema
+  .extend({
+    tipoPago: tipoPagoEnum.default('anticipado'),
+    montoACobrar: z.number().int().positive().max(999_999_999).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.tipoPago === 'contra_entrega' && data.montoACobrar === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['montoACobrar'],
+        message: 'montoACobrar es requerido con tipoPago contra_entrega',
+      });
+    }
+    if (data.tipoPago === 'anticipado' && data.montoACobrar !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['montoACobrar'],
+        message: 'montoACobrar solo aplica a contra_entrega: en anticipado el monto lo fija el servidor (costo + seguro)',
+      });
+    }
+  });
+
+export type CreateV1EnvioInput = z.infer<typeof createV1EnvioSchema>;
+
 // Bulk import del cliente portal: array de envios con el shape del cliente (sin costo,
 // montoACobrar, tipoPago ni tarifaId). El servidor deriva todo igual que el unitario. Cierra
 // la causa raiz C en el path bulk del cliente: el afiliado no puede mover plata a costo cero.

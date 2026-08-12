@@ -188,11 +188,45 @@ describe('POST /api/v1/envios', () => {
     const res = await request
       .post('/api/v1/envios')
       .set(apiHeaders(key))
-      .send(envioPayload({ costo: 1, clienteId: cliente2Id, montoACobrar: 1, tipoPago: 'contra_entrega' }));
+      .send(envioPayload({ costo: 1, clienteId: cliente2Id }));
 
     expect(res.status).toBe(201);
     expect(res.body.costo).toBe(35000);
     expect(res.body.tipoPago).toBe('anticipado');
+  });
+
+  it('tipoPago anticipado explicito se comporta igual que omitirlo', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key anticipado explicito',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'anticipado' }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.tipoPago).toBe('anticipado');
+    expect(res.body.montoACobrar).toBe(res.body.costo + res.body.costoSeguro);
+  });
+
+  it('400 cuando anticipado viene con montoACobrar: el monto lo fija el servidor', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key anticipado con monto',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ montoACobrar: 185000 }));
+
+    expect(res.status).toBe(400);
+    const issues = res.body.details[0].issues as Array<{ field: string }>;
+    expect(issues.some((i) => i.field === 'montoACobrar')).toBe(true);
   });
 
   it('422 RUTA_SIN_TARIFA cuando el destino no tiene tarifa: no crea envio a costo cero', async () => {
@@ -275,6 +309,165 @@ describe('POST /api/v1/envios', () => {
 
     const res = await request.post('/api/v1/envios').set(apiHeaders(key)).send(envioPayload());
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/v1/envios contra_entrega', () => {
+  // Tarifa seed Asuncion -> Encarnacion: 35000, sin seguro => minimo I1 = 35000.
+  const MINIMO = 35000;
+
+  it('crea un envio COD con el monto exacto al minimo', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod exacto',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: MINIMO }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.tipoPago).toBe('contra_entrega');
+    expect(res.body.costo).toBe(MINIMO);
+    expect(res.body.montoACobrar).toBe(MINIMO);
+    expect(res.body.id).toBeUndefined();
+    expect(res.body.clienteId).toBeUndefined();
+  });
+
+  it('crea un envio COD con excedente y lo persiste tal cual (el excedente es producto de la tienda)', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod excedente',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 250000 }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.costo).toBe(MINIMO);
+    expect(res.body.montoACobrar).toBe(250000);
+
+    const { data } = await supabase
+      .from('envios')
+      .select('tipo_pago, monto_a_cobrar, costo')
+      .eq('tracking_number', res.body.trackingNumber)
+      .single();
+    const row = data as { tipo_pago: string; monto_a_cobrar: number; costo: number };
+    expect(row.tipo_pago).toBe('contra_entrega');
+    expect(row.monto_a_cobrar).toBe(250000);
+    expect(row.costo).toBe(MINIMO);
+  });
+
+  it('422 MONTO_INSUFICIENTE con el minimo exacto y su composicion, sin crear nada', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod insuficiente',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: MINIMO - 1, codigoReferencia: 'COD-CORTO' }));
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('MONTO_INSUFICIENTE');
+    expect(res.body.details).toEqual({ minimo: MINIMO, costo: MINIMO, costoSeguro: 0, montoACobrar: MINIMO - 1 });
+    expect(res.body.error).toContain(String(MINIMO));
+
+    const { count } = await supabase
+      .from('envios')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', testData.clienteId)
+      .eq('codigo_referencia', 'COD-CORTO');
+    expect(count).toBe(0);
+  });
+
+  it('el minimo incluye el costo del seguro cuando aplica', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod con seguro',
+      permisos: ['crear_envios'],
+    });
+    // seguro_config seed: umbral 200000, tasa 0.1 sobre el valor declarado completo
+    // => valorDeclarado 300000 cuesta 30000 y el minimo I1 pasa a 35000 + 30000.
+    const conSeguro = { tipoPago: 'contra_entrega', seguroAdicional: true, valorDeclarado: 300000 };
+
+    const corto = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ ...conSeguro, montoACobrar: 64999 }));
+    expect(corto.status).toBe(422);
+    expect(corto.body.details.minimo).toBe(65000);
+    expect(corto.body.details.costoSeguro).toBe(30000);
+
+    const justo = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ ...conSeguro, montoACobrar: 65000 }));
+    expect(justo.status).toBe(201);
+    expect(justo.body.costoSeguro).toBe(30000);
+    expect(justo.body.montoACobrar).toBe(65000);
+  });
+
+  it('400 cuando contra_entrega viene sin montoACobrar', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod sin monto',
+      permisos: ['crear_envios'],
+    });
+
+    const res = await request
+      .post('/api/v1/envios')
+      .set(apiHeaders(key))
+      .send(envioPayload({ tipoPago: 'contra_entrega' }));
+
+    expect(res.status).toBe(400);
+    const issues = res.body.details[0].issues as Array<{ field: string }>;
+    expect(issues.some((i) => i.field === 'montoACobrar')).toBe(true);
+  });
+
+  it('idempotencia COD: el retry devuelve el mismo envio, la misma key con otro monto es 409', async () => {
+    const { key } = await crearKey({
+      clienteId: testData.clienteId,
+      nombre: 'Key cod idempotente',
+      permisos: ['crear_envios'],
+    });
+    const idem = `cod-retry-${crypto.randomUUID()}`;
+    const body = envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 180000 });
+
+    const primera = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': idem })
+      .send(body);
+    expect(primera.status).toBe(201);
+
+    const replay = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': idem })
+      .send(body);
+    expect(replay.status).toBe(200);
+    expect(replay.body.trackingNumber).toBe(primera.body.trackingNumber);
+    expect(replay.body.montoACobrar).toBe(180000);
+
+    const conOtroMonto = await request
+      .post('/api/v1/envios')
+      .set({ ...apiHeaders(key), 'Idempotency-Key': idem })
+      .send(envioPayload({ tipoPago: 'contra_entrega', montoACobrar: 200000 }));
+    expect(conOtroMonto.status).toBe(409);
+    expect(conOtroMonto.body.code).toBe('IDEMPOTENCY_KEY_REUSED');
+
+    const { count } = await supabase
+      .from('envios')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', testData.clienteId)
+      .eq('api_idempotency_key', idem);
+    expect(count).toBe(1);
   });
 });
 

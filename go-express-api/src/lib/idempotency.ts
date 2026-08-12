@@ -25,3 +25,20 @@ function canonicalJson(value: unknown): string {
 export function hashIdempotencyBody(parsedBody: unknown): string {
   return createHash('sha256').update(canonicalJson(parsedBody)).digest('hex');
 }
+
+/**
+ * Fingerprint del POST /api/v1/envios desde que existe COD. Los hashes persistidos
+ * pre-COD se calcularon sin tipoPago ni montoACobrar; como el default
+ * tipoPago='anticipado' entra al output de Zod, hashear el input completo cambiaria
+ * el hash de TODO el trafico anticipado existente y un retry legitimo de una key ya
+ * consumida responderia 409 en vez de replay. Por eso anticipado hashea el shape
+ * legacy (byte-identico al de antes) y solo contra_entrega suma los campos nuevos:
+ * la misma key con otro montoACobrar es 409, no un replay silencioso.
+ */
+export function hashV1EnvioBody(input: { tipoPago: 'anticipado' | 'contra_entrega'; montoACobrar?: number }): string {
+  if (input.tipoPago === 'contra_entrega') {
+    return hashIdempotencyBody(input);
+  }
+  const { tipoPago: _tipoPago, montoACobrar: _montoACobrar, ...legacyShape } = input;
+  return hashIdempotencyBody(legacyShape);
+}

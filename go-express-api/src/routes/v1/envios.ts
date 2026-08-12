@@ -11,13 +11,13 @@ import { computeSeguroForEnvio, mapEnvioRowToApi, ENVIO_COLUMNS } from '../../se
 import { computeCostoEnvio } from '../../lib/cotizacion.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../../lib/datetime.js';
-import { hashIdempotencyBody } from '../../lib/idempotency.js';
-import { createClienteEnvioSchema } from '../../lib/validators/envio.schema.js';
+import { hashV1EnvioBody } from '../../lib/idempotency.js';
+import { createV1EnvioSchema } from '../../lib/validators/envio.schema.js';
 import { v1EnviosQuerySchema, v1TrackingParamSchema, idempotencyKeySchema } from '../../lib/validators/api-key.schema.js';
 import { toV1Envio } from './projection.js';
 import { SANDBOX_FIXTURES, findSandboxFixture, generateSandboxTracking } from './sandbox.js';
 import type { EnvioRow, EventoEnvioRow, Envio } from '../../types/index.js';
-import type { CreateClienteEnvioInput } from '../../lib/validators/envio.schema.js';
+import type { CreateV1EnvioInput } from '../../lib/validators/envio.schema.js';
 import type { V1EnviosQuery } from '../../lib/validators/api-key.schema.js';
 import type { V1Envio } from './projection.js';
 import type { V1EnvioSimulado } from './sandbox.js';
@@ -74,10 +74,12 @@ function resolveReplay(
 }
 
 // POST /: crea un envio para el cliente duenio de la key.
-// Mismo contrato server-side que el portal cliente (routes/cliente/envios.ts): el tercero
-// NO manda clienteId, costo, tipoPago ni montoACobrar. El server deriva origen desde
-// cliente.ciudad, cotiza costo + seguro (computeCostoEnvio / computeSeguroForEnvio) y
-// factura anticipado con monto_a_cobrar = costo + seguro (I1).
+// Base server-side igual al portal cliente (routes/cliente/envios.ts): el tercero NO manda
+// clienteId ni costo. El server deriva origen desde cliente.ciudad y cotiza costo + seguro
+// (computeCostoEnvio / computeSeguroForEnvio). A diferencia del portal, el gateway acepta
+// tipoPago (default anticipado): anticipado factura monto_a_cobrar = costo + seguro (I1
+// igualdad exacta); contra_entrega toma el montoACobrar del integrador, validado ANTES del
+// insert contra el minimo costo + seguro (I1 cobertura) con 422 MONTO_INSUFICIENTE.
 // Idempotencia: con el header Idempotency-Key, un retry devuelve el envio original (200)
 // en vez de duplicarlo; misma key con body distinto = 409 IDEMPOTENCY_KEY_REUSED.
 // Keys de test (ge_test_): validacion y cotizacion REALES, pero el envio se simula y no
@@ -86,10 +88,10 @@ function resolveReplay(
 router.post(
   '/',
   requirePermiso('crear_envios'),
-  validate({ body: createClienteEnvioSchema }),
+  validate({ body: createV1EnvioSchema }),
   asyncHandler(async (req, res) => {
     const clienteId = req.clienteId!;
-    const input = req.body as CreateClienteEnvioInput;
+    const input = req.body as CreateV1EnvioInput;
     const modoTest = req.apiKeyModoTest === true;
 
     const rawIdempotencyKey = req.headers['idempotency-key'];
@@ -103,7 +105,7 @@ router.post(
         throw AppError.badRequest('Idempotency-Key invalida', parsed.error.issues);
       }
       idempotencyKey = parsed.data;
-      bodyHash = hashIdempotencyBody(input);
+      bodyHash = hashV1EnvioBody(input);
 
       // En sandbox no hay persistencia, asi que tampoco hay replay: cada POST simula
       // un envio nuevo. Se valida el header igual para que el integrador lo ejercite.
@@ -157,10 +159,31 @@ router.post(
       input.seguroAdicional
     );
 
+    // I1 en el borde del API: mismo contrato que el CHECK y el trigger de la DB, pero con
+    // un 422 accionable antes del insert. En contra_entrega el repartidor cobra todo, GO
+    // EXPRESS retiene la tarifa y el excedente es producto de la tienda: un monto que no
+    // cubre costo + seguro dejaria a GO EXPRESS financiando el flete.
+    const minimo = cotizacion.costo + costoSeguro;
+    let montoACobrar = minimo;
+    if (input.tipoPago === 'contra_entrega') {
+      // El schema ya exige montoACobrar con contra_entrega; el ?? 0 solo garantiza que un
+      // refactor futuro que lo deje pasar sin monto caiga en el 422, nunca en el insert.
+      montoACobrar = input.montoACobrar ?? 0;
+      if (montoACobrar < minimo) {
+        throw new AppError(
+          `El montoACobrar (${montoACobrar} Gs) no cubre la tarifa del envio. Minimo: ${minimo} Gs (costo ${cotizacion.costo} + seguro ${costoSeguro}).`,
+          422,
+          'MONTO_INSUFICIENTE',
+          { minimo, costo: cotizacion.costo, costoSeguro, montoACobrar }
+        );
+      }
+    }
+
     const hasDims = !!input.dimensiones && input.dimensiones.largo > 0 && input.dimensiones.ancho > 0 && input.dimensiones.alto > 0;
 
-    // Sandbox: mismo pipeline de validacion y cotizacion que live, pero el envio se
-    // devuelve simulado. Cero escrituras: ni envios, ni eventos, ni auditoria, ni SSE.
+    // Sandbox: mismo pipeline de validacion y cotizacion que live (incluido el 422 de
+    // MONTO_INSUFICIENTE, que corre antes de esta rama), pero el envio se devuelve
+    // simulado. Cero escrituras: ni envios, ni eventos, ni auditoria, ni SSE.
     if (modoTest) {
       const simulado: V1EnvioSimulado = {
         trackingNumber: generateSandboxTracking(),
@@ -185,8 +208,8 @@ router.post(
         valorDeclarado,
         costo: cotizacion.costo,
         costoSeguro,
-        montoACobrar: cotizacion.costo + costoSeguro,
-        tipoPago: 'anticipado',
+        montoACobrar,
+        tipoPago: input.tipoPago,
         seguroAdicional,
         fecha: todayPY(),
         fechaEntregaReal: null,
@@ -238,8 +261,8 @@ router.post(
         notas: input.notas ?? null,
         estado: 'pendiente' as const,
         costo: cotizacion.costo,
-        monto_a_cobrar: cotizacion.costo + costoSeguro,
-        tipo_pago: 'anticipado' as const,
+        monto_a_cobrar: montoACobrar,
+        tipo_pago: input.tipoPago,
         seguro_adicional: seguroAdicional,
         costo_seguro: costoSeguro,
         tags: input.tags ?? [],

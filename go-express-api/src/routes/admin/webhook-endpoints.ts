@@ -38,7 +38,7 @@ router.post(
     res.status(201).json({
       ...endpoint,
       secreto,
-      aviso: 'Guarda este secreto ahora: no se vuelve a mostrar.',
+      aviso: 'Guardá este secreto ahora: no se vuelve a mostrar.',
     });
   })
 );
@@ -111,7 +111,7 @@ router.post(
     res.status(201).json({
       ...endpoint,
       secreto,
-      aviso: 'Guarda este secreto ahora: no se vuelve a mostrar. Las firmas con el secreto anterior dejan de validar de inmediato.',
+      aviso: 'Guardá este secreto ahora: no se vuelve a mostrar. Las firmas con el secreto anterior dejan de validar de inmediato.',
     });
   })
 );

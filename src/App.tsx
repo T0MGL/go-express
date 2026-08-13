@@ -65,6 +65,7 @@ const ClienteCuenta = lazyWithReload(() => import("./pages/cliente/ClienteCuenta
 const ClienteImportar = lazyWithReload(() => import("./pages/cliente/ClienteImportar"));
 const ClienteCotizador = lazyWithReload(() => import("./pages/cliente/ClienteCotizador"));
 const ClienteProductos = lazyWithReload(() => import("./pages/cliente/ClienteProductos"));
+const ClienteApi = lazyWithReload(() => import("./pages/cliente/ClienteApi"));
 const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 const RepartidorLogin = lazyWithReload(() => import("./pages/repartidor/RepartidorLogin"));
 const RepartidorLayout = lazyWithReload(() => import("./pages/repartidor/RepartidorLayout").then(m => ({ default: m.RepartidorLayout })));
@@ -221,6 +222,7 @@ const App = () => (
                   <Route path="cotizar" element={<ClienteCotizador />} />
                   <Route path="etiquetas" element={<ClienteEtiquetas />} />
                   <Route path="productos" element={<ClienteProductos />} />
+                  <Route path="api" element={<ClienteApi />} />
                   <Route path="cuenta" element={<ClienteCuenta />} />
                 </Route>
 

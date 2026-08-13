@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import {
-  ChartBar, Package, PlusCircle, UploadSimple, Calculator, Tag, Cube,
+  ChartBar, Package, PlusCircle, UploadSimple, Calculator, Tag, Cube, Code,
   Bell, SignOut, CaretDown,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ const navItems = [
   { icon: Calculator, label: 'Cotizador', path: '/portal/cotizar', end: true, title: 'Cotizador' },
   { icon: Tag, label: 'Etiquetas', path: '/portal/etiquetas', end: true, title: 'Etiquetas' },
   { icon: Cube, label: 'Productos', path: '/portal/productos', end: true, title: 'Mis productos' },
+  { icon: Code, label: 'API', path: '/portal/api', end: true, title: 'API para desarrolladores' },
 ];
 
 function getTitleForPath(pathname: string): string {
@@ -37,6 +38,7 @@ function getTitleForPath(pathname: string): string {
   if (pathname.startsWith('/portal/cotizar')) return 'Cotizador';
   if (pathname.startsWith('/portal/etiquetas')) return 'Etiquetas';
   if (pathname.startsWith('/portal/productos')) return 'Mis productos';
+  if (pathname.startsWith('/portal/api')) return 'API para desarrolladores';
   if (pathname.startsWith('/portal/cuenta')) return 'Mi cuenta';
   return 'Inicio';
 }

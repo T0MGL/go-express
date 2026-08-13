@@ -1,4 +1,4 @@
-import { Bell, SignOut, GearSix, UserCircle, Command, List } from '@phosphor-icons/react';
+import { Bell, SignOut, GearSix, Command, List } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { GlobalSearch } from './GlobalSearch';
 import { Button } from '@/components/ui/button';

@@ -1,98 +1,89 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Logotipo } from '@/components/brand/BrandMark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { SiteHeader } from '@/components/site/SiteHeader';
+import { SiteFooter } from '@/components/site/SiteFooter';
+import { SeguroDialog } from '@/components/site/SeguroDialog';
 import {
   MagnifyingGlass, MapPin, Phone, EnvelopeSimple, CheckCircle,
-  Package, Truck, ShieldCheck, BuildingOffice, ArrowRight,
-  ArrowUpRight, List, X, SealCheck, Handshake, Globe,
-  FacebookLogo, InstagramLogo, LinkedinLogo, WhatsappLogo, CaretDown,
-  Lightning
+  ArrowRight, ArrowUpRight, WhatsappLogo, CaretDown, Lightning,
 } from '@phosphor-icons/react';
 import { usePublicTarifas } from '@/hooks/api/use-public-tarifas';
 import type { PublicCiudad } from '@/hooks/api/use-public-tarifas';
 
+const NAV_LINKS = ['Servicios', 'Cobertura', 'Contacto'];
 
-const NumberCounter = ({ target, duration = 2, suffix = '' }: { target: number; duration?: number; suffix?: string }) => {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
-  const rafId = useRef(0);
+const SERVICIOS = [
+  {
+    title: 'Distribución B2B',
+    desc: 'Rutas estructuradas para abastecimiento de sucursales, entrega mayorista y paquetería consolidada, con control cruzado en cada tramo.',
+  },
+  {
+    title: 'Seguridad de la carga',
+    desc: 'Cada paquete viaja con guía de remisión física y registro documentado. Nada avanza sin respaldo, nada se pierde en el sistema.',
+  },
+  {
+    title: 'Portal corporativo',
+    desc: 'Cargá tus envíos, obtené tracking unificado y seguí el estado de liquidación desde un panel propio, sin llamadas ni planillas.',
+  },
+];
 
-  useEffect(() => {
-    if (!isInView) return;
-    let startTime: number;
-    const updateCount = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = timestamp - startTime;
-      const percentage = Math.min(progress / (duration * 1000), 1);
-      const easeOutQuart = 1 - Math.pow(1 - percentage, 4);
-      setCount(Math.floor(easeOutQuart * target));
-      if (percentage < 1) {
-        rafId.current = requestAnimationFrame(updateCount);
-      }
-    };
-    rafId.current = requestAnimationFrame(updateCount);
-    return () => cancelAnimationFrame(rafId.current);
-  }, [isInView, target, duration]);
+const PROCESO = [
+  {
+    step: '01',
+    title: 'Recepción y registro',
+    desc: 'Ingreso al sistema con guía propia o provista por el cliente. El bulto queda con identidad única desde el minuto uno.',
+  },
+  {
+    step: '02',
+    title: 'Clasificación en hub',
+    desc: 'La carga se routea físicamente en nuestra central para su despacho interurbano o interdepartamental.',
+  },
+  {
+    step: '03',
+    title: 'Confirmación de entrega',
+    desc: 'Soporte documental de que la mercadería llegó en condiciones al destinatario final.',
+  },
+];
 
-  return <span ref={ref}>{count}{suffix}</span>;
-};
+const FAQS = [
+  {
+    q: '¿Cómo rastreo mi envío?',
+    a: 'Ingresá el número de pedido (por ejemplo GEX-890214) en el buscador de esta página o en la sección de rastreo. Vas a ver el estado actualizado del paquete.',
+  },
+  {
+    q: '¿Cuáles son los tiempos de entrega?',
+    a: 'Dentro del área metropolitana, entre 24 y 48 horas hábiles. Para el interior, entre 48 y 72 horas hábiles según el departamento de destino.',
+  },
+  {
+    q: '¿Qué zonas cubren?',
+    a: 'Llegamos a los 18 departamentos del Paraguay, con hubs logísticos en Asunción, Ciudad del Este, Encarnación y Pedro Juan Caballero.',
+  },
+  {
+    q: '¿Cómo abro una cuenta corporativa?',
+    a: 'Completá el formulario de esta página o escribinos a contacto@goexpressparaguay.com. Un ejecutivo comercial te contacta para configurar la cuenta y el acceso al portal.',
+  },
+  {
+    q: '¿Qué pasa si mi paquete llega dañado?',
+    a: 'Todos los envíos tienen seguro de carga. Avisanos dentro de las 48 horas posteriores a la entrega con fotos del paquete y procesamos el reclamo.',
+  },
+];
 
-const trackingPlaceholders = ['GEX-890214', 'GEX-261033', 'GEX-450078'];
+const CONTACTO = [
+  { icon: MapPin, title: 'Central', desc: 'Itapúa, Paraguay' },
+  { icon: Phone, title: 'Atención a empresas', desc: '0991 600 777' },
+  { icon: WhatsappLogo, title: 'WhatsApp de notificaciones', desc: '+595 981 987 476' },
+  { icon: EnvelopeSimple, title: 'Comercial', desc: 'contacto@goexpressparaguay.com' },
+];
 
-const useTypewriter = (texts: string[], speed = 60, pause = 2500) => {
-  const [display, setDisplay] = useState('');
-  const idxRef = useRef(0);
-  const charRef = useRef(0);
-  const deletingRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    const tick = () => {
-      const text = texts[idxRef.current];
-      const char = charRef.current;
-      const del = deletingRef.current;
-
-      if (!del && char < text.length) {
-        charRef.current++;
-        setDisplay(text.slice(0, charRef.current));
-        timerRef.current = setTimeout(tick, speed);
-      } else if (!del && char === text.length) {
-        timerRef.current = setTimeout(() => {
-          deletingRef.current = true;
-          tick();
-        }, pause);
-      } else if (del && char > 0) {
-        charRef.current--;
-        setDisplay(text.slice(0, charRef.current));
-        timerRef.current = setTimeout(tick, speed / 2);
-      } else if (del && char === 0) {
-        deletingRef.current = false;
-        idxRef.current = (idxRef.current + 1) % texts.length;
-        timerRef.current = setTimeout(tick, speed);
-      }
-    };
-    tick();
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [texts, speed, pause]);
-
-  return display;
-};
-
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } }
-};
-
-const fadeUpVariant = {
-  hidden: { opacity: 0, y: 15 },
-  show: { opacity: 1, y: 0, transition: { type: "tween" as const, ease: "easeOut" as const, duration: 0.5 } }
-} as const;
+const GRAN_ASUNCION = new Set([
+  'Asunción', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambaré',
+  'Capiatá', 'Limpio', 'Ñemby', 'Mariano Roque Alonso', 'Villa Elisa',
+  'San Antonio', 'Itauguá', 'Ypané',
+]);
 
 function formatGs(amount: number): string {
   return new Intl.NumberFormat('es-PY').format(amount);
@@ -103,19 +94,12 @@ function computePricingSummary(ciudades: PublicCiudad[]) {
   let minExpress = Infinity;
   let minInterior = Infinity;
 
-  const granAsuncionNames = new Set([
-    'Asunción', 'Luque', 'San Lorenzo', 'Fernando de la Mora', 'Lambaré',
-    'Capiatá', 'Limpio', 'Ñemby', 'Mariano Roque Alonso', 'Villa Elisa',
-    'San Antonio', 'Itauguá', 'Ypané',
-  ]);
-
   for (const c of ciudades) {
-    const isGranAsuncion = granAsuncionNames.has(c.nombre);
-    if (isGranAsuncion) {
+    if (GRAN_ASUNCION.has(c.nombre)) {
       if (c.estandar !== null && c.estandar < minEstandar) minEstandar = c.estandar;
       if (c.express !== null && c.express < minExpress) minExpress = c.express;
-    } else {
-      if (c.estandar !== null && c.estandar < minInterior) minInterior = c.estandar;
+    } else if (c.estandar !== null && c.estandar < minInterior) {
+      minInterior = c.estandar;
     }
   }
 
@@ -126,22 +110,20 @@ function computePricingSummary(ciudades: PublicCiudad[]) {
   };
 }
 
-const FaqItem = ({ question, answer, index }: { question: string; answer: string; index: number }) => {
+const FaqItem = ({ question, answer }: { question: string; answer: string }) => {
   const [open, setOpen] = useState(false);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.05 }}
-    >
+    <div>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-5 text-left group"
+        aria-expanded={open}
+        className="group flex w-full items-center justify-between gap-6 py-5 text-left"
       >
-        <span className="font-display font-semibold text-[15px] text-slate-700 group-hover:text-primary transition-colors pr-4">{question}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <CaretDown weight="bold" className="w-4 h-4 text-slate-400 shrink-0" />
+        <span className="font-display text-[15px] font-semibold text-sidebar transition-colors group-hover:text-primary">
+          {question}
+        </span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}>
+          <CaretDown weight="bold" className="h-4 w-4 shrink-0 text-sidebar/30" />
         </motion.span>
       </button>
       <AnimatePresence initial={false}>
@@ -150,44 +132,45 @@ const FaqItem = ({ question, answer, index }: { question: string; answer: string
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
             className="overflow-hidden"
           >
-            <p className="pb-5 text-slate-500 text-[14px] leading-relaxed">{answer}</p>
+            <p className="max-w-2xl pb-6 text-[14px] leading-relaxed text-sidebar/55">{answer}</p>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 };
 
 const Landing = () => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [trackingInput, setTrackingInput] = useState('');
   const [contactSent, setContactSent] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [heroCardPage, setHeroCardPage] = useState(0);
   const [contactForm, setContactForm] = useState({ nombre: '', empresa: '', email: '', tel: '' });
   const [insuranceOpen, setInsuranceOpen] = useState(false);
 
   const { data: tarifasData, isLoading: tarifasLoading } = usePublicTarifas();
-  const ciudades = tarifasData?.ciudades ?? [];
+  const ciudades = useMemo(() => tarifasData?.ciudades ?? [], [tarifasData]);
   const pricing = useMemo(() => computePricingSummary(ciudades), [ciudades]);
+  const conExpress = ciudades.filter((c) => c.express !== null).length;
+  // La tarjeta de entrega es fija, las de precio dependen de que la tarifa exista.
+  const tarjetasTarifa = 1 + (pricing.granAsuncionEstandar !== null ? 1 : 0) + (pricing.interiorDesde !== null ? 1 : 0);
 
-  const { scrollY } = useScroll();
-  const bgParallax = useTransform(scrollY, [0, 600], [0, 60]);
-
-  const typedPlaceholder = useTypewriter(trackingPlaceholders);
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const reveal = useMemo(
+    () =>
+      reduceMotion
+        ? { initial: undefined, whileInView: undefined }
+        : {
+            initial: { opacity: 0, y: 16 },
+            whileInView: { opacity: 1, y: 0 },
+          },
+    [reduceMotion],
+  );
+  const revealTransition = { duration: 0.5, ease: [0.23, 1, 0.32, 1] as const };
 
   const scrollToSection = useCallback((id: string) => {
-    setMobileMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
@@ -213,850 +196,441 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-sidebar font-sans overflow-x-hidden selection:bg-primary/10 selection:text-sidebar">
+    <div className="min-h-screen overflow-x-hidden bg-white font-sans text-sidebar selection:bg-primary/10 selection:text-sidebar">
 
-      {/* NAV */}
-      <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
-        <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between" aria-label="Navegacion principal">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center shrink-0 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <Logotipo className="h-7" />
-          </motion.div>
-
-          <nav className="hidden md:flex items-center gap-10 text-[14px] font-semibold text-sidebar/70">
-            {['Servicios', 'Cobertura', 'Contacto'].map((item) => (
-              <button key={item} onClick={() => scrollToSection(item.toLowerCase())} className="hover:text-sidebar transition-colors relative group">
-                {item}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-300" />
-              </button>
-            ))}
-          </nav>
-
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" className="text-sidebar/70 hover:text-sidebar hover:bg-muted/50 border-0 gap-2 font-bold text-xs hidden lg:flex" onClick={() => navigate('/track')}>
-              <MagnifyingGlass weight="bold" className="w-[18px] h-[18px]" />
-              Rastrear Envío
-            </Button>
-            <div className="w-px h-5 bg-border hidden md:block" />
-            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20 hidden md:flex" onClick={() => navigate('/portal')}>
-              Portal Empresas
-            </Button>
-            <Button variant="ghost" size="sm" className="md:hidden text-sidebar hover:bg-muted border-0 px-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X weight="bold" className="w-6 h-6" /> : <List weight="bold" className="w-6 h-6" />}
-            </Button>
-          </motion.div>
-        </nav>
-
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="md:hidden border-t border-muted bg-white overflow-hidden absolute w-full shadow-lg">
-              <div className="px-6 py-5 flex flex-col gap-4">
-                {['Servicios', 'Cobertura', 'Contacto'].map((item) => (
-                  <button key={item} onClick={() => scrollToSection(item.toLowerCase())} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left transition-colors">{item}</button>
-                ))}
-                <div className="h-px bg-muted w-full my-2" />
-                <button onClick={() => { setMobileMenuOpen(false); navigate('/track'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
-                  <MagnifyingGlass weight="bold" /> Rastrear Envío
-                </button>
-                <button onClick={() => { setMobileMenuOpen(false); navigate('/portal'); }} className="bg-primary text-white hover:bg-sidebar font-bold text-sm transition-colors duration-300 rounded-full h-11 px-6 shadow-md shadow-primary/20">
-                  Portal Empresas
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </header>
-
-      {/* HERO */}
+      <SiteHeader
+        sections={NAV_LINKS}
+        onSection={scrollToSection}
+        secondary={{ label: 'Rastrear envío', icon: MagnifyingGlass, onClick: () => navigate('/track') }}
+        onLogo={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onPortal={() => navigate('/portal')}
+      />
       <main>
-      <section className="relative pt-28 pb-16 md:pt-32 md:pb-20 bg-white flex items-center min-h-[85vh]">
-        <motion.div style={{ y: bgParallax }} className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-50 pointer-events-none" aria-hidden="true" />
+        {/* HERO */}
+        <section className="relative border-b border-border/70 pt-28 lg:pt-24">
+          <div className="mx-auto grid max-w-[1320px] items-center gap-y-12 px-6 pb-16 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] lg:gap-x-16 lg:pb-24 xl:px-10">
+            <motion.div
+              initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
+              className="relative z-10 lg:py-16"
+            >
+              <h1 className="font-display text-[2.25rem] font-bold leading-[1.03] tracking-tightest text-sidebar sm:text-[3.25rem] lg:text-[3.5rem]">
+                Tu envío,<br />en buenas manos.
+              </h1>
 
-        <div className="max-w-7xl mx-auto px-6 w-full relative z-10 grid lg:grid-cols-12 gap-16 items-center">
-          {/* Left Content */}
-          <motion.div variants={staggerContainer} initial="hidden" animate="show" className="lg:col-span-6 flex flex-col justify-center text-center lg:text-left">
-
-            <motion.div variants={fadeUpVariant} className="inline-flex items-center gap-2 bg-sidebar/5 border border-sidebar/10 rounded-full px-4 py-1.5 mb-8 mx-auto lg:mx-0 w-fit">
-              <ShieldCheck weight="fill" className="w-4 h-4 text-sidebar" />
-              <span className="text-[12px] text-sidebar font-bold tracking-wide">Solidez Logística a Nivel Nacional</span>
-            </motion.div>
-
-            <motion.h1 variants={fadeUpVariant} className="font-display text-[2.75rem] md:text-[4.5rem] font-bold text-sidebar leading-[1.05] tracking-tight mb-6">
-              Tu envío, <br />en buenas <br />manos.
-            </motion.h1>
-
-            <motion.p variants={fadeUpVariant} className="text-base md:text-lg text-sidebar/60 max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed font-medium">
-              Gestionamos la logística de tu empresa con procesos claros, seguridad garantizada en cada paquete y llegada a los 18 departamentos del país.
-            </motion.p>
-
-            {/* Tracking Form */}
-            <motion.div variants={fadeUpVariant} className="relative w-full max-w-xl mx-auto lg:mx-0">
-              <div className="p-5 md:p-6 bg-slate-50 rounded-2xl border border-muted shadow-lg shadow-sidebar/[0.04] relative overflow-hidden">
-                <Label className="text-sidebar/50 text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Rastrear envío por número de pedido
-                </Label>
-
-                <form onSubmit={handleTrack} className="w-full rounded-xl overflow-hidden flex bg-white border border-muted focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 transition-all duration-300 shadow-sm">
-                  <div className="relative flex-1 flex items-center">
-                    <MagnifyingGlass weight="bold" className="absolute left-5 w-[20px] h-[20px] text-sidebar/30" />
-                    <Input
-                      value={trackingInput}
-                      onChange={(e) => setTrackingInput(e.target.value)}
-                      placeholder={`Ej: ${typedPlaceholder}│`}
-                      className="pl-12 h-14 md:h-16 text-sm md:text-base border-0 focus-visible:ring-0 focus-visible:ring-offset-0 font-bold bg-transparent text-sidebar placeholder:text-sidebar/25"
-                    />
-                  </div>
-                  <Button type="submit" className="h-14 md:h-16 px-6 md:px-8 font-bold text-xs md:text-sm gap-2 rounded-none bg-primary text-white hover:bg-sidebar border-0 shrink-0 transition-colors duration-300">
-                    Buscar <ArrowRight weight="bold" className="w-4 h-4 hidden sm:block" />
-                  </Button>
-                </form>
-              </div>
-            </motion.div>
-
-            {/* Secondary CTA */}
-            <motion.div variants={fadeUpVariant} className="flex items-center gap-2 mt-6 justify-center lg:justify-start">
-              <span className="text-sidebar/40 text-sm font-medium">¿Empresa?</span>
-              <button onClick={() => scrollToSection('contacto')} className="text-primary text-sm font-bold hover:text-sidebar transition-colors inline-flex items-center gap-1 group">
-                Solicita tu cuenta corporativa
-                <ArrowUpRight weight="bold" className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-              </button>
-            </motion.div>
-          </motion.div>
-
-          {/* Right: Delivery Dashboard Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, type: "tween" as const, ease: "easeOut" as const }}
-            className="lg:col-span-6 hidden lg:flex justify-end relative h-[500px]"
-          >
-            <div className="relative w-[500px] h-[550px]">
-              <div className="absolute inset-0 bg-blue-50/50 rounded-[40px] transform rotate-3" />
-              <div className="absolute inset-0 border-2 border-primary/10 rounded-[40px] transform -rotate-3" />
-
-              <div className="absolute inset-4 bg-white rounded-[32px] shadow-2xl shadow-sidebar/10 border border-muted flex flex-col p-8 overflow-hidden">
-                {(() => {
-                  const pages = [
-                    {
-                      title: 'Seguimiento de Envíos',
-                      items: [
-                        { icon: Package, iconBg: 'bg-blue-50 border-blue-100', iconColor: 'text-primary', name: 'Carga Corporativa', dest: 'Ciudad del Este', status: 'Entregado', statusColor: 'text-brand-lime bg-brand-lime/10', progress: 'w-full', progressColor: 'bg-brand-lime', opacity: '' },
-                        { icon: BuildingOffice, iconBg: 'bg-slate-50 border-border', iconColor: 'text-sidebar/40', name: 'Distribución Sucursales', dest: 'Encarnación', status: 'En Ruta', statusColor: 'text-primary bg-primary/10', progress: 'w-[65%]', progressColor: 'bg-primary', opacity: '' },
-                        { icon: Package, iconBg: 'bg-slate-50 border-border', iconColor: 'text-sidebar/30', name: 'Documentación Legal', dest: 'Asunción', status: 'Pendiente', statusColor: 'text-sidebar/40 bg-muted', progress: '', progressColor: '', opacity: 'opacity-60' },
-                      ],
-                      footer: { number: '18', title: 'Departamentos Activos', subtitle: 'Cobertura garantizada al 100%' }
-                    },
-                    {
-                      title: 'Panel del Cliente',
-                      items: [
-                        { icon: Package, iconBg: 'bg-blue-50 border-blue-100', iconColor: 'text-primary', name: 'Electrónica Importada', dest: 'Luque', status: 'En Ruta', statusColor: 'text-primary bg-primary/10', progress: 'w-[80%]', progressColor: 'bg-primary', opacity: '' },
-                        { icon: Package, iconBg: 'bg-slate-50 border-border', iconColor: 'text-sidebar/40', name: 'Insumos Médicos', dest: 'San Lorenzo', status: 'Entregado', statusColor: 'text-brand-lime bg-brand-lime/10', progress: 'w-full', progressColor: 'bg-brand-lime', opacity: '' },
-                        { icon: BuildingOffice, iconBg: 'bg-slate-50 border-border', iconColor: 'text-sidebar/30', name: 'Repuestos Automotor', dest: 'Caaguazú', status: 'Pendiente', statusColor: 'text-sidebar/40 bg-muted', progress: '', progressColor: '', opacity: 'opacity-60' },
-                      ],
-                      footer: { number: '24h', title: 'Atención Personalizada', subtitle: 'Soporte dedicado para tu empresa' }
-                    }
-                  ];
-                  const current = pages[heroCardPage];
-                  return (
-                    <>
-                      <div className="flex items-center justify-between mb-8 pb-6 border-b border-muted">
-                        <div className="text-sm font-bold text-sidebar uppercase tracking-wider">{current.title}</div>
-                        <div className="flex gap-2">
-                          {pages.map((_, idx) => (
-                            <button key={idx} onClick={() => setHeroCardPage(idx)} className={`w-2 h-2 rounded-full transition-colors ${heroCardPage === idx ? 'bg-primary' : 'bg-border hover:bg-sidebar/30'}`} />
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-6 flex-1">
-                        {current.items.map((item, i) => (
-                          <motion.div
-                            key={`${heroCardPage}-${item.name}`}
-                            initial={{ opacity: 0, x: 15 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                            className={`flex items-start gap-5 ${item.opacity}`}
-                          >
-                            <div className={`w-12 h-12 rounded-xl ${item.iconBg} flex items-center justify-center border shrink-0`}>
-                              <item.icon weight={i === 0 ? 'fill' : 'duotone'} className={`w-6 h-6 ${item.iconColor}`} />
-                            </div>
-                            <div className="flex-1 pt-1">
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-bold text-sidebar text-sm">{item.name}</span>
-                                <span className={`text-xs font-bold ${item.statusColor} px-2 py-0.5 rounded`}>{item.status}</span>
-                              </div>
-                              <div className="text-xs font-semibold text-sidebar/50 mb-2">Destino: {item.dest}</div>
-                              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                {item.progress && <div className={`h-full ${item.progressColor} ${item.progress}`} />}
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-
-                      <div className="mt-auto pt-6 border-t border-muted bg-slate-50 -mx-8 -mb-8 p-8">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-white border border-muted shadow-sm flex items-center justify-center text-primary font-bold text-sm">{current.footer.number}</div>
-                          <div>
-                            <div className="text-sm font-bold text-sidebar">{current.footer.title}</div>
-                            <div className="text-xs text-sidebar/50 font-medium">{current.footer.subtitle}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ SOCIAL PROOF ══════════════════════════════════════════════════ */}
-      <section className="py-14 bg-gradient-to-b from-white via-slate-50/80 to-slate-50 border-y border-muted/40 overflow-hidden">
-        <div className="max-w-3xl mx-auto px-6">
-          <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-            {[
-              { icon: SealCheck, label: 'RUC Verificado', desc: 'Facturación legal E.A.S.', onClick: undefined },
-              { icon: ShieldCheck, label: 'Seguro de Carga', desc: 'Hasta Gs. 200.000 incluido', onClick: () => setInsuranceOpen(true) },
-              { icon: Handshake, label: 'Partner Certificado', desc: '10+ años de operación', onClick: undefined },
-            ].map((badge) => {
-              const Wrapper: React.ElementType = badge.onClick ? 'button' : 'div';
-              return (
-                <motion.div variants={fadeUpVariant} key={badge.label}>
-                  <Wrapper
-                    {...(badge.onClick ? { onClick: badge.onClick, type: 'button' } : {})}
-                    className={`w-full flex flex-col items-center gap-2 py-4 ${badge.onClick ? 'group cursor-pointer transition-colors' : ''}`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center mb-1 ${badge.onClick ? 'group-hover:bg-primary/12 transition-colors' : ''}`}>
-                      <badge.icon weight="duotone" className="w-5 h-5 text-primary" />
-                    </div>
-                    <span className={`font-bold text-sm text-sidebar ${badge.onClick ? 'group-hover:text-primary transition-colors' : ''}`}>{badge.label}</span>
-                    <span className="text-xs text-sidebar/40 font-medium">{badge.desc}</span>
-                  </Wrapper>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ METRICS ═══════════════════════════════════════════════════════ */}
-      <section className="bg-white border-y border-muted/50">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div
-            initial="hidden" whileInView="show" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer}
-            className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border/50"
-          >
-            {[
-              { target: 18, label: 'Departamentos', icon: MapPin },
-              { target: 100, label: 'Seguridad de Carga', icon: ShieldCheck, suffix: '%' },
-              { target: 24, label: 'Atención Corporativa', icon: Phone, suffix: 'h' },
-              { target: 10, label: 'Años de Experiencia', icon: BuildingOffice, suffix: '+' },
-            ].map((s, i) => (
-              <motion.div variants={fadeUpVariant} key={i} className="text-center py-10 md:py-12">
-                <s.icon weight="fill" className="w-6 h-6 text-primary/25 mx-auto mb-3" />
-                <p className="text-3xl font-display font-bold text-slate-600 mb-1 tracking-tighter tabular-nums">
-                  <NumberCounter target={s.target} suffix={s.suffix} />
-                </p>
-                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{s.label}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══ SERVICIOS ═════════════════════════════════════════════════════ */}
-      <section id="servicios" className="py-24 md:py-32 bg-slate-50 relative">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="mb-16 md:mb-20 text-center max-w-2xl mx-auto">
-            <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-              <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase mb-3 block">Nuestros Servicios</span>
-              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">Logística hecha <br />para empresas.</h2>
-              <p className="text-sidebar/60 text-lg font-medium leading-relaxed">
-                Nos enfocamos en el cumplimiento seguro de la cadena de suministro de tu negocio, con procesos humanos verificados y atención personalizada.
+              <p className="mt-6 max-w-md text-[17px] leading-relaxed text-sidebar/55">
+                Logística corporativa con procesos claros, seguro en cada paquete y llegada a los 18 departamentos del país.
               </p>
-            </motion.div>
-          </div>
 
-          <motion.div
-            initial="hidden" whileInView="show" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer}
-            className="grid md:grid-cols-3 gap-8"
-          >
-            {[
-              {
-                icon: Package,
-                title: 'Distribución B2B',
-                desc: 'Manejo de rutas estructuradas para abastecimiento de sucursales, entrega mayorista y paquetería consolidada con altos estándares de seguridad y control cruzado.'
-              },
-              {
-                icon: ShieldCheck,
-                title: 'Seguridad Garantizada',
-                desc: 'Todo paquete cuenta con proceso administrativo de guía de remisión física y registro documentado. Tu carga nunca se pierde en el sistema.'
-              },
-              {
-                icon: BuildingOffice,
-                title: 'Portal Corporativo',
-                desc: 'Accede a un panel limpio para ingresar tus envíos, obtener números de tracking unificados y ver el estado de liquidación de forma ordenada.'
-              }
-            ].map((feature) => (
-              <motion.div
-                variants={fadeUpVariant}
-                key={feature.title}
-                className="bg-white rounded-3xl p-10 border border-muted shadow-lg shadow-sidebar/[0.03] hover:shadow-xl hover:border-primary/15 hover:-translate-y-1 transition-all duration-500 group"
+              <form
+                onSubmit={handleTrack}
+                className="mt-10 flex w-full max-w-lg overflow-hidden rounded-full border border-border bg-white shadow-premium-md transition-[border-color,box-shadow] duration-200 focus-within:border-primary/40 focus-within:shadow-glow-lg"
               >
-                <div className="w-14 h-14 rounded-2xl bg-slate-600 border border-slate-500 flex items-center justify-center mb-8 group-hover:shadow-lg group-hover:shadow-primary/10 transition-shadow duration-300">
-                  <feature.icon weight="fill" className="w-7 h-7 text-white" />
+                <div className="relative flex flex-1 items-center">
+                  <MagnifyingGlass weight="bold" className="absolute left-5 h-[18px] w-[18px] text-sidebar/25" />
+                  <Input
+                    value={trackingInput}
+                    onChange={(e) => setTrackingInput(e.target.value)}
+                    placeholder="Ej. GEX-890214"
+                    aria-label="Número de pedido"
+                    className="h-14 border-0 bg-transparent pl-12 text-[15px] font-medium text-sidebar placeholder:text-sidebar/30 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
                 </div>
-                <h3 className="font-display text-xl font-bold mb-4 text-slate-700">{feature.title}</h3>
-                <p className="text-slate-500 text-[15px] leading-relaxed font-medium">{feature.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
+                <Button
+                  type="submit"
+                  className="m-1.5 h-11 shrink-0 gap-2 rounded-full bg-sidebar px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-primary active:scale-[0.98]"
+                >
+                  Rastrear
+                  <ArrowRight weight="bold" className="hidden h-4 w-4 sm:block" />
+                </Button>
+              </form>
 
-          {/* Portal Preview */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.6 }}
-            className="mt-20 md:mt-24"
-          >
-            <div className="text-center mb-10">
-              <span className="text-slate-400 font-bold tracking-widest text-[11px] uppercase mb-2 block">Portal de Clientes</span>
-              <p className="text-slate-500 text-[15px] font-medium">Así se ve el panel donde gestiónás todos tus envíos.</p>
-            </div>
-            {/* MacBook-style browser mockup */}
-            <div className="relative mx-auto max-w-5xl" style={{ perspective: '1200px' }}>
-              {/* Soft glow behind */}
-              <div className="absolute -inset-8 bg-primary/[0.04] rounded-[40px] blur-3xl" />
+              <div className="mt-5 flex items-center gap-2 text-[14px]">
+                <span className="text-sidebar/40">¿Empresa?</span>
+                <button
+                  onClick={() => scrollToSection('contacto')}
+                  className="group inline-flex items-center gap-1 font-semibold text-primary transition-colors hover:text-sidebar"
+                >
+                  Solicitá tu cuenta corporativa
+                  <ArrowUpRight weight="bold" className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </button>
+              </div>
+            </motion.div>
 
-              <div className="relative rounded-2xl bg-[#f5f5f7] shadow-2xl shadow-slate-900/[0.12] overflow-hidden border border-slate-200/80" style={{ transform: 'rotateX(2deg)' }}>
-                {/* Browser top bar */}
-                <div className="flex items-center gap-2 px-5 py-3 bg-[#e8e8ed] border-b border-slate-200/80">
-                  <div className="flex gap-[7px]">
-                    <div className="w-[11px] h-[11px] rounded-full bg-[#ff5f57]" />
-                    <div className="w-[11px] h-[11px] rounded-full bg-[#febc2e]" />
-                    <div className="w-[11px] h-[11px] rounded-full bg-[#28c840]" />
-                  </div>
-                  <div className="flex-1 mx-12">
-                    <div className="bg-white/80 rounded-md px-4 py-1.5 text-[11px] text-slate-400 font-medium text-center border border-slate-200/60">
-                      app.goexpressparaguay.com/cliente
-                    </div>
-                  </div>
-                </div>
-
-                {/* Screenshot */}
+            {/* El panel real del portal, recortado contra el borde derecho */}
+            <div className="relative hidden min-h-[34rem] lg:block">
+              {/* El wrapper se queda con el translate del centrado vertical: motion escribe
+                  su propio transform y borraria la clase de Tailwind si compartieran nodo. */}
+              <div data-bleed className="absolute left-0 top-1/2 w-[60vw] -translate-y-1/2">
+              <motion.div
+                initial={reduceMotion ? undefined : { opacity: 0, x: 32 }}
+                animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                transition={{ duration: 0.7, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
+              >
                 <picture className="contents">
                   <source
                     type="image/webp"
-                    sizes="(min-width: 1072px) 1024px, calc(100vw - 48px)"
+                    sizes="60vw"
                     srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w, /brand/hero-1536.webp 1536w, /brand/hero-2048.webp 2048w"
                   />
                   <img
                     src="/brand/hero-1024.png"
-                    alt="Portal de clientes GO Express, dashboard de envíos"
-                    width={1024}
-                    height={585}
-                    className="w-full h-auto block"
-                    loading="lazy"
+                    alt="Portal de clientes de Go Express con el resumen de envíos de una empresa"
+                    className="block w-full rounded-2xl border border-border/80 shadow-[0_40px_80px_-32px_rgb(6_13_28/0.28)]"
                     decoding="async"
                   />
                 </picture>
+              </motion.div>
               </div>
-
-              {/* Laptop base / reflection strip */}
-              <div className="mx-auto w-[40%] h-[6px] bg-gradient-to-b from-slate-300 to-slate-200 rounded-b-xl" />
-              <div className="mx-auto w-[55%] h-[3px] bg-gradient-to-b from-slate-200/80 to-transparent rounded-b-lg" />
             </div>
-          </motion.div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ═══ COBERTURA ═════════════════════════════════════════════════════ */}
-      <section id="cobertura" className="py-24 md:py-32 bg-white relative border-t border-muted/50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-              <div className="inline-flex items-center gap-2 mb-4">
-                <Globe weight="duotone" className="w-5 h-5 text-primary" />
-                <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase">Cobertura y Tarifas</span>
-              </div>
-              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">
-                Presencia en todo<br />el territorio.
+        {/* DATOS DE RESPALDO */}
+        <section className="border-b border-border/70 bg-slate-50/60">
+          <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
+            <dl className="grid sm:grid-cols-2 md:grid-cols-4">
+              {[
+                { valor: '18', unidad: 'departamentos', desc: 'Cobertura en todo el país' },
+                { valor: '10+', unidad: 'años', desc: 'Operando en Paraguay' },
+                { valor: '200.000', unidad: 'Gs.', desc: 'Seguro incluido por envío', onClick: () => setInsuranceOpen(true) },
+                { valor: 'E.A.S.', unidad: '', desc: 'Facturación legal con RUC' },
+              ].map((dato, i) => (
+                <div
+                  key={dato.desc}
+                  className={`py-7 sm:px-6 sm:first:pl-0 md:border-t-0 md:px-8 md:last:pr-0 ${
+                    i > 0 ? 'border-t border-border/70 md:border-l md:border-border/70' : ''
+                  } ${i === 1 ? 'sm:border-t-0' : ''}`}
+                >
+                  <dt className="font-display text-[26px] font-bold tracking-tight text-sidebar tabular-nums">
+                    {dato.valor}
+                    {dato.unidad && <span className="ml-1.5 text-[15px] font-semibold text-sidebar/40">{dato.unidad}</span>}
+                  </dt>
+                  {dato.onClick ? (
+                    <dd>
+                      <button
+                        onClick={dato.onClick}
+                        className="mt-1 inline-flex items-center gap-1 py-1 text-[13px] text-primary underline-offset-4 transition-colors hover:text-sidebar hover:underline"
+                      >
+                        {dato.desc}
+                        <ArrowUpRight weight="bold" className="h-3.5 w-3.5" />
+                      </button>
+                    </dd>
+                  ) : (
+                    <dd className="mt-1.5 text-[13px] text-sidebar/45">{dato.desc}</dd>
+                  )}
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        {/* SERVICIOS */}
+        <section id="servicios" className="border-b border-border/70 py-24 md:py-32">
+          <div className="mx-auto grid max-w-[1320px] gap-y-12 px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-x-24 xl:px-10">
+            <div className="lg:sticky lg:top-32 lg:self-start">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Servicios</span>
+              <h2 className="mt-4 font-display text-[2rem] font-bold leading-[1.1] tracking-tighter text-sidebar md:text-[2.75rem]">
+                Logística hecha<br />para empresas.
               </h2>
-              <p className="text-sidebar/60 text-lg font-medium leading-relaxed mb-10 max-w-md">
-                Red de distribución con alcance a los 18 departamentos del Paraguay, con hubs principales en las ciudades de mayor actividad comercial.
+              <p className="mt-5 max-w-sm text-[16px] leading-relaxed text-sidebar/55">
+                Nos ocupamos de que la cadena de suministro de tu negocio se cumpla, con procesos verificados por personas y atención directa.
               </p>
+              <Button
+                className="mt-8 h-11 rounded-full bg-sidebar px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-primary active:scale-[0.98]"
+                onClick={() => navigate('/portal')}
+              >
+                Entrar al portal
+              </Button>
+            </div>
 
-              {/* Pricing summary cards */}
-              <div className="space-y-3 mb-10">
-                {pricing.granAsuncionEstandar !== null && (
-                  <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Gran Asunción</div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-2xl font-bold text-sidebar tracking-tight tabular-nums">Gs. {formatGs(pricing.granAsuncionEstandar)}</span>
-                      <span className="text-sm text-sidebar/40 font-medium">estándar</span>
+            <div className="divide-y divide-border/70 border-y border-border/70">
+              {SERVICIOS.map((servicio) => (
+                <motion.article
+                  key={servicio.title}
+                  {...reveal}
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={revealTransition}
+                  className="py-9"
+                >
+                  <h3 className="font-display text-[22px] font-bold tracking-tight text-sidebar">{servicio.title}</h3>
+                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-sidebar/55">{servicio.desc}</p>
+                </motion.article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* COBERTURA */}
+        <section id="cobertura" className="border-b border-border/70 bg-slate-50/60 py-24 md:py-32">
+          <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
+            <div className="max-w-3xl">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Cobertura y tarifas</span>
+              <h2 className="mt-4 font-display text-[2rem] font-bold leading-[1.1] tracking-tighter text-sidebar md:text-[2.75rem]">
+                Presencia en todo el territorio.
+              </h2>
+              <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-sidebar/55">
+                Red de distribución con alcance a los 18 departamentos, con hubs en las ciudades de mayor actividad comercial. Estas son las tarifas vigentes desde nuestra central en {tarifasData?.hub ?? 'Asunción'}.
+              </p>
+            </div>
+
+            <div className={`mt-14 grid gap-4 sm:grid-cols-2 ${tarjetasTarifa === 3 ? 'lg:grid-cols-3' : ''}`}>
+              {pricing.granAsuncionEstandar !== null && (
+                <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-6">
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-primary">Gran Asunción</div>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="font-display text-[28px] font-bold tracking-tight text-sidebar tabular-nums">
+                      Gs. {formatGs(pricing.granAsuncionEstandar)}
+                    </span>
+                    <span className="text-[14px] text-sidebar/40">estándar</span>
+                  </div>
+                  {pricing.granAsuncionExpress !== null && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[14px] font-medium text-sidebar/55">
+                      <Lightning weight="fill" className="h-3.5 w-3.5 text-amber-500" />
+                      Gs. {formatGs(pricing.granAsuncionExpress)} express
                     </div>
-                    {pricing.granAsuncionExpress !== null && (
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <Lightning weight="fill" className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-sm font-semibold text-sidebar/60">Gs. {formatGs(pricing.granAsuncionExpress)} express</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {pricing.interiorDesde !== null && (
-                  <div className="rounded-2xl border border-muted bg-slate-50 p-5">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-sidebar/50 mb-2">Interior</div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-display text-2xl font-bold text-sidebar tracking-tight tabular-nums">Gs. {formatGs(pricing.interiorDesde)}</span>
-                      <span className="text-sm text-sidebar/40 font-medium">desde</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
-              <div className="grid grid-cols-3 gap-8">
-                {[
-                  { value: ciudades.length > 0 ? String(ciudades.length) : '...', label: 'Ciudades activas' },
-                  { value: '24h', label: 'Tiempo máximo' },
-                  { value: ciudades.length > 0 ? String(ciudades.filter(c => c.express !== null).length) : '...', label: 'Con Express' },
-                ].map((stat) => (
-                  <div key={stat.label}>
-                    <div className="font-display text-3xl font-bold text-primary mb-1 tracking-tighter tabular-nums">{stat.value}</div>
-                    <div className="text-sm text-sidebar/50 font-medium">{stat.label}</div>
+              {pricing.interiorDesde !== null && (
+                <div className="rounded-2xl border border-border bg-white p-6">
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/40">Interior</div>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="font-display text-[28px] font-bold tracking-tight text-sidebar tabular-nums">
+                      Gs. {formatGs(pricing.interiorDesde)}
+                    </span>
+                    <span className="text-[14px] text-sidebar/40">desde</span>
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                  <div className="mt-2 text-[14px] text-sidebar/45">Según departamento de destino</div>
+                </div>
+              )}
 
-            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
+              <div className="rounded-2xl border border-border bg-white p-6">
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/40">Entrega</div>
+                <div className="mt-3 font-display text-[28px] font-bold tracking-tight text-sidebar tabular-nums">24 a 72 h</div>
+                <div className="mt-2 text-[14px] text-sidebar/45">Metropolitana e interior, en días hábiles</div>
+              </div>
+            </div>
+
+            <div className="mt-10 border-t border-border/70 pt-10">
+              <h3 className="text-[13px] font-semibold text-sidebar/45">
+                Ciudades con tarifa publicada
+                {ciudades.length > 0 && <span className="ml-2 tabular-nums text-sidebar/30">{ciudades.length}</span>}
+              </h3>
+
               {ciudades.length === 0 && tarifasLoading ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 9 }).map((_, i) => (
-                    <div key={i} className="rounded-xl px-3 py-2.5 border border-muted bg-slate-50 animate-pulse">
-                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-1.5" />
-                      <div className="h-3 bg-slate-100 rounded w-1/2" />
-                    </div>
+                <div className="mt-5 flex flex-wrap gap-2.5" aria-hidden="true">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-11 w-44 animate-pulse rounded-xl border border-border bg-white" />
                   ))}
                 </div>
               ) : ciudades.length === 0 ? (
-                <div className="flex items-center justify-center h-48 rounded-xl border border-muted bg-slate-50">
-                  <p className="text-sm text-sidebar/40 font-medium">Cobertura en expansion. Contactanos para más info.</p>
-                </div>
+                <p className="mt-5 max-w-md text-[15px] text-sidebar/45">
+                  Estamos publicando las tarifas por ciudad. Escribinos y te pasamos la cotización de tu ruta el mismo día.
+                </p>
               ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {ciudades.map((ciudad) => {
-                    const hasExpress = ciudad.express !== null;
-                    return (
-                      <motion.div
-                        key={ciudad.nombre}
-                        initial={{ opacity: 0, y: 8 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className={`rounded-xl px-3 py-2.5 border transition-all duration-300 ${
-                          hasExpress
-                            ? 'bg-primary/4 border-primary/15 hover:border-primary/30 hover:bg-primary/8'
-                            : 'bg-slate-50 border-muted hover:border-sidebar/15 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          {hasExpress && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
-                          <div className={`text-sm font-bold truncate ${hasExpress ? 'text-sidebar' : 'text-sidebar/60'}`}>
-                            {ciudad.nombre}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[11px] text-sidebar/35 font-medium truncate">
-                            {ciudad.estandar !== null ? `Gs. ${formatGs(ciudad.estandar)}` : ''}
-                          </span>
-                          {hasExpress && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200/60 rounded px-1 py-px">
-                              <Lightning weight="fill" className="w-2.5 h-2.5" />
-                              Express
-                            </span>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                <ul className="mt-5 flex flex-wrap gap-2.5">
+                  {ciudades.map((ciudad) => (
+                    <li
+                      key={ciudad.nombre}
+                      className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-2.5 transition-colors duration-200 hover:border-sidebar/20"
+                    >
+                      <span className="text-[14px] font-semibold text-sidebar">{ciudad.nombre}</span>
+                      {ciudad.estandar !== null && (
+                        <span className="text-[13px] tabular-nums text-sidebar/40">Gs. {formatGs(ciudad.estandar)}</span>
+                      )}
+                      {ciudad.express !== null && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                          <Lightning weight="fill" className="h-2.5 w-2.5" />
+                          Express
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
-      {/* ═══ WORKFLOW ══════════════════════════════════════════════════════ */}
-      <section className="py-24 md:py-32 bg-white relative border-y border-muted/50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-              <span className="text-sidebar/50 font-bold tracking-widest text-[11px] uppercase mb-3 block">Proceso</span>
-              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-sidebar">Un proceso operativo<br />seguro y auditable.</h2>
-              <p className="text-sidebar/60 text-lg font-medium leading-relaxed mb-10 max-w-md">
-                Sin complicaciones inventadas. Procesos de despacho lineales que aseguran que el paquete sale de tus manos y llega al destino correcto.
+              <p className="mt-6 text-[14px] text-sidebar/45">
+                {conExpress > 0
+                  ? `${conExpress} de estas ciudades tienen servicio express en el día.`
+                  : 'Cotizamos cualquier destino del país a pedido, incluso los que no están en esta lista.'}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* PROCESO */}
+        <section className="border-b border-border/70 py-24 md:py-32">
+          <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
+            <div className="max-w-2xl">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Proceso</span>
+              <h2 className="mt-4 font-display text-[2rem] font-bold leading-[1.1] tracking-tighter text-sidebar md:text-[2.75rem]">
+                Un recorrido seguro y auditable.
+              </h2>
+              <p className="mt-5 text-[16px] leading-relaxed text-sidebar/55">
+                Sin complicaciones inventadas. Despachos lineales que aseguran que el paquete sale de tus manos y llega al destino correcto.
+              </p>
+            </div>
+
+            <ol className="mt-16 grid gap-x-10 gap-y-12 md:grid-cols-3">
+              {PROCESO.map((paso, i) => (
+                <motion.li
+                  key={paso.step}
+                  {...reveal}
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={{ ...revealTransition, delay: reduceMotion ? 0 : i * 0.08 }}
+                  className="border-t-2 border-sidebar/10 pt-6"
+                >
+                  <span className="font-mono text-[12px] font-semibold tracking-widest text-primary">{paso.step}</span>
+                  <h3 className="mt-4 font-display text-[19px] font-bold tracking-tight text-sidebar">{paso.title}</h3>
+                  <p className="mt-3 text-[15px] leading-relaxed text-sidebar/55">{paso.desc}</p>
+                </motion.li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section className="border-b border-border/70 bg-slate-50/60 py-24 md:py-32">
+          <div className="mx-auto grid max-w-[1320px] gap-y-10 px-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-x-24 xl:px-10">
+            <h2 className="font-display text-[2rem] font-bold leading-[1.1] tracking-tighter text-sidebar md:text-[2.5rem] lg:sticky lg:top-32 lg:self-start">
+              Preguntas<br />frecuentes.
+            </h2>
+            <div className="divide-y divide-border/70 border-y border-border/70">
+              {FAQS.map((item) => (
+                <FaqItem key={item.q} question={item.q} answer={item.a} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CONTACTO */}
+        <section id="contacto" className="bg-sidebar py-24 md:py-32">
+          <div className="mx-auto grid max-w-[1320px] items-start gap-y-14 px-6 lg:grid-cols-2 lg:gap-x-24 xl:px-10">
+            <div>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-brand-lime">Comercial</span>
+              <h2 className="mt-4 font-display text-[2rem] font-bold leading-[1.08] tracking-tighter text-white md:text-[2.75rem]">
+                Empecemos a mover tu carga.
+              </h2>
+              <p className="mt-5 max-w-md text-[16px] leading-relaxed text-white/50">
+                Delegá tu logística a un socio con facturación legal, infraestructura propia y responsabilidad sobre cada bulto.
               </p>
 
-              <div className="space-y-0">
-                {[
-                  { step: '01', title: 'Recepción y Registro', desc: 'Ingreso al sistema con guía propia o provista por el cliente, generando identidad única para el bulto.' },
-                  { step: '02', title: 'Clasificación en Hub', desc: 'La carga es routeada físicamente en nuestra central para su despacho interurbano o interdepartamental.' },
-                  { step: '03', title: 'Confirmación de Entrega', desc: 'Soporte documental de que la mercadería llegó en condiciones al destinatario final.' }
-                ].map((s, i) => (
-                  <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15 }} key={s.step} className="flex gap-6">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 border border-muted text-sidebar font-bold text-sm flex items-center justify-center shrink-0">
-                        {s.step}
-                      </div>
-                      {i !== 2 && <div className="w-px h-full bg-border my-1" />}
-                    </div>
-                    <div className="pt-2 pb-8">
-                      <h3 className="text-lg font-bold text-sidebar mb-2">{s.title}</h3>
-                      <p className="text-sidebar/60 font-medium text-[15px] leading-relaxed max-w-sm">{s.desc}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="relative h-full hidden lg:block">
-              <div className="bg-slate-50 rounded-[40px] border border-muted h-full w-full min-h-[600px] flex items-center justify-center relative overflow-hidden p-12">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px]" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px]" />
-
-                <div className="relative z-10 w-full max-w-md">
-                  <div className="bg-white rounded-2xl shadow-xl shadow-sidebar/[0.05] border border-muted p-6">
-                    {/* Barcode */}
-                    <div className="mb-6 pb-6 border-b border-border text-center">
-                      <div className="flex justify-center gap-[3px] mb-2">
-                        {[1, 3, 1.5, 1, 4, 2, 1, 2.5, 1, 3, 1.5, 2, 1, 3].map((w, i) => (
-                          <div key={i} className="bg-sidebar rounded-[0.5px]" style={{ width: `${w * 3}px`, height: '48px' }} />
-                        ))}
-                      </div>
-                      <div className="font-mono text-xs font-bold text-sidebar tracking-[0.2em]">GEX-2026-88192</div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-[10px] font-bold text-sidebar/40 uppercase tracking-widest mb-1">Origen</p>
-                          <p className="font-bold text-sidebar text-sm">Empresa Cliente S.A.</p>
-                          <p className="text-sidebar/50 text-xs">Asunción, Central</p>
-                        </div>
-                        <Truck weight="fill" className="w-6 h-6 text-border" />
-                      </div>
-
-                      <div className="h-px bg-border w-full" />
-
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-[10px] font-bold text-sidebar/40 uppercase tracking-widest mb-1">Destino</p>
-                          <p className="font-bold text-sidebar text-sm">Sucursal Interior</p>
-                          <p className="text-sidebar/50 text-xs">Itapúa, Encarnación</p>
-                        </div>
-                        <MapPin weight="fill" className="w-6 h-6 text-border" />
-                      </div>
+              <div className="mt-12 divide-y divide-white/10 border-y border-white/10">
+                {CONTACTO.map((item) => (
+                  <div key={item.title} className="flex items-center gap-4 py-5">
+                    <item.icon weight="fill" className="h-5 w-5 shrink-0 text-brand-lime" />
+                    <div>
+                      <p className="text-[13px] text-white/45">{item.title}</p>
+                      <p className="text-[15px] font-semibold text-white">{item.desc}</p>
                     </div>
                   </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ FAQ ═════════════════════════════════════════════════════════ */}
-      <section className="py-24 md:py-32 bg-white border-t border-muted/50">
-        <div className="max-w-3xl mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-            <span className="text-slate-400 font-bold tracking-widest text-[11px] uppercase mb-3 block">Preguntas Frecuentes</span>
-            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-slate-700">¿Tenés dudas?</h2>
-          </motion.div>
-
-          <div className="space-y-0 divide-y divide-muted/60">
-            {[
-              { q: '¿Cómo puedo rastrear mi envío?', a: 'Ingresá el número de pedido (ej: GEX-890214) en el buscador de la página principal o en la sección de tracking. Recibirás actualizaciones en tiempo real del estado de tu paquete.' },
-              { q: '¿Cuáles son los tiempos de entrega?', a: 'Los tiempos varían según el destino. Entregas dentro del área metropolitana se realizan en 24-48 horas hábiles. Para el interior del país, entre 48-72 horas hábiles dependiendo del departamento.' },
-              { q: '¿Qué zonas cubren?', a: 'Tenemos cobertura en los 18 departamentos del Paraguay, con hubs logísticos en Asunción, Ciudad del Este, Encarnación y Pedro Juan Caballero.' },
-              { q: '¿Cómo abro una cuenta corporativa?', a: 'Completá el formulario de contacto en esta página o escribinos a contacto@goexpressparaguay.com. Un ejecutivo comercial te contactará para configurar tu cuenta y acceso al portal de clientes.' },
-              { q: '¿Qué pasa si mi paquete llega dañado?', a: 'Todos los envíos cuentan con seguro de carga. En caso de daño, contactanos dentro de las 48 horas posteriores a la entrega con fotos del paquete y procesaremos tu reclamo.' },
-            ].map((item, i) => (
-              <FaqItem key={i} question={item.q} answer={item.a} index={i} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ CONTACTO ══════════════════════════════════════════════════════ */}
-      <section id="contacto" className="py-24 md:py-32 bg-sidebar relative">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-              <span className="text-brand-lime font-bold tracking-widest text-sm uppercase mb-3 block">Comercial</span>
-              <h2 className="font-display text-3xl md:text-5xl font-bold mb-6 tracking-tight text-white">Inicia la operación comercial hoy.</h2>
-              <p className="text-white/50 text-lg font-medium mb-12 leading-relaxed max-w-md">
-                Delega tu logística a un socio de confianza, E.A.S. con facturación legal e infraestructura lista para mover tu mercadería segura.
-              </p>
-
-              <div className="space-y-6">
-                {[
-                  { icon: MapPin, title: 'Central', desc: 'Itapúa, Paraguay' },
-                  { icon: Phone, title: 'Atención a Empresas', desc: '0991 600 777' },
-                  { icon: WhatsappLogo, title: 'WhatsApp para notificaciones de envíos', desc: '+595 981 987 476' },
-                  { icon: EnvelopeSimple, title: 'Comercial', desc: 'contacto@goexpressparaguay.com' },
-                ].map((item, i) => (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                    key={item.title} className="flex items-center gap-5"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                      <item.icon weight="fill" className="w-5 h-5 text-brand-lime" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white mb-0.5">{item.title}</p>
-                      <p className="text-sm font-medium text-white/40">{item.desc}</p>
-                    </div>
-                  </motion.div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div initial={{ opacity: 0, scale: 0.98 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}>
-              <div className="bg-white p-8 md:p-10 rounded-[32px] shadow-2xl">
-                <AnimatePresence mode="wait">
-                  {contactSent ? (
-                    <motion.div key="success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center h-full min-h-[350px] gap-4 text-center">
-                      <CheckCircle weight="fill" className="w-16 h-16 text-brand-lime mb-2" />
-                      <h3 className="font-display font-bold text-2xl text-sidebar">Recepción Exitosa</h3>
-                      <p className="text-sidebar/60 text-base font-medium max-w-xs">Nuestro equipo ejecutivo revisará tu solicitud y te contactará para agendar una reunión.</p>
-                      <Button variant="outline" className="mt-6 rounded-full border-muted text-sidebar/70 font-bold hover:text-sidebar hover:bg-slate-50" onClick={() => setContactSent(false)}>
-                        Enviar otra solicitud
-                      </Button>
-                    </motion.div>
-                  ) : (
-                    <motion.form key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onSubmit={handleContact} className="space-y-5">
-                      <div className="text-sidebar font-display font-bold text-2xl mb-6">Solicitar Contacto</div>
-                      <div className="grid md:grid-cols-2 gap-5">
-                        <div className="space-y-2">
-                          <Label htmlFor="nombre" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Nombre del Encargado</Label>
-                          <Input id="nombre" value={contactForm.nombre} onChange={(e) => setContactForm({ ...contactForm, nombre: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="empresa" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Razón Social</Label>
-                          <Input id="empresa" value={contactForm.empresa} onChange={(e) => setContactForm({ ...contactForm, empresa: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
-                        </div>
+            <div className="rounded-3xl bg-white p-7 shadow-2xl md:p-10">
+              <AnimatePresence mode="wait">
+                {contactSent ? (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex min-h-[24rem] flex-col items-center justify-center gap-4 text-center"
+                  >
+                    <CheckCircle weight="fill" className="h-14 w-14 text-brand-lime" />
+                    <h3 className="font-display text-[24px] font-bold tracking-tight text-sidebar">Ya lo tenemos</h3>
+                    <p className="max-w-xs text-[15px] leading-relaxed text-sidebar/55">
+                      Abrimos tu mensaje en WhatsApp. Un ejecutivo comercial te responde y coordina la apertura de la cuenta.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-4 rounded-full border-border font-semibold text-sidebar/70 hover:bg-slate-50 hover:text-sidebar"
+                      onClick={() => setContactSent(false)}
+                    >
+                      Enviar otra solicitud
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.form
+                    key="form"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onSubmit={handleContact}
+                    className="space-y-5"
+                  >
+                    <h3 className="font-display text-[22px] font-bold tracking-tight text-sidebar">Solicitar contacto</h3>
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="nombre" className="text-[12px] font-semibold text-sidebar/70">Nombre del encargado</Label>
+                        <Input
+                          id="nombre"
+                          value={contactForm.nombre}
+                          onChange={(e) => setContactForm({ ...contactForm, nombre: e.target.value })}
+                          className="h-12 rounded-xl border-border bg-slate-50 font-medium text-sidebar transition-colors focus:border-primary"
+                          required
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="email" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Correo Corporativo</Label>
-                        <Input id="email" type="email" value={contactForm.email} onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" required />
+                        <Label htmlFor="empresa" className="text-[12px] font-semibold text-sidebar/70">Razón social</Label>
+                        <Input
+                          id="empresa"
+                          value={contactForm.empresa}
+                          onChange={(e) => setContactForm({ ...contactForm, empresa: e.target.value })}
+                          className="h-12 rounded-xl border-border bg-slate-50 font-medium text-sidebar transition-colors focus:border-primary"
+                        />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="tel" className="text-[12px] font-bold text-sidebar/60 uppercase tracking-widest">Teléfono Directo</Label>
-                        <Input id="tel" type="tel" value={contactForm.tel} onChange={(e) => setContactForm({ ...contactForm, tel: e.target.value })} className="h-14 bg-slate-50 border-muted focus:border-primary text-sidebar font-semibold transition-colors rounded-xl" />
-                      </div>
-                      <Button type="submit" className="w-full h-14 rounded-xl text-sm font-bold bg-primary text-white hover:bg-sidebar transition-colors mt-6 shadow-md shadow-primary/20 gap-2">
-                        <WhatsappLogo weight="fill" className="w-4 h-4" />
-                        Enviar por WhatsApp
-                      </Button>
-                    </motion.form>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-[12px] font-semibold text-sidebar/70">Correo corporativo</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={contactForm.email}
+                        onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                        className="h-12 rounded-xl border-border bg-slate-50 font-medium text-sidebar transition-colors focus:border-primary"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tel" className="text-[12px] font-semibold text-sidebar/70">Teléfono directo</Label>
+                      <Input
+                        id="tel"
+                        type="tel"
+                        value={contactForm.tel}
+                        onChange={(e) => setContactForm({ ...contactForm, tel: e.target.value })}
+                        className="h-12 rounded-xl border-border bg-slate-50 font-medium text-sidebar transition-colors focus:border-primary"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="mt-2 h-14 w-full gap-2 rounded-xl bg-primary text-[14px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-sidebar active:scale-[0.99]"
+                    >
+                      <WhatsappLogo weight="fill" className="h-4 w-4" />
+                      Enviar por WhatsApp
+                    </Button>
+                    <p className="text-[12px] leading-relaxed text-sidebar/40">
+                      Se abre WhatsApp con el mensaje ya escrito. Revisalo antes de enviarlo.
+                    </p>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
-      </section>
-
+        </section>
       </main>
 
-      {/* FOOTER */}
-      <footer className="bg-white pt-16 pb-8 border-t border-muted">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">
-            {/* Brand */}
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center mb-5">
-                <Logotipo className="h-6" loading="lazy" />
-              </div>
-              <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
-                Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.
-              </p>
-              <div className="flex gap-2.5">
-                {[
-                  { icon: FacebookLogo, label: 'Facebook' },
-                  { icon: InstagramLogo, label: 'Instagram' },
-                  { icon: LinkedinLogo, label: 'LinkedIn' },
-                  { icon: WhatsappLogo, label: 'WhatsApp' },
-                ].map((social) => (
-                  <button key={social.label} className="w-9 h-9 rounded-lg bg-muted/60 hover:bg-primary/10 flex items-center justify-center transition-colors group" aria-label={social.label}>
-                    <social.icon weight="fill" className="w-4 h-4 text-sidebar/30 group-hover:text-primary transition-colors" />
-                  </button>
-                ))}
-              </div>
-            </div>
+      <SiteFooter onSection={scrollToSection} onSeguro={() => setInsuranceOpen(true)} />
 
-            {/* Empresa */}
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Empresa</h4>
-              <div className="flex flex-col gap-3">
-                {['Nosotros', 'Equipo', 'Carreras', 'Noticias'].map((item) => (
-                  <button key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit">{item}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Servicios */}
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Servicios</h4>
-              <div className="flex flex-col gap-3">
-                {[
-                  { label: 'Distribución B2B', onClick: undefined },
-                  { label: 'Seguro de Carga', onClick: () => setInsuranceOpen(true) },
-                  { label: 'Portal Corporativo', onClick: () => navigate('/portal') },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={item.onClick}
-                    className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Legal</h4>
-              <div className="flex flex-col gap-3">
-                <a
-                  href="/privacidad"
-                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
-                >
-                  Política de Privacidad
-                </a>
-                <a
-                  href="/terminos"
-                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
-                >
-                  Términos y Condiciones
-                </a>
-                <button
-                  onClick={() => scrollToSection('contacto')}
-                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
-                >
-                  Reclamos
-                </button>
-                <button
-                  onClick={() => setInsuranceOpen(true)}
-                  className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors text-left w-fit"
-                >
-                  Condiciones del Seguro
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-muted pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-center gap-3 text-sidebar/30 text-xs font-medium">
-              <span>&copy; {new Date().getFullYear()} Go Express E.A.S.</span>
-              <span className="hidden sm:inline text-sidebar/10">·</span>
-              <a
-                href="https://thebrightidea.ai/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative inline-block text-sidebar/30 transition-none"
-              >
-                <span className="relative">
-                  Desarrollado por{" "}
-                  <span className="font-semibold relative inline-block">
-                    <span className="relative z-10 bg-gradient-to-r from-sidebar/30 via-primary to-sidebar/30 bg-clip-text text-transparent bg-[length:200%_100%] group-hover:animate-shimmer">
-                      Bright Idea
-                    </span>
-                  </span>
-                </span>
-              </a>
-            </div>
-            <div className="flex gap-6 text-sidebar/30 text-xs font-medium">
-              <button onClick={() => navigate('/track')} className="hover:text-sidebar transition-colors">Rastreo</button>
-              <button onClick={() => navigate('/portal')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
-              <button onClick={() => navigate('/admin')} className="hover:text-sidebar transition-colors">Administración</button>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* ═══ INSURANCE POLICY MODAL ════════════════════════════════════════ */}
-      <Dialog open={insuranceOpen} onOpenChange={setInsuranceOpen}>
-        <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
-          <div className="relative bg-gradient-to-br from-primary/8 via-primary/4 to-transparent px-7 pt-8 pb-6 border-b border-muted/60">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/12 flex items-center justify-center shrink-0">
-                <ShieldCheck weight="duotone" className="w-6 h-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-display font-bold text-[22px] text-sidebar leading-tight tracking-tight">
-                  Seguro de Carga
-                </h3>
-                <p className="text-[13px] text-sidebar/50 font-medium mt-1">
-                  Cobertura incluida en todos los envíos Go Express.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-7 py-6 space-y-5">
-            <div className="rounded-2xl border border-primary/15 bg-primary/4 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle weight="fill" className="w-4 h-4 text-primary" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Incluido sin costo</span>
-              </div>
-              <p className="font-display font-bold text-[18px] text-sidebar leading-snug">
-                Hasta Gs. 200.000 por envío
-              </p>
-              <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">
-                Todos los paquetes enviados a través de Go Express cuentan con cobertura automática de hasta doscientos mil guaraníes en caso de pérdida o daño en tránsito. No requiere contratación adicional.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-muted/80 bg-muted/20 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Package weight="fill" className="w-4 h-4 text-sidebar/60" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-sidebar/60">Cobertura ampliada</span>
-              </div>
-              <p className="font-display font-bold text-[18px] text-sidebar leading-snug">
-                Sobre el valor declarado
-              </p>
-              <p className="text-[13px] text-sidebar/60 leading-relaxed mt-1.5">
-                Para mercaderías con valor superior a Gs. 200.000, se aplica un porcentaje sobre el valor declarado. El porcentaje varía según el tipo de producto, el riesgo de manipulación y el destino. Se calcula y se cotiza al crear el envío.
-              </p>
-            </div>
-
-            <div className="text-[12px] text-sidebar/45 leading-relaxed space-y-1.5 pt-1">
-              <p><span className="font-bold text-sidebar/70">Reclamos:</span> hasta 48 horas luego de la entrega, acompañando factura y fotografías del paquete.</p>
-              <p><span className="font-bold text-sidebar/70">Exclusiones:</span> dinero en efectivo, joyería sin declarar, productos perecederos no refrigerados y mercadería prohibida por ley.</p>
-            </div>
-          </div>
-
-          <div className="px-7 py-5 bg-muted/20 border-t border-muted/60 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-sidebar/40 font-medium">
-              ¿Necesitás cobertura especial? Consultanos.
-            </p>
-            <Button
-              size="sm"
-              onClick={() => {
-                setInsuranceOpen(false);
-                scrollToSection('contacto');
-              }}
-              className="gap-1.5"
-            >
-              Contactar
-              <ArrowRight weight="bold" className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SeguroDialog
+        open={insuranceOpen}
+        onOpenChange={setInsuranceOpen}
+        onContactar={() => scrollToSection('contacto')}
+      />
     </div>
   );
 };

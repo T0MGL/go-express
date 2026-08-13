@@ -8,19 +8,15 @@ import {
   ArrowRight,
   Warning,
   CircleNotch,
-  ShieldCheck,
-  List,
-  X,
-  FacebookLogo,
-  InstagramLogo,
-  LinkedinLogo,
-  WhatsappLogo,
+  ArrowLeft,
   CalendarBlank,
   Truck,
   CheckCircle,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { Logotipo } from '@/components/brand/BrandMark';
+import { SiteHeader } from '@/components/site/SiteHeader';
+import { SiteFooter } from '@/components/site/SiteFooter';
+import { SeguroDialog } from '@/components/site/SeguroDialog';
 import { estadoLabels, estadoColors } from '@/data/constants';
 import { toast } from 'sonner';
 import { formatDate, cn } from '@/lib/utils';
@@ -64,46 +60,6 @@ function apiResultToDisplay(result: PublicTrackingResult): TrackingDisplay {
 }
 
 
-const trackingPlaceholders = ['GE2026000001', 'GE2026000002', 'GE2026000003'];
-
-const useTypewriter = (texts: string[], speed = 60, pause = 2500) => {
-  const [display, setDisplay] = useState('');
-  const idxRef = useRef(0);
-  const charRef = useRef(0);
-  const deletingRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    const tick = () => {
-      const text = texts[idxRef.current];
-      const char = charRef.current;
-      const del = deletingRef.current;
-
-      if (!del && char < text.length) {
-        charRef.current++;
-        setDisplay(text.slice(0, charRef.current));
-        timerRef.current = setTimeout(tick, speed);
-      } else if (!del && char === text.length) {
-        timerRef.current = setTimeout(() => {
-          deletingRef.current = true;
-          tick();
-        }, pause);
-      } else if (del && char > 0) {
-        charRef.current--;
-        setDisplay(text.slice(0, charRef.current));
-        timerRef.current = setTimeout(tick, speed / 2);
-      } else if (del && char === 0) {
-        deletingRef.current = false;
-        idxRef.current = (idxRef.current + 1) % texts.length;
-        timerRef.current = setTimeout(tick, speed);
-      }
-    };
-    tick();
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [texts, speed, pause]);
-
-  return display;
-};
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -324,22 +280,14 @@ const Track = () => {
   const [searchParams] = useSearchParams();
   const [trackingNumber, setTrackingNumber] = useState(searchParams.get('q') || '');
   const [searched, setSearched] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [seguroOpen, setSeguroOpen] = useState(false);
 
-  const typedPlaceholder = useTypewriter(trackingPlaceholders);
 
   const [searchQuery, setSearchQuery] = useState('');
   const { data: apiResult, isLoading: apiSearching, isError: apiError } = useTracking(searchQuery);
 
   const envio: TrackingDisplay | null = apiResult ? apiResultToDisplay(apiResult) : null;
   const searching = apiSearching;
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -368,7 +316,7 @@ const Track = () => {
 
   const handleSearch = useCallback(() => {
     if (!trackingNumber.trim()) {
-      toast.error('Ingresa un número de seguimiento');
+      toast.error('Ingresá un número de seguimiento');
       return;
     }
 
@@ -399,49 +347,15 @@ const Track = () => {
   return (
     <div className="min-h-screen bg-white text-sidebar font-sans overflow-x-hidden selection:bg-primary/10 selection:text-sidebar">
 
-      {/* NAV */}
-      <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
-        <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center shrink-0 cursor-pointer" onClick={() => navigate('/')}>
-            <Logotipo className="h-7" />
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" className="text-sidebar/70 hover:text-sidebar hover:bg-muted/50 border-0 gap-2 font-bold text-xs hidden lg:flex" onClick={() => navigate('/')}>
-              <ArrowRight weight="bold" className="w-[18px] h-[18px] rotate-180" />
-              Volver al Inicio
-            </Button>
-            <div className="w-px h-5 bg-border hidden md:block" />
-            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20 hidden md:flex" onClick={() => navigate('/portal')}>
-              Portal Empresas
-            </Button>
-            <Button variant="ghost" size="sm" className="md:hidden text-sidebar hover:bg-muted border-0 px-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X weight="bold" className="w-6 h-6" /> : <List weight="bold" className="w-6 h-6" />}
-            </Button>
-          </motion.div>
-        </nav>
-
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="md:hidden border-t border-muted bg-white overflow-hidden absolute w-full shadow-lg">
-              <div className="px-6 py-5 flex flex-col gap-4">
-                <button onClick={() => { setMobileMenuOpen(false); navigate('/'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
-                  <ArrowRight weight="bold" className="rotate-180" /> Volver al Inicio
-                </button>
-                <div className="h-px bg-muted w-full my-2" />
-                <button onClick={() => { setMobileMenuOpen(false); navigate('/portal'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
-                  Portal Empresas
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </header>
+      <SiteHeader
+        secondary={{ label: 'Volver al inicio', icon: ArrowLeft, onClick: () => navigate('/') }}
+        onLogo={() => navigate('/')}
+        onPortal={() => navigate('/portal')}
+      />
 
       {/* HERO / SEARCH */}
       <main>
         <section className="relative pt-40 pb-16 md:pt-48 md:pb-20 bg-white">
-          <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-50 pointer-events-none" aria-hidden="true" />
 
           <div className="max-w-7xl mx-auto px-6 w-full relative z-10">
             <motion.div
@@ -450,17 +364,12 @@ const Track = () => {
               animate="show"
               className="max-w-2xl mx-auto text-center"
             >
-              <motion.div variants={fadeUpVariant} className="inline-flex items-center gap-2 bg-sidebar/5 border border-sidebar/10 rounded-full px-4 py-1.5 mb-8">
-                <ShieldCheck weight="fill" className="w-4 h-4 text-sidebar" />
-                <span className="text-[12px] text-sidebar font-bold tracking-wide">Rastreo en Tiempo Real</span>
-              </motion.div>
-
-              <motion.h1 variants={fadeUpVariant} className="font-display text-[2.25rem] md:text-[3.5rem] font-bold text-sidebar tracking-tight leading-[1.05] mb-5">
-                Rastrea tu envío
+              <motion.h1 variants={fadeUpVariant} className="font-display text-[2.25rem] md:text-[3.5rem] font-bold text-sidebar tracking-tightest leading-[1.03] mb-5">
+                Rastreá tu envío
               </motion.h1>
 
-              <motion.p variants={fadeUpVariant} className="text-sidebar/50 text-base md:text-lg font-medium leading-relaxed mb-10 max-w-lg mx-auto">
-                Ingresa tu número de seguimiento para ver el estado actualizado de tu paquete en tiempo real.
+              <motion.p variants={fadeUpVariant} className="text-[17px] text-sidebar/55 leading-relaxed mb-10 max-w-md mx-auto">
+                Ingresá tu número de seguimiento y te mostramos en qué estado está el paquete.
               </motion.p>
 
               {/* Search form */}
@@ -473,7 +382,7 @@ const Track = () => {
                       <input
                         id="tracking-input"
                         type="text"
-                        placeholder={typedPlaceholder || 'GE2026XXXXXX'}
+                        placeholder="GE2026XXXXXX"
                         value={trackingNumber}
                         onChange={(e) => setTrackingNumber(e.target.value)}
                         className="flex-1 bg-transparent text-[15px] font-data text-sidebar placeholder:text-sidebar/25 outline-none"
@@ -489,9 +398,6 @@ const Track = () => {
                     {searching ? 'Buscando...' : 'Rastrear'}
                   </Button>
                 </form>
-                <p className="text-[12px] text-sidebar/30 font-medium mt-3">
-                  El formato del número de seguimiento es <span className="font-data text-sidebar/50">GE2026XXXXXX</span>
-                </p>
               </motion.div>
             </motion.div>
           </div>
@@ -675,7 +581,7 @@ const Track = () => {
                   </motion.div>
                   <h2 className="font-display text-xl font-bold text-sidebar mb-2">No encontramos tu envío</h2>
                   <p className="text-sm text-sidebar/40 font-medium max-w-sm mx-auto mb-8 leading-relaxed">
-                    Verifica que el número de seguimiento sea correcto. El formato es <span className="font-data text-sidebar/60">GE2026XXXXXX</span>.
+                    Verificá que el número de seguimiento sea correcto. El formato es <span className="font-data text-sidebar/60">GE2026XXXXXX</span>.
                   </p>
                   <Button
                     variant="outline"
@@ -692,29 +598,25 @@ const Track = () => {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="text-center py-12"
+                  className="py-12"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                  <dl className="mx-auto grid max-w-3xl border-t border-border/70 sm:grid-cols-3">
                     {[
-                      { icon: Package, title: 'Estado en vivo', desc: 'Segui tu paquete en cada etapa del proceso' },
-                      { icon: MapPin, title: 'Ubicación', desc: 'Conoce la ubicación actual de tu envío' },
-                      { icon: ShieldCheck, title: 'Seguro', desc: 'Todos los envíos cuentan con seguro de carga' },
+                      { title: 'Estado en vivo', desc: 'Cada etapa del recorrido, apenas se registra' },
+                      { title: 'Destino', desc: 'A qué ciudad va y por dónde pasó' },
+                      { title: 'Seguro incluido', desc: 'Hasta Gs. 200.000 en todos los envíos' },
                     ].map((item, i) => (
-                      <motion.div
+                      <div
                         key={item.title}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + i * 0.1 }}
-                        className="p-5 rounded-xl bg-slate-50 border border-muted/60 text-center hover:border-primary/20 hover:shadow-sm transition-all duration-300"
+                        className={`py-6 sm:px-6 sm:first:pl-0 sm:last:pr-0 ${
+                          i > 0 ? 'border-t border-border/70 sm:border-l sm:border-t-0 sm:border-border/70' : ''
+                        }`}
                       >
-                        <div className="w-10 h-10 rounded-lg bg-white border border-muted/60 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                          <item.icon weight="duotone" className="w-5 h-5 text-primary" />
-                        </div>
-                        <p className="font-display text-sm font-bold text-sidebar mb-1">{item.title}</p>
-                        <p className="text-[12px] text-sidebar/40 font-medium leading-relaxed">{item.desc}</p>
-                      </motion.div>
+                        <dt className="font-display text-[15px] font-bold text-sidebar">{item.title}</dt>
+                        <dd className="mt-1.5 text-[13px] leading-relaxed text-sidebar/45">{item.desc}</dd>
+                      </div>
                     ))}
-                  </div>
+                  </dl>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -722,71 +624,9 @@ const Track = () => {
         </section>
       </main>
 
-      {/* FOOTER */}
-      <footer className="bg-white pt-16 pb-8 border-t border-muted mt-auto">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center mb-5 cursor-pointer" onClick={() => navigate('/')}>
-                <Logotipo className="h-6" loading="lazy" />
-              </div>
-              <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
-                Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.
-              </p>
-              <div className="flex gap-2.5">
-                {[
-                  { icon: FacebookLogo, label: 'Facebook' },
-                  { icon: InstagramLogo, label: 'Instagram' },
-                  { icon: LinkedinLogo, label: 'LinkedIn' },
-                  { icon: WhatsappLogo, label: 'WhatsApp' },
-                ].map((social) => (
-                  <a key={social.label} href="#" className="w-9 h-9 rounded-lg bg-muted/60 hover:bg-primary/10 flex items-center justify-center transition-colors group" aria-label={social.label}>
-                    <social.icon weight="fill" className="w-4 h-4 text-sidebar/30 group-hover:text-primary transition-colors" />
-                  </a>
-                ))}
-              </div>
-            </div>
+      <SiteFooter onSeguro={() => setSeguroOpen(true)} />
 
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Empresa</h4>
-              <div className="flex flex-col gap-3">
-                {['Nosotros', 'Equipo', 'Carreras', 'Noticias'].map((item) => (
-                  <span key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors cursor-pointer w-fit">{item}</span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Servicios</h4>
-              <div className="flex flex-col gap-3">
-                {['Distribucion B2B', 'Seguro de Carga', 'Portal Corporativo', 'API de Integracion'].map((item) => (
-                  <span key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors cursor-pointer w-fit">{item}</span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-sidebar font-bold text-sm mb-5">Legal</h4>
-              <div className="flex flex-col gap-3">
-                {['Términos de Servicio', 'Política de Privacidad', 'Reclamos', 'Condiciones de Envío'].map((item) => (
-                  <span key={item} className="text-sidebar/40 text-sm font-medium hover:text-sidebar transition-colors cursor-pointer w-fit">{item}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-muted pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-sidebar/30 text-xs font-medium">
-              &copy; {new Date().getFullYear()} Go Express E.A.S. Todos los derechos reservados.
-            </div>
-            <div className="flex gap-6 text-sidebar/30 text-xs font-medium">
-              <button onClick={() => navigate('/track')} className="hover:text-sidebar transition-colors">Rastreo</button>
-              <button onClick={() => navigate('/portal')} className="hover:text-sidebar transition-colors">Portal Clientes</button>
-              <button onClick={() => navigate('/admin')} className="hover:text-sidebar transition-colors">Administracion</button>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SeguroDialog open={seguroOpen} onOpenChange={setSeguroOpen} onContactar={() => navigate('/')} />
     </div>
   );
 };

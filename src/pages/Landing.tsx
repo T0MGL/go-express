@@ -218,7 +218,7 @@ const Landing = () => {
       {/* NAV */}
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
         <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between" aria-label="Navegacion principal">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center shrink-0 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <Logotipo className="h-7" />
           </motion.div>
 
@@ -237,7 +237,7 @@ const Landing = () => {
               Rastrear Envío
             </Button>
             <div className="w-px h-5 bg-border hidden md:block" />
-            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20" onClick={() => navigate('/portal')}>
+            <Button size="sm" className="bg-primary text-white hover:bg-sidebar font-bold text-xs transition-colors duration-300 rounded-full px-6 h-10 shadow-md shadow-primary/20 hidden md:flex" onClick={() => navigate('/portal')}>
               Portal Empresas
             </Button>
             <Button variant="ghost" size="sm" className="md:hidden text-sidebar hover:bg-muted border-0 px-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -256,6 +256,9 @@ const Landing = () => {
                 <div className="h-px bg-muted w-full my-2" />
                 <button onClick={() => { setMobileMenuOpen(false); navigate('/track'); }} className="text-sm font-bold text-sidebar/80 hover:text-sidebar text-left flex items-center gap-2">
                   <MagnifyingGlass weight="bold" /> Rastrear Envío
+                </button>
+                <button onClick={() => { setMobileMenuOpen(false); navigate('/portal'); }} className="bg-primary text-white hover:bg-sidebar font-bold text-sm transition-colors duration-300 rounded-full h-11 px-6 shadow-md shadow-primary/20">
+                  Portal Empresas
                 </button>
               </div>
             </motion.div>

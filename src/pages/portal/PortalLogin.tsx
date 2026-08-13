@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
+import { Isotipo } from '@/components/brand/BrandMark';
 
 import { api } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -97,7 +98,7 @@ const PortalLogin = () => {
         className="w-full max-w-sm"
       >
         <div className="flex flex-col items-center mb-8">
-          <img src="/isotipo.png" alt="Go Express" className="w-12 h-12 mb-4" />
+          <Isotipo className="w-12 h-12 mb-4" />
           <h1 className="text-xl font-semibold tracking-tight">GO EXPRESS</h1>
           <p className="text-sm text-muted-foreground mt-1">Portal de clientes</p>
         </div>

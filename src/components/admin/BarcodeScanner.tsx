@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import type { Html5QrcodeScanner } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Camera, X, Scan } from '@phosphor-icons/react';
@@ -19,30 +19,39 @@ export function BarcodeScanner({ onScan, onClose, className }: BarcodeScannerPro
   useEffect(() => {
     if (!isScanning) return;
 
-    scannerRef.current = new Html5QrcodeScanner(
-      scannerId,
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        supportedScanTypes: [
-          Html5QrcodeScanType.SCAN_TYPE_CAMERA,
-        ],
-        rememberLastUsedCamera: true,
-      },
-      false
-    );
+    // html5-qrcode pesa 375 KB y solo hace falta con la camara abierta. Warehouse
+    // se abre muchas mas veces de las que se escanea, asi que entra por demanda.
+    let cancelled = false;
 
-    scannerRef.current.render(
-      (decodedText) => {
-        onScan(decodedText);
-        handleClose();
-      },
-      () => {
-        // Error callback - scanner fires this on every non-decoded frame, safe to ignore
-      }
-    );
+    import('html5-qrcode').then(({ Html5QrcodeScanner, Html5QrcodeScanType }) => {
+      if (cancelled) return;
+
+      scannerRef.current = new Html5QrcodeScanner(
+        scannerId,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          supportedScanTypes: [
+            Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+          ],
+          rememberLastUsedCamera: true,
+        },
+        false
+      );
+
+      scannerRef.current.render(
+        (decodedText) => {
+          onScan(decodedText);
+          handleClose();
+        },
+        () => {
+          // Error callback - scanner fires this on every non-decoded frame, safe to ignore
+        }
+      );
+    });
 
     return () => {
+      cancelled = true;
       if (scannerRef.current) {
         scannerRef.current.clear().catch(() => {});
       }

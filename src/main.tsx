@@ -1,10 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
-import "@fontsource-variable/inter";
-import "@fontsource-variable/manrope";
-import "@fontsource-variable/jetbrains-mono";
 import App from "./App.tsx";
+import "./fonts.css";
 import "./index.css";
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;

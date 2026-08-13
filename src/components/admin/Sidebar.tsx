@@ -7,6 +7,7 @@ import {
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { Isotipo } from '@/components/brand/BrandMark';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -58,7 +59,7 @@ export const Sidebar = () => {
           'flex items-center h-12 border-b border-white/[0.06]',
           collapsed ? 'justify-center px-0' : 'px-4 gap-2.5'
         )}>
-          <img src="/isotipo.png" alt="Go Express" className={collapsed ? 'h-5 w-5' : 'h-6 w-6'} />
+          <Isotipo className={collapsed ? 'h-5 w-5' : 'h-6 w-6'} />
           {!collapsed && (
             <div className="min-w-0">
               <h2 className="font-display font-bold text-[12px] text-white leading-none tracking-tight">
@@ -191,7 +192,7 @@ export const MobileSidebar = ({ open, onOpenChange }: MobileSidebarProps) => {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-[240px] p-0 bg-sidebar border-r-0">
         <SheetHeader className="px-4 h-12 flex flex-row items-center gap-2.5 border-b border-white/[0.06]">
-          <img src="/isotipo.png" alt="Go Express" className="h-6 w-6" />
+          <Isotipo className="h-6 w-6" />
           <SheetTitle className="font-display font-bold text-[12px] text-white leading-none tracking-tight">
             GO EXPRESS
           </SheetTitle>

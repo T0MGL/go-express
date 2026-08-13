@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Timeline } from '@/components/tracking/Timeline';
 import { Barcode } from '@phosphor-icons/react';
-import { printShippingLabel } from '@/components/printing/generateShippingLabel';
+import { printShippingLabel } from '@/components/printing/printLabel';
 import { useClienteEnvio } from '@/hooks/api/use-cliente-envios';
 import { useAnimatedNumber } from '@/hooks/use-animated-number';
 import { cn } from '@/lib/utils';
@@ -275,8 +275,8 @@ const ClienteDashboard = () => {
                 variant="secondary"
                 size="sm"
                 className="w-full gap-1.5"
-                onClick={() => {
-                  const success = printShippingLabel(selectedEnvio);
+                onClick={async () => {
+                  const success = await printShippingLabel(selectedEnvio);
                   if (success) {
                     toast.success('Etiqueta generada');
                   } else {

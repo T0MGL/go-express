@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
+import { Isotipo } from '@/components/brand/BrandMark';
 
 
 const Login = () => {
@@ -72,7 +73,7 @@ const Login = () => {
         className="w-full max-w-sm"
       >
         <div className="flex flex-col items-center mb-8">
-          <img src="/isotipo.png" alt="Go Express" className="w-12 h-12 mb-4" />
+          <Isotipo className="w-12 h-12 mb-4" />
           <h1 className="text-xl font-semibold tracking-tight">GO EXPRESS</h1>
           <p className="text-sm text-muted-foreground mt-1">Panel de administracion</p>
         </div>

@@ -22,7 +22,7 @@ import { useEnvios, useBulkEnvioAction } from '@/hooks/api/use-envios';
 import { useRepartidores } from '@/hooks/api/use-repartidores';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { QuickCreateEnvio } from '@/components/admin/QuickCreateEnvio';
-import { printBatchLabels } from '@/components/printing/generateShippingLabel';
+import { printBatchLabels } from '@/components/printing/printLabel';
 
 const PAGE_SIZE = 20;
 
@@ -161,9 +161,9 @@ const EnviosList = () => {
 
   const closeBulkModal = () => setBulkModal(null);
 
-  const handleBulkPrint = () => {
+  const handleBulkPrint = async () => {
     if (selectedCount === 0) return;
-    const ok = printBatchLabels(selectedEnvios);
+    const ok = await printBatchLabels(selectedEnvios);
     if (ok) {
       toast.success(`${selectedCount} etiqueta${selectedCount === 1 ? '' : 's'} enviada${selectedCount === 1 ? '' : 's'} a imprimir`);
     } else {

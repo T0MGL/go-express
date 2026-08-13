@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'motion/react';
 import { Button } from '@/components/ui/button';
+import { Logotipo } from '@/components/brand/BrandMark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -218,7 +219,7 @@ const Landing = () => {
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
         <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between" aria-label="Navegacion principal">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <img src="/logotipo.png" alt="Go Express" className="h-7" />
+            <Logotipo className="h-7" />
           </motion.div>
 
           <nav className="hidden md:flex items-center gap-10 text-[14px] font-semibold text-sidebar/70">
@@ -542,12 +543,22 @@ const Landing = () => {
                 </div>
 
                 {/* Screenshot */}
-                <img
-                  src="/dashboardclientes.png"
-                  alt="Portal de clientes GO Express, dashboard de envíos"
-                  className="w-full h-auto block"
-                  loading="lazy"
-                />
+                <picture className="contents">
+                  <source
+                    type="image/webp"
+                    sizes="(min-width: 1072px) 1024px, calc(100vw - 48px)"
+                    srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w, /brand/hero-1536.webp 1536w, /brand/hero-2048.webp 2048w"
+                  />
+                  <img
+                    src="/brand/hero-1024.png"
+                    alt="Portal de clientes GO Express, dashboard de envíos"
+                    width={1024}
+                    height={585}
+                    className="w-full h-auto block"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
               </div>
 
               {/* Laptop base / reflection strip */}
@@ -863,7 +874,7 @@ const Landing = () => {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center mb-5">
-                <img src="/logotipo.png" alt="Go Express" className="h-6" />
+                <Logotipo className="h-6" loading="lazy" />
               </div>
               <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
                 Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.

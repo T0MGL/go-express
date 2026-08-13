@@ -9,7 +9,7 @@ import { AnularPagoModal } from '@/components/admin/AnularPagoModal';
 import { ProblemaModal } from '@/components/admin/ProblemaModal';
 import { NotasInternas } from '@/components/admin/NotasInternas';
 import { estadoLabels, estadoColors, estadosPagoColors, metodosPagoLabels, departamentosPY } from '@/data/constants';
-import { printShippingLabel } from '@/components/printing/generateShippingLabel';
+import { printShippingLabel } from '@/components/printing/printLabel';
 import {
   CaretLeft,
   PencilSimple,
@@ -259,9 +259,9 @@ const EnvioDetail = () => {
     );
   };
 
-  const handlePrintLabel = () => {
+  const handlePrintLabel = async () => {
     if (!envio) return;
-    const success = printShippingLabel(envio);
+    const success = await printShippingLabel(envio);
     if (success) {
       toast.success('Etiqueta generada correctamente');
     } else {

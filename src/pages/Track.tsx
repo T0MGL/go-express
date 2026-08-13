@@ -20,6 +20,7 @@ import {
   CheckCircle,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { Logotipo } from '@/components/brand/BrandMark';
 import { estadoLabels, estadoColors } from '@/data/constants';
 import { toast } from 'sonner';
 import { formatDate, cn } from '@/lib/utils';
@@ -402,7 +403,7 @@ const Track = () => {
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md border-b border-muted/50 shadow-sm py-3' : 'bg-white border-b border-transparent py-5'}`}>
         <nav className="max-w-7xl mx-auto px-6 h-12 flex items-center justify-between">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
-            <img src="/logotipo.png" alt="Go Express" className="h-7" />
+            <Logotipo className="h-7" />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
@@ -727,7 +728,7 @@ const Track = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-14">
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center mb-5 cursor-pointer" onClick={() => navigate('/')}>
-                <img src="/logotipo.png" alt="Go Express" className="h-6" />
+                <Logotipo className="h-6" loading="lazy" />
               </div>
               <p className="text-sidebar/40 text-sm font-medium leading-relaxed mb-6 max-w-xs">
                 Soluciones de logística corporativa para el mercado paraguayo. E.A.S. con facturación legal.

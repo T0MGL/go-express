@@ -18,7 +18,7 @@ const ClienteApi = () => (
         <div className="min-w-0">
           <h3 className="text-[13px] font-semibold">Guía del integrador, versión 1</h3>
           <p className="text-[13px] text-muted-foreground mt-1 leading-relaxed">
-            El API pública permite crear envíos, consultar estados, cotizar rutas y recibir webhooks desde tu propio sistema.
+            El API público permite crear envíos, consultar estados, cotizar rutas y recibir webhooks desde tu propio sistema.
             La guía lleva a tu equipo técnico de cero al primer envío en menos de 5 minutos, con modo de prueba incluido.
           </p>
           <Button asChild size="sm" className="mt-4">

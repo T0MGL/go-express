@@ -77,6 +77,23 @@ function formatZodError(error: ZodError): FormattedZodIssue[] {
   }));
 }
 
+// http-errors (raw-body, body-parser, cors) llega con su propio status 4xx: el
+// cliente aborto la conexion, mando un body invalido o excedio el limite. Son
+// errores del cliente y no fallas del servidor, asi que responden con su status
+// real y no se reportan. Sin esto un bot que corta el request queda como 500.
+function clientErrorStatus(err: unknown): number | null {
+  if (typeof err !== 'object' || err === null) return null;
+
+  const candidate = err as { status?: unknown; statusCode?: unknown };
+  const status = typeof candidate.status === 'number'
+    ? candidate.status
+    : typeof candidate.statusCode === 'number'
+      ? candidate.statusCode
+      : null;
+
+  return status !== null && status >= 400 && status < 500 ? status : null;
+}
+
 // Must be registered as the last middleware
 
 export function globalErrorHandler(
@@ -147,6 +164,26 @@ export function globalErrorHandler(
 
     res.status(400).json({
       error: 'Malformed JSON in request body',
+      code: 'BAD_REQUEST',
+    });
+    return;
+  }
+
+  const clientStatus = clientErrorStatus(err);
+  if (clientStatus !== null) {
+    logger.warn(
+      {
+        statusCode: clientStatus,
+        message: err instanceof Error ? err.message : String(err),
+        path: req.path,
+        method: req.method,
+        requestId: req.headers['x-request-id'],
+      },
+      'Client error'
+    );
+
+    res.status(clientStatus).json({
+      error: err instanceof Error ? err.message : 'Bad request',
       code: 'BAD_REQUEST',
     });
     return;

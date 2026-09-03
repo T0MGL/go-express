@@ -115,6 +115,18 @@ if (env.NODE_ENV !== 'test') {
   );
 }
 
+// La superficie del API es /api y /health. Todo lo demas es escaneo automatizado
+// (wp-json, phpMyAdmin, .env) y se corta aca, antes del body parser: si llega al
+// parser, Express lee el body de una ruta que no existe y un cliente que aborta a
+// mitad del envio produce un BadRequestError por request sin sentido.
+app.use((req, res, next) => {
+  if (req.path === '/health' || req.path.startsWith('/api/')) {
+    next();
+    return;
+  }
+  res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
+});
+
 // El verify callback se ejecuta antes de parsear JSON. Guardamos el raw body
 // solo para webhooks publicos: Meta firma cada POST con HMAC-SHA256 sobre el
 // body crudo, y la firma no se puede recalcular desde el JSON ya parseado (orden

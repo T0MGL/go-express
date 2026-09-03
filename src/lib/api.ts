@@ -31,6 +31,42 @@ export function extractApiError(err: unknown, fallback = 'Ocurrio un error inesp
   return fallback;
 }
 
+// Pull the server-provided message when available, fall back to a generic one
+// per HTTP code so the operator gets something actionable instead of silence.
+export function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const data = error.data as { error?: { message?: string }; message?: string } | null;
+    const serverMessage = data?.error?.message ?? data?.message;
+    if (serverMessage && typeof serverMessage === 'string') return serverMessage;
+    switch (error.status) {
+      case 400:
+      case 422:
+        return 'Los datos enviados no son válidos. Revisalos e intentá de nuevo.';
+      case 403:
+        return 'No tenés permiso para hacer esa acción.';
+      case 404:
+        return 'No encontramos lo que buscabas. Puede que se haya eliminado.';
+      case 409:
+        return 'La información cambió mientras trabajabas. Recargá e intentá de nuevo.';
+      case 429:
+        return 'Demasiadas solicitudes seguidas. Esperá un momento y reintentá.';
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return 'El servidor tuvo un problema. Reintentá en unos segundos.';
+    }
+    return 'Algo salió mal. Intentá de nuevo.';
+  }
+  if (error instanceof Error && error.message) {
+    if (error.message.toLowerCase().includes('failed to fetch')) {
+      return 'No pudimos conectar con el servidor. Revisá tu internet.';
+    }
+    return error.message;
+  }
+  return 'Ocurrió un error inesperado.';
+}
+
 let currentClienteId: string | null = null;
 
 export function setClienteId(id: string) {

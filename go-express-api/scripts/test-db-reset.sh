@@ -41,10 +41,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authen
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 SQL
 
-# Migraciones posteriores al baseline, en orden estricto.
-for f in "$HERE"/sql/046_*.sql "$HERE"/sql/047_*.sql "$HERE"/sql/048_*.sql \
-         "$HERE"/sql/049_*.sql "$HERE"/sql/050_*.sql "$HERE"/sql/051_*.sql \
-         "$HERE"/sql/052_*.sql "$HERE"/sql/053_*.sql "$HERE"/sql/054_*.sql; do
+# Migraciones posteriores al baseline, en orden estricto. Se listan por numero en vez de
+# enumerarlas a mano: una migracion nueva entraba en prod y el schema de test se quedaba
+# atras hasta que alguien se acordaba de sumar el glob.
+for f in $(ls "$HERE"/sql/[0-9][0-9][0-9]_*.sql | sort); do
+  n=$(basename "$f" | cut -c1-3)
+  [ "$n" -ge 046 ] || continue
   echo "  aplicando $(basename "$f")"
   run -f "$f"
 done

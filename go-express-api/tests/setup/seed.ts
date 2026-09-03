@@ -12,6 +12,8 @@ export interface TestData {
   clienteId: string;
   repartidorId: string;
   tarifaId: string;
+  /** Falso cuando el seed reuso una tarifa que ya existia: no es suya para borrar. */
+  tarifaPropia: boolean;
 }
 
 let seeded: TestData | null = null;
@@ -117,6 +119,31 @@ export async function seedTestData(): Promise<TestData> {
     throw new Error(`Seed: failed to create test repartidor: ${repartidorErr.message}`);
   }
 
+  // La ruta tiene un indice unico normalizado (tarifas_ruta_servicio_unica), asi que la
+  // tarifa es estado compartido entre archivos de test: el primero que la crea la deja
+  // puesta. El cleanup no siempre puede borrarla, porque los envios que la referencian
+  // sobreviven cuando tienen pagos, y pagos es append-only por trigger. Reusarla en vez de
+  // insertar a ciegas es lo que evita que el segundo archivo muera con duplicate key.
+  const { data: tarifaExistente } = await supabase
+    .from('tarifas')
+    .select('id')
+    .eq('tipo_servicio', 'estandar')
+    .eq('activo', true)
+    .eq('eliminado', false)
+    .ilike('origen', 'asuncion')
+    .ilike('destino', 'encarnacion')
+    .maybeSingle();
+
+  if (tarifaExistente) {
+    seeded = {
+      clienteId,
+      repartidorId,
+      tarifaId: (tarifaExistente as { id: string }).id,
+      tarifaPropia: false,
+    };
+    return seeded;
+  }
+
   const { error: tarifaErr } = await supabase.from('tarifas').insert({
     id: tarifaId,
     origen: 'Asuncion',
@@ -135,8 +162,22 @@ export async function seedTestData(): Promise<TestData> {
     throw new Error(`Seed: failed to create test tarifa: ${tarifaErr.message}`);
   }
 
-  seeded = { clienteId, repartidorId, tarifaId };
+  seeded = { clienteId, repartidorId, tarifaId, tarifaPropia: true };
   return seeded;
+}
+
+// El cleanup borra lo que puede y deja constancia de lo que no. Antes ignoraba el
+// resultado de cada delete, asi que el borrado de pagos fallaba en silencio contra el
+// trigger append-only y arrastraba a envios, tarifa y cliente por FK. El sintoma aparecia
+// recien en el archivo siguiente, como un duplicate key del seed.
+type QueryDelete = ReturnType<ReturnType<typeof supabase.from>['delete']>;
+type Filtro = (q: QueryDelete) => PromiseLike<{ error: { message: string } | null }>;
+
+async function borrar(tabla: string, filtro: Filtro, fallosTolerados: string[] = []): Promise<void> {
+  const { error } = await filtro(supabase.from(tabla).delete());
+  if (error && !fallosTolerados.some((f) => error.message.includes(f))) {
+    console.warn(`cleanup: no se pudo limpiar ${tabla}: ${error.message}`);
+  }
 }
 
 export async function cleanupTestData(data: TestData): Promise<void> {
@@ -147,15 +188,27 @@ export async function cleanupTestData(data: TestData): Promise<void> {
 
   if (envios && envios.length > 0) {
     const envioIds = envios.map((e: { id: string }) => e.id);
-    await supabase.from('notas_internas').delete().in('envio_id', envioIds);
-    await supabase.from('eventos_envio').delete().in('envio_id', envioIds);
-    await supabase.from('pagos').delete().in('envio_id', envioIds);
-    await supabase.from('envios').delete().in('id', envioIds);
+
+    // pagos es append-only por trigger (trg_pagos_no_delete), igual que en prod. Los envios
+    // que tengan pago quedan en pie a proposito: cada archivo usa un cliente nuevo, asi que
+    // el remanente no colisiona con nada.
+    const { data: conPago } = await supabase.from('pagos').select('envio_id').in('envio_id', envioIds);
+    const bloqueados = new Set((conPago ?? []).map((p: { envio_id: string }) => p.envio_id));
+    const borrables = envioIds.filter((id) => !bloqueados.has(id));
+
+    await borrar('notas_internas', (q) => q.in('envio_id', envioIds));
+    await borrar('eventos_envio', (q) => q.in('envio_id', envioIds));
+
+    if (borrables.length > 0) {
+      await borrar('envios', (q) => q.in('id', borrables));
+    }
   }
 
-  await supabase.from('tarifas').delete().eq('id', data.tarifaId);
-  await supabase.from('repartidores').delete().eq('id', data.repartidorId);
-  await supabase.from('clientes').delete().eq('id', data.clienteId);
+  if (data.tarifaPropia) {
+    await borrar('tarifas', (q) => q.eq('id', data.tarifaId), ['violates foreign key']);
+  }
+  await borrar('repartidores', (q) => q.eq('id', data.repartidorId), ['violates foreign key']);
+  await borrar('clientes', (q) => q.eq('id', data.clienteId), ['violates foreign key']);
 
   seeded = null;
 }

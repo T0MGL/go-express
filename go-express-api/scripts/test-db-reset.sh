@@ -41,6 +41,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authen
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 SQL
 
+# El baseline se dumpea solo con schema, sin datos, asi que el catalogo de 18 departamentos
+# y 263 distritos no llega. Los tests de ciudades, cotizador y envios lo dan por hecho.
+# 027 es idempotente (CREATE TABLE IF NOT EXISTS + INSERT ON CONFLICT), se puede replayear.
+echo "  aplicando 027_ciudades_catalog.sql (catalogo)"
+run -f "$HERE/sql/027_ciudades_catalog.sql"
+
 # Migraciones posteriores al baseline, en orden estricto. Se listan por numero en vez de
 # enumerarlas a mano: una migracion nueva entraba en prod y el schema de test se quedaba
 # atras hasta que alguien se acordaba de sumar el glob.

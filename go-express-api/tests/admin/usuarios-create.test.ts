@@ -17,7 +17,9 @@ const createdAuthIds: string[] = [];
 
 afterAll(async () => {
   for (const id of createdUsuarioIds) {
-    await admin.from('usuarios').delete().eq('id', id).catch(() => undefined);
+    // El query builder de supabase-js es un thenable, no una Promise: no tiene .catch.
+    const { error } = await admin.from('usuarios').delete().eq('id', id);
+    if (error) console.warn(`cleanup usuarios ${id}: ${error.message}`);
   }
   for (const authId of createdAuthIds) {
     await admin.auth.admin.deleteUser(authId).catch(() => undefined);

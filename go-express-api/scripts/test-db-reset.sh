@@ -84,6 +84,12 @@ WHERE NOT EXISTS (
      AND tipo_servicio = 'estandar' AND activo = TRUE AND eliminado = FALSE
 );
 
+-- El bucket de comprobantes de entrega existe en prod y los tests de mantenimiento lo dan
+-- por hecho. El stack local arranca sin buckets.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('pod-entregas', 'pod-entregas', FALSE)
+ON CONFLICT (id) DO NOTHING;
+
 NOTIFY pgrst, 'reload schema';
 SQL
 

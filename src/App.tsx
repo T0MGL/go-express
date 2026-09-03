@@ -8,7 +8,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
 import { AdminOnlyRoute } from "@/components/admin/AdminOnlyRoute";
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api";
+import { ApiError, describeError } from "@/lib/api";
 
 // Stale-deploy recovery: if a dynamic import fails (chunk hash no longer exists
 // because a new deploy replaced the assets while the app was loaded), force a
@@ -78,43 +78,12 @@ const ResetPasswordCliente = lazyWithReload(() => import("./pages/auth/ResetPass
 const ResetPasswordRepartidor = lazyWithReload(() => import("./pages/auth/ResetPasswordRepartidor"));
 const ResetPasswordAdmin = lazyWithReload(() => import("./pages/auth/ResetPasswordAdmin"));
 
-// Pull the server-provided message when available, fall back to a generic one
-// per HTTP code so the operator gets something actionable instead of silence.
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) {
-    const data = error.data as { error?: { message?: string }; message?: string } | null;
-    const serverMessage = data?.error?.message ?? data?.message;
-    if (serverMessage && typeof serverMessage === 'string') return serverMessage;
-    switch (error.status) {
-      case 400:
-      case 422:
-        return 'Los datos enviados no son válidos. Revisalos e intentá de nuevo.';
-      case 403:
-        return 'No tenés permiso para hacer esa acción.';
-      case 404:
-        return 'No encontramos lo que buscabas. Puede que se haya eliminado.';
-      case 409:
-        return 'La información cambió mientras trabajabas. Recargá e intentá de nuevo.';
-      case 429:
-        return 'Demasiadas solicitudes seguidas. Esperá un momento y reintentá.';
-      case 500:
-      case 502:
-      case 503:
-      case 504:
-        return 'El servidor tuvo un problema. Reintentá en unos segundos.';
-    }
-    return 'Algo salió mal. Intentá de nuevo.';
-  }
-  if (error instanceof Error && error.message) {
-    if (error.message.toLowerCase().includes('failed to fetch')) {
-      return 'No pudimos conectar con el servidor. Revisá tu internet.';
-    }
-    return error.message;
-  }
-  return 'Ocurrió un error inesperado.';
-}
-
-function shouldSuppressQueryError(error: unknown): boolean {
+function shouldSuppressQueryError(error: unknown, queryKey: readonly unknown[]): boolean {
+  // El rastreo publico resuelve cada fallo en pantalla, con copy para el comprador
+  // y boton de reintento. El toast global encima le daba dos versiones distintas
+  // del mismo problema, que es como una caida nuestra terminaba leyendose como
+  // "perdimos tu paquete".
+  if (queryKey[0] === 'tracking') return true;
   // 401 on initial session bootstrap is expected before the auth layer resolves;
   // surfacing it as a toast would confuse the operator on every page reload.
   if (error instanceof ApiError) {
@@ -126,8 +95,8 @@ function shouldSuppressQueryError(error: unknown): boolean {
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
-    onError: (error) => {
-      if (shouldSuppressQueryError(error)) return;
+    onError: (error, query) => {
+      if (shouldSuppressQueryError(error, query.queryKey)) return;
       toast.error(describeError(error));
     },
   }),

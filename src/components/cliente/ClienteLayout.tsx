@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react';
 import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { NavLink } from '@/components/NavLink';
+import { Isotipo } from '@/components/brand/BrandMark';
 import { cn } from '@/lib/utils';
 import {
   ChartBar, Package, PlusCircle, UploadSimple, Calculator, Tag, Cube, Code,
@@ -174,7 +175,7 @@ export const ClienteLayout = () => {
       <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="h-12 flex items-center justify-between px-6 max-w-[1400px] mx-auto w-full">
           <div className="flex items-center gap-2.5">
-            <img src="/isotipo.png" alt="Go Express" className="h-5 w-5" />
+            <Isotipo className="h-5 w-5" />
             <div className="flex items-baseline gap-2">
               <span className="font-display font-bold text-[12px] tracking-tight">GO EXPRESS</span>
               <span className="text-[10px] text-muted-foreground font-medium">Portal</span>

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { Eye, Package, Barcode, CaretLeft, CaretRight } from '@phosphor-icons/react';
-import { printShippingLabel } from '@/components/printing/generateShippingLabel';
+import { printShippingLabel } from '@/components/printing/printLabel';
 import { toast } from 'sonner';
 import { estadoLabels } from '@/data/constants';
 import type { Envio } from '@/data/types';
@@ -286,8 +286,8 @@ const ClienteEnvios = () => {
                 variant="secondary"
                 size="sm"
                 className="w-full gap-1.5"
-                onClick={() => {
-                  const success = printShippingLabel(selectedEnvio);
+                onClick={async () => {
+                  const success = await printShippingLabel(selectedEnvio);
                   if (success) {
                     toast.success('Etiqueta generada');
                   } else {

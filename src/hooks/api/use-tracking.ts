@@ -17,13 +17,21 @@ export interface PublicTrackingResult {
   destino: string;
   destinatarioCiudad: string;
   fecha: string;
+  entregadoEn?: string;
+  recibidoPor?: string;
   eventos: PublicTrackingEvent[];
 }
+
+// GE + 4 digitos de año + 6 de secuencia. La pantalla de rastreo usa el mismo
+// numero para avisar por formato en vez de quedarse muda, asi el gate del request
+// y el mensaje al comprador no pueden divergir.
+export const MIN_TRACKING_LENGTH = 10;
+export const TRACKING_FORMAT_HINT = 'GE2026XXXXXX';
 
 export function useTracking(trackingNumber: string) {
   return useQuery<PublicTrackingResult>({
     queryKey: trackingKeys.detail(trackingNumber),
     queryFn: () => api.get<PublicTrackingResult>(`/public/tracking/${trackingNumber}`),
-    enabled: !!trackingNumber && trackingNumber.length >= 10,
+    enabled: !!trackingNumber && trackingNumber.length >= MIN_TRACKING_LENGTH,
   });
 }

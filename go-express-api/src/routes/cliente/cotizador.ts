@@ -7,7 +7,7 @@ import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 import { cotizarSchema } from '../../lib/validators/tarifa.schema.js';
 import { calcularCosto } from '../../lib/volumetric.js';
-import { normalizeCiudad } from '../../lib/ciudad.js';
+import { resolverCiudad, resolverCiudades, type ResolucionCiudad } from '../../lib/ciudad.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import type { TarifaRow } from '../../types/index.js';
 import type { CotizarInput } from '../../lib/validators/tarifa.schema.js';
@@ -67,32 +67,38 @@ router.get(
       throw dbError(clienteError, 'Error fetching cliente');
     }
 
-    const origen = (clienteData as { ciudad: string | null }).ciudad?.trim() || 'Asuncion';
-    const origenNorm = normalizeCiudad(origen);
+    const origenInput = (clienteData as { ciudad: string | null }).ciudad?.trim() || 'Asuncion';
 
-    // Fetch todos los origenes/destinos activos y filtrar en JS con normalizacion
-    // (tolera que la tarifa se haya cargado con 'Asuncion' vs cliente con 'Asunción').
+    // clientes.ciudad es texto libre cargado a mano, asi que puede venir con o sin tilde. Se
+    // resuelve contra el catalogo una sola vez y de ahi en mas la busqueda es por id, la misma
+    // identidad que usa el cotizador y el panel de cobertura.
+    const origenResuelto = await resolverCiudad(supabase, origenInput);
+
+    if (origenResuelto.estado !== 'resuelta') {
+      logger.warn(
+        { clienteId, origen: origenInput, estado: origenResuelto.estado },
+        'Destinos: la ciudad del cliente no resuelve contra el catalogo'
+      );
+      res.json({ origen: origenInput, destinos: [] });
+      return;
+    }
+
     const { data, error } = await supabase
       .from('tarifas')
-      .select('origen, destino')
+      .select('destino')
+      .eq('origen_ciudad_id', origenResuelto.ciudad.id)
       .eq('activo', true)
       .eq('eliminado', false);
 
     if (error) {
-      logger.error({ error, origen }, 'Error fetching destinos');
+      logger.error({ error, origen: origenInput }, 'Error fetching destinos');
       throw dbError(error, 'Error fetching destinos');
     }
 
-    const rows = (data ?? []) as Array<{ origen: string; destino: string }>;
-    const destinos = Array.from(
-      new Set(
-        rows
-          .filter((r) => normalizeCiudad(r.origen) === origenNorm)
-          .map((r) => r.destino)
-      )
-    ).sort();
+    const rows = (data ?? []) as Array<{ destino: string }>;
+    const destinos = Array.from(new Set(rows.map((r) => r.destino))).sort();
 
-    res.json({ origen, destinos });
+    res.json({ origen: origenResuelto.ciudad.nombre, destinos });
   })
 );
 
@@ -102,31 +108,38 @@ router.post(
   asyncHandler(async (req, res) => {
     const input = req.body as CotizarInput;
 
-    // Find matching tarifa. Prefer UUID FK lookup when available (new path), fall back to text match.
+    // El id manda. Cuando el caller solo tiene el nombre (API vieja, importaciones), se resuelve
+    // contra el catalogo antes de buscar: comparar `.eq('origen', 'Asunción')` contra el texto de
+    // la tarifa devolvia 404 en rutas que si existian, porque la creacion tolera la tilde y esta
+    // busqueda no.
+    const ruta = await resolverExtremos(input);
+
     let q = supabase
       .from('tarifas')
       .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, creado_por, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
       .eq('activo', true)
-      .eq('eliminado', false);
-
-    if (input.origenCiudadId && input.destinoCiudadId) {
-      q = q.eq('origen_ciudad_id', input.origenCiudadId).eq('destino_ciudad_id', input.destinoCiudadId);
-    } else {
-      q = q.eq('origen', input.origen!).eq('destino', input.destino!);
-    }
+      .eq('eliminado', false)
+      .eq('origen_ciudad_id', ruta.origenCiudadId)
+      .eq('destino_ciudad_id', ruta.destinoCiudadId);
 
     if (input.tipoServicio) {
       q = q.eq('tipo_servicio', input.tipoServicio);
     }
 
-    const { data, error } = await q.limit(1).single();
+    // Mismo desempate que computeCostoEnvio: el orden del enum hace ganar al servicio base.
+    const { data, error } = await q
+      .order('tipo_servicio', { ascending: true })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        throw AppError.notFound('No tarifa found for this route');
-      }
       logger.error({ error, input }, 'Error fetching tarifa for cotización');
       throw dbError(error, `Error fetching tarifa: ${error.message}`);
+    }
+
+    if (!data) {
+      throw AppError.notFound('No tarifa found for this route');
     }
 
     const tarifa = data as TarifaRow;
@@ -193,5 +206,38 @@ router.post(
     });
   })
 );
+
+/**
+ * Los dos extremos de la ruta, siempre como ids. El schema garantiza que cada extremo viene por
+ * id o por nombre; el nombre que no existe en el catalogo es un 404 de ruta, igual que una ruta
+ * real sin tarifa cargada: en los dos casos el cotizador no tiene un precio que dar.
+ */
+async function resolverExtremos(
+  input: CotizarInput,
+): Promise<{ origenCiudadId: string; destinoCiudadId: string }> {
+  const porNombre = [
+    input.origenCiudadId ? null : input.origen ?? null,
+    input.destinoCiudadId ? null : input.destino ?? null,
+  ].filter((nombre): nombre is string => nombre !== null);
+
+  const resoluciones =
+    porNombre.length > 0
+      ? await resolverCiudades(supabase, porNombre)
+      : new Map<string, ResolucionCiudad>();
+
+  return {
+    origenCiudadId: input.origenCiudadId ?? idDeExtremo(resoluciones, input.origen),
+    destinoCiudadId: input.destinoCiudadId ?? idDeExtremo(resoluciones, input.destino),
+  };
+}
+
+function idDeExtremo(
+  resoluciones: Map<string, ResolucionCiudad>,
+  nombre: string | undefined,
+): string {
+  const resolucion = nombre === undefined ? undefined : resoluciones.get(nombre);
+  if (resolucion?.estado === 'resuelta') return resolucion.ciudad.id;
+  throw AppError.notFound(`No tarifa found for this route: ciudad "${nombre ?? ''}"`);
+}
 
 export default router;

@@ -995,7 +995,7 @@ class EnvioService {
         );
         fallidos.push({
           fila: index + 1,
-          errores: [mensajeSinCobertura('mostrador', input.origen, input.destino)],
+          errores: [mensajeSinCobertura('mostrador', input.origen, input.destino, cot.rechazo)],
         });
         continue;
       }

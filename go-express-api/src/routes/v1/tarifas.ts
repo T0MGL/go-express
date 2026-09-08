@@ -35,7 +35,7 @@ router.get(
         costo: null,
         origen,
         destino,
-        mensaje: mensajeSinCobertura('gateway_cotizacion', origen, destino),
+        mensaje: mensajeSinCobertura('gateway_cotizacion', origen, destino, cotizacion.rechazo),
       });
       return;
     }

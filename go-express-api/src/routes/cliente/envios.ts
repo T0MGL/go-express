@@ -481,7 +481,7 @@ router.post(
           { clienteId, fila: i + 1, origen: origenInput, destino: cot.destino },
           'Bulk import portal: fila rechazada por ruta sin tarifa'
         );
-        errors.push({ index: i, error: mensajeSinCobertura('portal', origenInput, cot.destino) });
+        errors.push({ index: i, error: mensajeSinCobertura('portal', origenInput, cot.destino, cot.rechazo) });
         continue;
       }
 

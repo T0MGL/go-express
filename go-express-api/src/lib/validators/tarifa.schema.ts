@@ -4,12 +4,11 @@ import { paginationSchema, searchSchema, uuidSchema } from './common.schema.js';
 const tipoServicioEnum = z.enum(['estandar', 'express', 'economico']);
 
 /**
- * Crear tarifa. Aceptamos origenCiudadId + destinoCiudadId (nuevo camino, FK al
- * catalogo) o, de forma transitoria, origen + destino (strings) por retro-
- * compatibilidad con el frontend viejo. Al menos una de las dos formas debe
- * estar presente para cada extremo. El service resuelve el par y pobla ambas
- * columnas (FK + text) asi las tarifas creadas hoy funcionan con el cotizador
- * legacy y con el nuevo panel de cobertura.
+ * Crear tarifa. Cada extremo entra por id de ciudad (lo que manda el panel) o por nombre
+ * (integraciones y cargas viejas). El nombre no es una segunda identidad: el service lo
+ * resuelve contra el catalogo y guarda el id, o rechaza con 400 si no resuelve. La base lo
+ * respalda con tarifas_ruta_ciudad_resuelta (057), asi que no existe una tarifa viva sin
+ * ciudad.
  */
 export const createTarifaSchema = z
   .object({
@@ -52,8 +51,8 @@ export const tarifaQuerySchema = paginationSchema.merge(searchSchema).extend({
   activo: z.coerce.boolean().optional(),
 });
 
-// Cotizador request. Acepta lookup por UUID (nuevo camino, via ciudad FK) o por nombre
-// de texto (retrocompatibilidad). Al menos una forma requerida por extremo.
+// Cotizador request. Acepta el id de ciudad (lo que manda el portal) o el nombre, que se
+// resuelve contra el catalogo antes de buscar. Al menos una forma requerida por extremo.
 export const cotizarSchema = z
   .object({
     origenCiudadId: uuidSchema.optional(),

@@ -5,6 +5,7 @@ import { logger } from '../config/logger.js';
 import { auditoriaService } from './auditoria.service.js';
 import { sseService } from './sse.service.js';
 import { nowISO } from '../lib/datetime.js';
+import { resolverCiudad, type CiudadResuelta } from '../lib/ciudad.js';
 import type {
   TarifaRow,
   Tarifa,
@@ -46,16 +47,18 @@ const TARIFA_COLUMNS = [
 ].join(', ');
 
 /**
- * Resuelve ciudadId y nombre canonico a partir del input del cliente. Si viene
- * ciudadId, lo usamos (fuente de verdad). Si solo viene nombre, no creamos
- * ciudades nuevas: el nombre se persiste tal cual en la columna text legacy y
- * ciudadId queda NULL. Esto solo aplica a tarifas que vengan del cotizador viejo;
- * todas las creadas desde el nuevo UI de Tarifas traen ciudadId siempre.
+ * Un extremo de la ruta, siempre como ciudad del catalogo. El id manda cuando viene; si solo
+ * viene el nombre se resuelve contra el catalogo por el mismo camino que el cotizador.
+ *
+ * Antes, un nombre suelto se guardaba tal cual con ciudadId en NULL. Esa tarifa quedaba viva
+ * pero invisible para el panel de cobertura (que decide por FK) y competia por el cotizador
+ * (que decidia por texto): la misma ruta existia o no segun quien preguntara. Un nombre que no
+ * resuelve ahora es un 400 en el borde, y la base lo respalda con tarifas_ruta_ciudad_resuelta.
  */
-async function resolveCiudad(
+async function resolverExtremo(
   ciudadId: string | undefined,
   nombreFallback: string | undefined,
-): Promise<{ id: string | null; nombre: string }> {
+): Promise<CiudadResuelta> {
   if (ciudadId) {
     const { data, error } = await supabase
       .from('ciudades')
@@ -72,7 +75,21 @@ async function resolveCiudad(
   }
 
   if (nombreFallback) {
-    return { id: null, nombre: nombreFallback };
+    const resolucion = await resolverCiudad(supabase, nombreFallback);
+
+    if (resolucion.estado === 'resuelta') {
+      return resolucion.ciudad;
+    }
+
+    if (resolucion.estado === 'ambigua') {
+      throw AppError.badRequest(
+        `Hay ${resolucion.coincidencias} ciudades con el nombre "${nombreFallback}". Mandá el id de la que corresponde.`,
+      );
+    }
+
+    throw AppError.badRequest(
+      `"${nombreFallback}" no figura en el catálogo de ciudades. Revisá cómo está escrita o elegila de la lista.`,
+    );
   }
 
   throw AppError.badRequest('ciudadId o nombre requerido');
@@ -152,14 +169,14 @@ class TarifaService {
       throw AppError.forbidden('Tu sesion admin no corresponde a un usuario activo. Volve a iniciar sesion.');
     }
 
-    const origen = await resolveCiudad(input.origenCiudadId, input.origen);
-    const destino = await resolveCiudad(input.destinoCiudadId, input.destino);
+    const [origen, destino] = await Promise.all([
+      resolverExtremo(input.origenCiudadId, input.origen),
+      resolverExtremo(input.destinoCiudadId, input.destino),
+    ]);
 
     // Antes de crear, chequeamos si alguna de las dos ciudades pasa de 0 a >0 tarifas activas.
     // Si es asi, la crear va a "habilitar" esa ciudad, y emitimos un broadcast post-insert.
-    const previouslyEnabled = await this.getEnabledCiudadIds(
-      origen.id && destino.id ? [origen.id, destino.id] : [],
-    );
+    const previouslyEnabled = await this.getEnabledCiudadIds([origen.id, destino.id]);
 
     const { data, error } = await supabase
       .from('tarifas')
@@ -202,10 +219,10 @@ class TarifaService {
 
     // Si origen/destino tienen ciudadId y antes estaban sin tarifas activas,
     // esta creacion las habilita. Broadcast para refrescar el panel de cobertura.
-    if (origen.id && !previouslyEnabled.has(origen.id)) {
+    if (!previouslyEnabled.has(origen.id)) {
       sseService.broadcast({ entity: ['ciudad'], action: 'habilitada', id: origen.id });
     }
-    if (destino.id && origen.id !== destino.id && !previouslyEnabled.has(destino.id)) {
+    if (origen.id !== destino.id && !previouslyEnabled.has(destino.id)) {
       sseService.broadcast({ entity: ['ciudad'], action: 'habilitada', id: destino.id });
     }
 
@@ -227,12 +244,12 @@ class TarifaService {
     const updateData: Record<string, unknown> = {};
 
     if (input.origenCiudadId !== undefined || input.origen !== undefined) {
-      const origen = await resolveCiudad(input.origenCiudadId, input.origen);
+      const origen = await resolverExtremo(input.origenCiudadId, input.origen);
       updateData['origen'] = origen.nombre;
       updateData['origen_ciudad_id'] = origen.id;
     }
     if (input.destinoCiudadId !== undefined || input.destino !== undefined) {
-      const destino = await resolveCiudad(input.destinoCiudadId, input.destino);
+      const destino = await resolverExtremo(input.destinoCiudadId, input.destino);
       updateData['destino'] = destino.nombre;
       updateData['destino_ciudad_id'] = destino.id;
     }
@@ -347,6 +364,15 @@ class TarifaService {
     const row = existing as unknown as TarifaRow;
     if (!row.eliminado) {
       throw AppError.badRequest('Tarifa is not deleted');
+    }
+
+    // Las tarifas del cotizador viejo que quedaron sin ciudad resuelta solo pueden seguir
+    // existiendo eliminadas: una ruta sin ciudad no se puede cotizar y la base la rechaza
+    // (tarifas_ruta_ciudad_resuelta). Se dice aca para que el admin lea el motivo y no un 500.
+    if (!row.origen_ciudad_id || !row.destino_ciudad_id) {
+      throw AppError.badRequest(
+        `Esta tarifa quedó sin ciudad de ${!row.origen_ciudad_id ? 'origen' : 'destino'} resuelta y no se puede restaurar. Creá una nueva eligiendo origen y destino del catálogo.`,
+      );
     }
 
     const { data, error } = await supabase

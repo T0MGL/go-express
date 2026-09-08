@@ -42,7 +42,7 @@ export interface IntentoContacto {
 // State machine: valid transitions
 
 const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
-  pendiente: ['recolectado', 'problema'],
+  pendiente: ['recolectado', 'en_deposito', 'problema'],
   recolectado: ['en_transito', 'problema'],
   en_transito: ['en_deposito', 'en_reparto', 'problema'],
   en_deposito: ['en_reparto', 'problema'],

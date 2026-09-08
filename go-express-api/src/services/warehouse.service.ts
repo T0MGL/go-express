@@ -110,6 +110,29 @@ class WarehouseService {
     };
   }
 
+  // Compensacion del ingreso: PostgREST no expone transacciones multi-sentencia, asi que
+  // las dos filas se deshacen a mano. El movimiento va primero porque referencia al paquete.
+  // Si la compensacion falla queda una fila huerfana y eso se loguea como error: el operador
+  // recibe igual el fallo del ingreso, pero alguien tiene que limpiar.
+  private async revertirIngreso(paqueteId: string): Promise<void> {
+    const { error: movError } = await supabase
+      .from('movimientos_almacen')
+      .delete()
+      .eq('paquete_id', paqueteId);
+
+    const { error: invError } = await supabase
+      .from('inventario_almacen')
+      .delete()
+      .eq('id', paqueteId);
+
+    if (movError || invError) {
+      logger.error(
+        { movError, invError, paqueteId },
+        'No se pudo revertir el ingreso al almacen, quedan filas huerfanas'
+      );
+    }
+  }
+
   async ingreso(
     input: IngresoInput,
     userId: string,
@@ -150,7 +173,7 @@ class WarehouseService {
 
     const item = toInventarioApi(data as unknown as InventarioAlmacenRow);
 
-    await supabase.from('movimientos_almacen').insert({
+    const { error: movimientoError } = await supabase.from('movimientos_almacen').insert({
       paquete_id: item.id,
       tracking_number: input.trackingNumber,
       tipo: 'entrada',
@@ -160,6 +183,14 @@ class WarehouseService {
       notas: input.notas ?? null,
     });
 
+    if (movimientoError) {
+      await this.revertirIngreso(item.id);
+      throw dbError(movimientoError, 'Error registrando el movimiento de entrada');
+    }
+
+    // El paquete esta fisicamente en el deposito: si el envio no queda en 'en_deposito', el
+    // sistema dice una cosa y el estante dice otra, y asi es como se pierde un paquete. Antes
+    // este error se tragaba y el operador veia exito. Ahora el ingreso entero se revierte.
     if (input.envioId) {
       try {
         await envioService.updateEstado(
@@ -171,7 +202,8 @@ class WarehouseService {
           userAgent,
         );
       } catch (err) {
-        logger.warn({ err, envioId: input.envioId }, 'Could not transition envio to en_deposito on warehouse ingreso');
+        await this.revertirIngreso(item.id);
+        throw err;
       }
     }
 

@@ -27,6 +27,21 @@ afterAll(async () => {
 });
 
 describe('identidad de ruta: dos filas para la misma ruta', () => {
+  // La primera mitad de la cadena: las dos escrituras son la misma ciudad para el unico
+  // normalizador que queda. tarifa_norm_ciudad devolvia 'asuncion' para una y 'asuncion' con
+  // tilde para la otra, y de ahi salian dos rutas donde el codigo veia una.
+  it('la compuesta y la descompuesta resuelven al mismo id de ciudad', async () => {
+    const { data, error } = await supabase.rpc('resolver_ciudades', {
+      p_nombres: ['Asunción', ASUNCION_NFD, ASUNCION_NBSP],
+    });
+
+    expect(error).toBeNull();
+    const filas = data as Array<{ ciudad_id: string | null; coincidencias: number }>;
+    expect(filas).toHaveLength(3);
+    expect(new Set(filas.map((f) => f.ciudad_id)).size).toBe(1);
+    expect(filas[0]?.ciudad_id).toBe(testData.origenCiudadId);
+  });
+
   it('la base rechaza una segunda tarifa viva para el mismo par de ciudades', async () => {
     // Escrita en NFD a proposito: bajo el unique por nombre normalizado de 056 esta fila entraba,
     // porque el normalizador de SQL no recomponia. El unique por ids no le da esa salida.

@@ -9,7 +9,9 @@
 --   descripcion_requerida, envio_no_encontrado, envio_eliminado, transicion_invalida (030)
 --   fecha_entrega_real al marcar entregado por admin (045, A1)
 --   recolectado_en, lock FOR UPDATE, evento y auditoria en la misma transaccion (030)
--- Mantener sincronizada con VALID_TRANSITIONS en src/services/envio.service.ts.
+-- Esta matriz es la unica que corre: la copia en TypeScript no la leia nadie y se borro en
+-- este mismo cambio. La del front (src/pages/admin/EnvioDetail.tsx) solo decide que ofrece el
+-- menu, y sigue a esta.
 
 BEGIN;
 CREATE OR REPLACE FUNCTION public.update_envio_estado_atomico(p_envio_id uuid, p_nuevo_estado envio_estado, p_descripcion text, p_ubicacion text, p_problema_descr text, p_repartidor_id uuid, p_apply_repartidor boolean, p_actor_id uuid, p_actor_nombre text, p_audit_actor_id uuid, p_extra_descr text, p_ip inet, p_user_agent text)

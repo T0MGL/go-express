@@ -110,26 +110,22 @@ class WarehouseService {
     };
   }
 
-  // Compensacion del ingreso: PostgREST no expone transacciones multi-sentencia, asi que
-  // las dos filas se deshacen a mano. El movimiento va primero porque referencia al paquete.
-  // Si la compensacion falla queda una fila huerfana y eso se loguea como error: el operador
+  // Compensacion del ingreso: PostgREST no expone transacciones multi-sentencia, asi que las
+  // dos filas se deshacen a mano, en orden inverso porque el movimiento referencia al paquete.
+  // Se borra el movimiento por id y no por paquete, para no llevarse por delante otro que
+  // alguien mas haya escrito. Si la compensacion falla queda una fila huerfana: el operador
   // recibe igual el fallo del ingreso, pero alguien tiene que limpiar.
-  private async revertirIngreso(paqueteId: string): Promise<void> {
-    const { error: movError } = await supabase
-      .from('movimientos_almacen')
-      .delete()
-      .eq('paquete_id', paqueteId);
+  private async revertirIngreso(paqueteId: string, movimientoId: string | null): Promise<void> {
+    if (movimientoId !== null) {
+      const { error } = await supabase.from('movimientos_almacen').delete().eq('id', movimientoId);
+      if (error) {
+        logger.error({ error, movimientoId }, 'Quedo un movimiento de almacen huerfano tras revertir el ingreso');
+      }
+    }
 
-    const { error: invError } = await supabase
-      .from('inventario_almacen')
-      .delete()
-      .eq('id', paqueteId);
-
-    if (movError || invError) {
-      logger.error(
-        { movError, invError, paqueteId },
-        'No se pudo revertir el ingreso al almacen, quedan filas huerfanas'
-      );
+    const { error } = await supabase.from('inventario_almacen').delete().eq('id', paqueteId);
+    if (error) {
+      logger.error({ error, paqueteId }, 'Quedo una fila de inventario huerfana tras revertir el ingreso');
     }
   }
 
@@ -173,24 +169,30 @@ class WarehouseService {
 
     const item = toInventarioApi(data as unknown as InventarioAlmacenRow);
 
-    const { error: movimientoError } = await supabase.from('movimientos_almacen').insert({
-      paquete_id: item.id,
-      tracking_number: input.trackingNumber,
-      tipo: 'entrada',
-      ubicacion_destino: input.ubicacion,
-      usuario: usuarioNombre,
-      usuario_id: userId,
-      notas: input.notas ?? null,
-    });
+    const { data: movimiento, error: movimientoError } = await supabase
+      .from('movimientos_almacen')
+      .insert({
+        paquete_id: item.id,
+        tracking_number: input.trackingNumber,
+        tipo: 'entrada',
+        ubicacion_destino: input.ubicacion,
+        usuario: usuarioNombre,
+        usuario_id: userId,
+        notas: input.notas ?? null,
+      })
+      .select('id')
+      .single();
 
-    if (movimientoError) {
-      await this.revertirIngreso(item.id);
+    if (movimientoError || !movimiento) {
+      await this.revertirIngreso(item.id, null);
       throw dbError(movimientoError, 'Error registrando el movimiento de entrada');
     }
 
+    const movimientoId = (movimiento as { id: string }).id;
+
     // El paquete esta fisicamente en el deposito: si el envio no queda en 'en_deposito', el
     // sistema dice una cosa y el estante dice otra, y asi es como se pierde un paquete. Antes
-    // este error se tragaba y el operador veia exito. Ahora el ingreso entero se revierte.
+    // este error se tragaba y el operador veia exito.
     if (input.envioId) {
       try {
         await envioService.updateEstado(
@@ -202,7 +204,18 @@ class WarehouseService {
           userAgent,
         );
       } catch (err) {
-        await this.revertirIngreso(item.id);
+        // Solo se revierte cuando se sabe que la transicion no llego a escribirse: una regla
+        // de negocio rechaza antes de tocar la fila. Ante un 500 el RPC pudo haber commiteado
+        // igual, y borrar el inventario ahi deja al envio en_deposito sin nada en el estante,
+        // que es la misma mentira al reves.
+        if (err instanceof AppError && err.statusCode < 500) {
+          await this.revertirIngreso(item.id, movimientoId);
+          throw err;
+        }
+        logger.error(
+          { err, envioId: input.envioId, paqueteId: item.id },
+          'Ingreso al almacen con estado del envio indeterminado, revisar a mano'
+        );
         throw err;
       }
     }

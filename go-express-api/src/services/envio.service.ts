@@ -39,19 +39,6 @@ export interface IntentoContacto {
   creadoEn: string;
 }
 
-// State machine: valid transitions
-
-const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
-  pendiente: ['recolectado', 'en_deposito', 'problema'],
-  recolectado: ['en_transito', 'problema'],
-  en_transito: ['en_deposito', 'en_reparto', 'problema'],
-  en_deposito: ['en_reparto', 'problema'],
-  en_reparto: ['entregado', 'fallido', 'problema'],
-  fallido: ['en_reparto', 'problema'],
-  entregado: [],
-  problema: ['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'fallido'],
-};
-
 // Row to API mapper
 
 export function mapEnvioRowToApi(row: EnvioRow): Envio {

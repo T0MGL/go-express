@@ -271,14 +271,23 @@ const Landing = () => {
                 animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
                 transition={{ duration: 0.7, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
               >
-                {/* Dos source por breakpoint y no un solo sizes: en mobile la imagen se
-                    ve al ancho del contenedor, y la escalera completa haria bajar un
-                    2048 para pintar 342px. El corte en 1024w ya es 3x en un telefono. */}
+                {/* Tres tramos, no un solo sizes, y el navegador toma el primero que
+                    matchea. Desde lg la imagen es el sangrado de 60vw. Entre 768 y
+                    1023 va al ancho del contenedor, que ahi son casi 1000px y necesita
+                    la escalera larga. Debajo de 768 la misma escalera larga haria bajar
+                    un 1536 para pintar 342px, asi que ese tramo corta en 1024w, que en
+                    un telefono a 3x ya es exacto. */}
                 <picture className="contents">
                   <source
                     type="image/webp"
                     media="(min-width: 1024px)"
                     sizes="60vw"
+                    srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w, /brand/hero-1536.webp 1536w, /brand/hero-2048.webp 2048w"
+                  />
+                  <source
+                    type="image/webp"
+                    media="(min-width: 768px)"
+                    sizes="calc(100vw - 3rem)"
                     srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w, /brand/hero-1536.webp 1536w, /brand/hero-2048.webp 2048w"
                   />
                   <source

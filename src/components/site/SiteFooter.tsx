@@ -11,14 +11,17 @@ export function SiteFooter({ onSection, onSeguro }: SiteFooterProps) {
   const navigate = useNavigate();
   const irASeccion = (id: string) => (onSection ? onSection(id) : navigate('/'));
 
-  const enlaceClass = 'py-1 text-left text-[14px] text-sidebar/45 transition-colors hover:text-sidebar';
+  // 44px de alto real. La columna pierde su gap porque el area de toque ya separa
+  // una fila de la siguiente, y arranca mas arriba para compensar.
+  const enlaceClass =
+    'inline-flex min-h-[44px] items-center text-left text-[14px] text-sidebar/45 transition-colors hover:text-sidebar';
 
   return (
     <footer className="mt-auto border-t border-border/70 bg-white pb-8 pt-16">
       <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
         <div className="grid gap-12 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)_minmax(0,1fr)]">
           <div>
-            <button onClick={() => navigate('/')} aria-label="Ir al inicio">
+            <button onClick={() => navigate('/')} className="-my-2.5 inline-flex h-11 items-center" aria-label="Ir al inicio">
               <Logotipo className="h-6" loading="lazy" />
             </button>
             <p className="mt-5 max-w-xs text-[14px] leading-relaxed text-sidebar/45">
@@ -35,7 +38,7 @@ export function SiteFooter({ onSection, onSeguro }: SiteFooterProps) {
 
           <div>
             <h4 className="text-[13px] font-semibold text-sidebar">Servicios</h4>
-            <div className="mt-4 flex flex-col items-start gap-2">
+            <div className="mt-2 flex flex-col items-start">
               <button onClick={() => irASeccion('servicios')} className={enlaceClass}>Distribución B2B</button>
               <button onClick={onSeguro} className={enlaceClass}>Seguro de carga</button>
               <button onClick={() => navigate('/portal')} className={enlaceClass}>Portal corporativo</button>
@@ -45,7 +48,7 @@ export function SiteFooter({ onSection, onSeguro }: SiteFooterProps) {
 
           <div>
             <h4 className="text-[13px] font-semibold text-sidebar">Legal</h4>
-            <div className="mt-4 flex flex-col items-start gap-2">
+            <div className="mt-2 flex flex-col items-start">
               <a href="/privacidad" className={enlaceClass}>Política de privacidad</a>
               <a href="/terminos" className={enlaceClass}>Términos y condiciones</a>
               <button onClick={onSeguro} className={enlaceClass}>Condiciones del seguro</button>
@@ -61,12 +64,12 @@ export function SiteFooter({ onSection, onSeguro }: SiteFooterProps) {
               href="https://thebrightidea.ai/"
               target="_blank"
               rel="noopener noreferrer"
-              className="py-1 transition-colors hover:text-sidebar"
+              className="inline-flex min-h-[44px] items-center transition-colors hover:text-sidebar"
             >
               Desarrollado por Bright Idea
             </a>
           </div>
-          <button onClick={() => navigate('/admin')} className="py-1 transition-colors hover:text-sidebar">
+          <button onClick={() => navigate('/admin')} className="inline-flex min-h-[44px] items-center transition-colors hover:text-sidebar">
             Administración
           </button>
         </div>

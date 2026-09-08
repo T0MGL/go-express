@@ -239,7 +239,7 @@ const Landing = () => {
                 </div>
                 <Button
                   type="submit"
-                  className="m-1.5 h-11 shrink-0 gap-2 rounded-full bg-sidebar px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-primary active:scale-[0.98]"
+                  className="m-1.5 h-11 shrink-0 gap-2 rounded-full bg-primary px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-sidebar active:scale-[0.98]"
                 >
                   Rastrear
                   <ArrowRight weight="bold" className="hidden h-4 w-4 sm:block" />
@@ -248,9 +248,11 @@ const Landing = () => {
 
               <div className="mt-5 flex items-center gap-2 text-[14px]">
                 <span className="text-sidebar/40">¿Empresa?</span>
+                {/* El padding levanta el area de toque a 44px y el margen negativo la
+                    devuelve al flujo, asi la fila mide lo mismo que antes. */}
                 <button
                   onClick={() => scrollToSection('contacto')}
-                  className="group inline-flex items-center gap-1 font-semibold text-primary transition-colors hover:text-sidebar"
+                  className="group -my-3 inline-flex items-center gap-1 py-3 font-semibold text-primary transition-colors hover:text-sidebar"
                 >
                   Solicitá tu cuenta corporativa
                   <ArrowUpRight weight="bold" className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -258,21 +260,31 @@ const Landing = () => {
               </div>
             </motion.div>
 
-            {/* El panel real del portal, recortado contra el borde derecho */}
-            <div className="relative hidden min-h-[34rem] lg:block">
+            {/* El panel real del portal. Debajo de lg cae en el flujo de la grilla, al
+                ancho del contenedor; desde lg vuelve al recorte contra el borde derecho. */}
+            <div className="relative lg:min-h-[34rem]">
               {/* El wrapper se queda con el translate del centrado vertical: motion escribe
                   su propio transform y borraria la clase de Tailwind si compartieran nodo. */}
-              <div data-bleed className="absolute left-0 top-1/2 w-[60vw] -translate-y-1/2">
+              <div data-bleed className="lg:absolute lg:left-0 lg:top-1/2 lg:w-[60vw] lg:-translate-y-1/2">
               <motion.div
                 initial={reduceMotion ? undefined : { opacity: 0, x: 32 }}
                 animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
                 transition={{ duration: 0.7, delay: 0.12, ease: [0.23, 1, 0.32, 1] }}
               >
+                {/* Dos source por breakpoint y no un solo sizes: en mobile la imagen se
+                    ve al ancho del contenedor, y la escalera completa haria bajar un
+                    2048 para pintar 342px. El corte en 1024w ya es 3x en un telefono. */}
                 <picture className="contents">
                   <source
                     type="image/webp"
+                    media="(min-width: 1024px)"
                     sizes="60vw"
                     srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w, /brand/hero-1536.webp 1536w, /brand/hero-2048.webp 2048w"
+                  />
+                  <source
+                    type="image/webp"
+                    sizes="calc(100vw - 3rem)"
+                    srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w"
                   />
                   <img
                     src="/brand/hero-1024.png"
@@ -308,10 +320,10 @@ const Landing = () => {
                     {dato.unidad && <span className="ml-1.5 text-[15px] font-semibold text-sidebar/40">{dato.unidad}</span>}
                   </dt>
                   {dato.onClick ? (
-                    <dd>
+                    <dd className="mt-1.5">
                       <button
                         onClick={dato.onClick}
-                        className="mt-1 inline-flex items-center gap-1 py-1 text-[13px] text-primary underline-offset-4 transition-colors hover:text-sidebar hover:underline"
+                        className="-my-3 inline-flex items-center gap-1 py-3 text-[13px] text-primary underline-offset-4 transition-colors hover:text-sidebar hover:underline"
                       >
                         {dato.desc}
                         <ArrowUpRight weight="bold" className="h-3.5 w-3.5" />
@@ -327,7 +339,7 @@ const Landing = () => {
         </section>
 
         {/* SERVICIOS */}
-        <section id="servicios" className="border-b border-border/70 py-24 md:py-32">
+        <section id="servicios" className="scroll-mt-[5.5rem] border-b border-border/70 py-16 md:py-32">
           <div className="mx-auto grid max-w-[1320px] gap-y-12 px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-x-24 xl:px-10">
             <div className="lg:sticky lg:top-32 lg:self-start">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Servicios</span>
@@ -338,7 +350,7 @@ const Landing = () => {
                 Nos ocupamos de que la cadena de suministro de tu negocio se cumpla, con procesos verificados por personas y atención directa.
               </p>
               <Button
-                className="mt-8 h-11 rounded-full bg-sidebar px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-primary active:scale-[0.98]"
+                className="mt-8 h-11 rounded-full bg-primary px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-sidebar active:scale-[0.98]"
                 onClick={() => navigate('/portal')}
               >
                 Entrar al portal
@@ -363,7 +375,7 @@ const Landing = () => {
         </section>
 
         {/* COBERTURA */}
-        <section id="cobertura" className="border-b border-border/70 bg-slate-50/60 py-24 md:py-32">
+        <section id="cobertura" className="scroll-mt-[5.5rem] border-b border-border/70 bg-slate-50/60 py-16 md:py-32">
           <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
             <div className="max-w-3xl">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Cobertura y tarifas</span>
@@ -462,7 +474,7 @@ const Landing = () => {
         </section>
 
         {/* PROCESO */}
-        <section className="border-b border-border/70 py-24 md:py-32">
+        <section className="border-b border-border/70 py-16 md:py-32">
           <div className="mx-auto max-w-[1320px] px-6 xl:px-10">
             <div className="max-w-2xl">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar/35">Proceso</span>
@@ -493,7 +505,7 @@ const Landing = () => {
         </section>
 
         {/* FAQ */}
-        <section className="border-b border-border/70 bg-slate-50/60 py-24 md:py-32">
+        <section className="border-b border-border/70 bg-slate-50/60 py-16 md:py-32">
           <div className="mx-auto grid max-w-[1320px] gap-y-10 px-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-x-24 xl:px-10">
             <h2 className="font-display text-[2rem] font-bold leading-[1.1] tracking-tighter text-sidebar md:text-[2.5rem] lg:sticky lg:top-32 lg:self-start">
               Preguntas<br />frecuentes.
@@ -507,7 +519,7 @@ const Landing = () => {
         </section>
 
         {/* CONTACTO */}
-        <section id="contacto" className="bg-sidebar py-24 md:py-32">
+        <section id="contacto" className="scroll-mt-[5.5rem] bg-sidebar py-16 md:py-32">
           <div className="mx-auto grid max-w-[1320px] items-start gap-y-14 px-6 lg:grid-cols-2 lg:gap-x-24 xl:px-10">
             <div>
               <span className="text-[11px] font-semibold uppercase tracking-widest text-brand-lime">Comercial</span>

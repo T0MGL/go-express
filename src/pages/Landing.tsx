@@ -265,7 +265,7 @@ const Landing = () => {
             <div className="relative lg:min-h-[34rem]">
               {/* El wrapper se queda con el translate del centrado vertical: motion escribe
                   su propio transform y borraria la clase de Tailwind si compartieran nodo. */}
-              <div data-bleed className="lg:absolute lg:left-0 lg:top-1/2 lg:w-[60vw] lg:-translate-y-1/2">
+              <div className="lg:absolute lg:left-0 lg:top-1/2 lg:w-[60vw] lg:-translate-y-1/2">
               <motion.div
                 initial={reduceMotion ? undefined : { opacity: 0, x: 32 }}
                 animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
@@ -295,9 +295,16 @@ const Landing = () => {
                     sizes="calc(100vw - 3rem)"
                     srcSet="/brand/hero-768.webp 768w, /brand/hero-1024.webp 1024w"
                   />
+                  {/* width y height reservan la caja antes de que decodifique. Debajo
+                      de lg la imagen esta en el flujo, asi que sin ellos todo lo que
+                      sigue arranca 151px mas arriba y salta al cargar. Los cuatro
+                      candidatos comparten ratio, y el preflight (height:auto) mas
+                      w-full dejan que sigan siendo solo una pista de proporcion. */}
                   <img
                     src="/brand/hero-1024.png"
                     alt="Portal de clientes de Go Express con el resumen de envíos de una empresa"
+                    width={1024}
+                    height={585}
                     className="block w-full rounded-2xl border border-border/80 shadow-[0_40px_80px_-32px_rgb(6_13_28/0.28)]"
                     decoding="async"
                   />

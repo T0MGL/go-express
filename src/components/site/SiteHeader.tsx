@@ -79,16 +79,19 @@ export function SiteHeader({ sections, onSection, secondary, onLogo, onPortal }:
           >
             Portal empresas
           </Button>
-          {/* Unico control de navegacion en mobile: 44x44, el minimo de iOS. */}
+          {/* Unico control de navegacion en mobile: 44x44, el minimo de iOS. El
+              size-6 va aca y no en el icono porque el [&_svg]:size-4 del cva de
+              Button le gana por especificidad y lo dejaba en 16px. */}
           <Button
             variant="ghost"
             size="sm"
-            className="h-11 w-11 border-0 p-0 text-sidebar hover:bg-muted md:hidden"
+            className="h-11 w-11 border-0 p-0 text-sidebar hover:bg-muted md:hidden [&_svg]:size-6"
             onClick={() => setOpen(!open)}
             aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={open}
+            aria-controls="menu-mobile"
           >
-            {open ? <X weight="bold" className="h-6 w-6" /> : <List weight="bold" className="h-6 w-6" />}
+            {open ? <X weight="bold" /> : <List weight="bold" />}
           </Button>
         </div>
       </nav>
@@ -96,6 +99,7 @@ export function SiteHeader({ sections, onSection, secondary, onLogo, onPortal }:
       <AnimatePresence>
         {open && (
           <motion.div
+            id="menu-mobile"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

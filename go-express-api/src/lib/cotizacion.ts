@@ -62,11 +62,19 @@ export type SuperficieCotizacion =
 export const CODIGO_RUTA_SIN_TARIFA = 'RUTA_SIN_TARIFA';
 
 const TARIFA_COLUMNS =
-  'id, origen, destino, precio_base, peso_base, precio_por_kg_extra, factor_dimensional';
+  'id, origen, destino, origen_ciudad_id, destino_ciudad_id, precio_base, peso_base, precio_por_kg_extra, factor_dimensional';
 
 type TarifaCotizable = Pick<
   TarifaRow,
-  'id' | 'origen' | 'destino' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'
+  | 'id'
+  | 'origen'
+  | 'destino'
+  | 'origen_ciudad_id'
+  | 'destino_ciudad_id'
+  | 'precio_base'
+  | 'peso_base'
+  | 'precio_por_kg_extra'
+  | 'factor_dimensional'
 >;
 
 function hasDims(d: Dimensiones | null | undefined): d is Dimensiones {
@@ -79,15 +87,14 @@ type RutaResuelta =
 
 /**
  * El borde: los dos nombres entran, dos ids salen. De aca para adentro la ruta es el par de
- * ids y nadie vuelve a comparar texto.
+ * ids y nadie vuelve a comparar texto. Recibe el mapa ya resuelto en vez de resolver, para que
+ * un lote entero pueda resolverse en una sola ida a la base.
  */
-async function resolverRuta(
-  supabase: SupabaseClient,
+function rutaResuelta(
+  resoluciones: Map<string, ResolucionCiudad>,
   origen: string,
   destino: string,
-): Promise<RutaResuelta> {
-  const resoluciones = await resolverCiudades(supabase, [origen, destino]);
-
+): RutaResuelta {
   const extremoOrigen = extremoDeRuta(origen, resoluciones.get(origen));
   if (!extremoOrigen.ok) return extremoOrigen;
 
@@ -126,37 +133,110 @@ export async function computeCostoEnvio(
   supabase: SupabaseClient,
   input: CotizacionInput
 ): Promise<CotizacionResult> {
-  const ruta = await resolverRuta(supabase, input.origen, input.destino);
+  const resoluciones = await resolverCiudades(supabase, [input.origen, input.destino]);
+  const ruta = rutaResuelta(resoluciones, input.origen, input.destino);
 
   if (!ruta.ok) {
     return sinTarifa(input, ruta.rechazo);
   }
 
-  // El unique de 057 garantiza una sola tarifa viva por (origen, destino, tipo_servicio), asi
-  // que lo unico que puede devolver mas de una fila es una ruta con varios tipos de servicio
-  // cargados. El orden del enum (estandar, express, economico) hace ganar al servicio base, que
-  // es lo que cotizaba de hecho la unica tarifa que existe. Sin ORDER BY esto lo decidia el
-  // orden fisico de las filas y el precio no era determinista.
+  const tarifas = await tarifasPorPar(supabase, [ruta.origen.id], [ruta.destino.id]);
+  return cotizarFila(input, ruta, tarifas);
+}
+
+/**
+ * Cotiza un lote de rutas con dos idas a la base para todo el lote, en vez de dos por fila.
+ * Una importacion de 500 pedidos desde una sola sucursal repite el mismo origen 500 veces y
+ * cae sobre un puñado de destinos: resolverlos de a uno era pagar 1000 viajes por 6 respuestas
+ * distintas.
+ *
+ * Devuelve un resultado por fila, en el mismo orden en que entraron, para que el caller pueda
+ * seguir reportando errores por numero de fila.
+ */
+export async function cotizarLote(
+  supabase: SupabaseClient,
+  filas: readonly CotizacionInput[],
+): Promise<CotizacionResult[]> {
+  if (filas.length === 0) return [];
+
+  const resoluciones = await resolverCiudades(
+    supabase,
+    filas.flatMap((fila) => [fila.origen, fila.destino]),
+  );
+
+  const rutas = filas.map((fila) => ({
+    fila,
+    ruta: rutaResuelta(resoluciones, fila.origen, fila.destino),
+  }));
+
+  const origenIds = new Set<string>();
+  const destinoIds = new Set<string>();
+  for (const { ruta } of rutas) {
+    if (!ruta.ok) continue;
+    origenIds.add(ruta.origen.id);
+    destinoIds.add(ruta.destino.id);
+  }
+
+  const tarifas = await tarifasPorPar(supabase, [...origenIds], [...destinoIds]);
+
+  return rutas.map(({ fila, ruta }) =>
+    ruta.ok ? cotizarFila(fila, ruta, tarifas) : sinTarifa(fila, ruta.rechazo),
+  );
+}
+
+function clavePar(origenId: string, destinoId: string): string {
+  return `${origenId}:${destinoId}`;
+}
+
+/**
+ * La tarifa que gana cada par de ciudades. El unique de 057 garantiza una sola tarifa viva por
+ * (origen, destino, tipo_servicio), asi que un par solo puede traer mas de una fila cuando tiene
+ * varios tipos de servicio cargados. El orden del enum (estandar, express, economico) hace ganar
+ * al servicio base, que es lo que cotizaba de hecho la unica tarifa que existe. Sin ORDER BY
+ * esto lo decidia el orden fisico de las filas y el precio no era determinista.
+ */
+async function tarifasPorPar(
+  supabase: SupabaseClient,
+  origenIds: string[],
+  destinoIds: string[],
+): Promise<Map<string, TarifaCotizable>> {
+  const porPar = new Map<string, TarifaCotizable>();
+  if (origenIds.length === 0 || destinoIds.length === 0) return porPar;
+
+  // Un `in` por extremo trae el producto cartesiano de los ids pedidos, que es un superset de
+  // los pares que interesan. Descartar el sobrante en memoria sale mas barato que una consulta
+  // por fila, y son a lo sumo (origenes x destinos) filas de una tabla de tarifas.
   const { data, error } = await supabase
     .from('tarifas')
     .select(TARIFA_COLUMNS)
-    .eq('origen_ciudad_id', ruta.origen.id)
-    .eq('destino_ciudad_id', ruta.destino.id)
+    .in('origen_ciudad_id', origenIds)
+    .in('destino_ciudad_id', destinoIds)
     .eq('activo', true)
     .eq('eliminado', false)
     .order('tipo_servicio', { ascending: true })
-    .order('created_at', { ascending: true })
-    .limit(1);
+    .order('created_at', { ascending: true });
 
   if (error) {
-    logger.error(
-      { error, origenCiudadId: ruta.origen.id, destinoCiudadId: ruta.destino.id },
-      'Error fetching tarifas para cotizacion',
-    );
+    logger.error({ error, origenIds, destinoIds }, 'Error fetching tarifas para cotizacion');
     throw dbError(error, 'Error calculando costo del envio');
   }
 
-  const tarifa = ((data ?? []) as TarifaCotizable[])[0];
+  for (const tarifa of (data ?? []) as TarifaCotizable[]) {
+    if (tarifa.origen_ciudad_id === null || tarifa.destino_ciudad_id === null) continue;
+    const clave = clavePar(tarifa.origen_ciudad_id, tarifa.destino_ciudad_id);
+    // Vienen ordenadas, asi que la primera de cada par es la que gana el desempate.
+    if (!porPar.has(clave)) porPar.set(clave, tarifa);
+  }
+
+  return porPar;
+}
+
+function cotizarFila(
+  input: CotizacionInput,
+  ruta: { ok: true; origen: CiudadResuelta; destino: CiudadResuelta },
+  tarifas: Map<string, TarifaCotizable>,
+): CotizacionResult {
+  const tarifa = tarifas.get(clavePar(ruta.origen.id, ruta.destino.id));
 
   if (!tarifa) {
     return sinTarifa(input, { motivo: 'sin_tarifa' });
@@ -197,6 +277,12 @@ function sinTarifa(input: CotizacionInput, rechazo: RutaRechazada): CotizacionSi
  * Copy del rechazo de una ruta. Vive en un solo lugar porque el mismo hecho se le cuenta a
  * cuatro superficies distintas y todas tienen que nombrar el par concreto: quien lo lee esta
  * mirando un formulario y necesita saber cual de los dos campos corregir.
+ *
+ * Dos registros, a proposito, y no se mezclan. Las ramas de gateway le hablan a un integrador
+ * leyendo una respuesta HTTP: castellano neutro sin tildes, igual que las tres cadenas del
+ * gateway que ya existian antes de esto y que son contrato publico. Las de mostrador y portal
+ * le hablan a una persona en pantalla: voseo con acentos. Nada de imperativos que se lean como
+ * indicativo ("manda", "elegi") del lado del gateway, donde el voseo no corresponde.
  */
 export function mensajeSinCobertura(
   superficie: SuperficieCotizacion,
@@ -208,7 +294,7 @@ export function mensajeSinCobertura(
     switch (superficie) {
       case 'gateway_creacion':
       case 'gateway_cotizacion':
-        return `La ciudad "${rechazo.ciudad}" no figura en el catalogo de GO EXPRESS. Consulta GET /api/public/ciudades para los nombres exactos.`;
+        return `La ciudad "${rechazo.ciudad}" no figura en el catalogo de GO EXPRESS. Los nombres exactos salen de GET /api/public/ciudades.`;
       case 'mostrador':
         return `"${rechazo.ciudad}" no figura en el catálogo de ciudades. Revisá cómo está escrita, o cargá el envío con costo manual y motivo si es una excepción.`;
       case 'portal':
@@ -220,7 +306,7 @@ export function mensajeSinCobertura(
     switch (superficie) {
       case 'gateway_creacion':
       case 'gateway_cotizacion':
-        return `Hay ${rechazo.coincidencias} ciudades con el nombre "${rechazo.ciudad}". Manda el id de la ciudad, que sale de GET /api/public/ciudades.`;
+        return `Hay ${rechazo.coincidencias} ciudades con el nombre "${rechazo.ciudad}". El id de la ciudad sale de GET /api/public/ciudades.`;
       case 'mostrador':
       case 'portal':
         return `Hay ${rechazo.coincidencias} ciudades con el nombre "${rechazo.ciudad}". Elegila de la lista para que quede sin ambigüedad.`;

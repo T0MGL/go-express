@@ -26,6 +26,49 @@ afterAll(async () => {
   await cleanupTestData(testData);
 });
 
+describe('el normalizador: una regla, no una lista escrita a mano', () => {
+  // Todas escritas con escapes: un caracter invisible o una nasal precompuesta pegada en el
+  // fuente pasa desapercibida en review y viaja distinto segun la herramienta.
+  const equivalencias: ReadonlyArray<readonly [string, string, string]> = [
+    ['nasal guarani i', 'Tava\u0129', 'tavai'],
+    ['nasal guarani e', '\u00d1e\u1ebdmbucu', 'neembucu'],
+    ['nasal guarani u', 'Cerro Guas\u0169', 'cerro guasu'],
+    ['nasal guarani y', 'Guas\u1ef9 Kua', 'guasy kua'],
+    ['enie', '\u00d1emby', 'nemby'],
+    ['cedilla', 'Cura\u00e7ao', 'curacao'],
+    ['descompuesta', 'Asuncio\u0301n', 'asuncion'],
+    ['espacio ideografico', 'Ciudad del\u3000Este', 'ciudad del este'],
+    ['bom y espacios duros', '\ufeff\u00a0Encarnaci\u00f3n\u202f', 'encarnacion'],
+  ];
+
+  // Las vocales nasales son grafia corriente en guarani, y esto es Paraguay: el catalogo hoy
+  // escribe 'Tavaí' con agudo, pero el dia que alguien lo corrija a 'Tavaĩ' esa ruta tiene que
+  // seguir cotizando. Una lista de acentuados escrita a mano no sobrevive a esa correccion; la
+  // descomposicion si.
+  it.each(equivalencias)('%s normaliza a la forma sin marcas', async (_etiqueta, entrada, esperado) => {
+    const { data, error } = await supabase.rpc('norm_ciudad', { p_in: entrada });
+
+    expect(error).toBeNull();
+    expect(data).toBe(esperado);
+  });
+
+  it('el catalogo no tiene dos ciudades que normalicen igual', async () => {
+    // Normalizar mas agresivo puede fusionar dos ciudades distintas y volverlas ambiguas, y una
+    // ciudad ambigua es una ruta que deja de cotizar. 262 nombres, 262 normalizados.
+    const res = await request.get('/api/public/ciudades');
+    const ciudades = res.body.data as Array<{ nombre: string }>;
+
+    const { data, error } = await supabase.rpc('resolver_ciudades', {
+      p_nombres: ciudades.map((c) => c.nombre),
+    });
+
+    expect(error).toBeNull();
+    const filas = data as Array<{ coincidencias: number }>;
+    expect(filas).toHaveLength(ciudades.length);
+    expect(filas.filter((f) => f.coincidencias !== 1)).toHaveLength(0);
+  });
+});
+
 describe('identidad de ruta: dos filas para la misma ruta', () => {
   // La primera mitad de la cadena: las dos escrituras son la misma ciudad para el unico
   // normalizador que queda. tarifa_norm_ciudad devolvia 'asuncion' para una y 'asuncion' con

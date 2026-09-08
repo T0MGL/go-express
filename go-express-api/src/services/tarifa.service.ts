@@ -267,6 +267,9 @@ class TarifaService {
       .single();
 
     if (error || !data) {
+      if (error?.code === '23505') {
+        throw AppError.conflict('Ya existe una tarifa activa para esa combinacion de origen, destino y tipo de servicio');
+      }
       throw dbError(error, 'Error updating tarifa');
     }
 

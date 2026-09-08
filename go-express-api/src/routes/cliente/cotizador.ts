@@ -8,6 +8,7 @@ import { logger } from '../../config/logger.js';
 import { cotizarSchema } from '../../lib/validators/tarifa.schema.js';
 import { calcularCosto } from '../../lib/volumetric.js';
 import { resolverCiudad, resolverCiudades, type ResolucionCiudad } from '../../lib/ciudad.js';
+import { mensajeSinCobertura } from '../../lib/cotizacion.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import type { TarifaRow } from '../../types/index.js';
 import type { CotizarInput } from '../../lib/validators/tarifa.schema.js';
@@ -118,7 +119,7 @@ router.post(
       .from('tarifas')
       // Solo lo que entra al calculo y a la respuesta. El resto de la fila (creado_por,
       // eliminado_por, motivos) es interno y no tiene por que viajar hasta aca.
-      .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
+      .select('origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
       .eq('activo', true)
       .eq('eliminado', false)
       .eq('origen_ciudad_id', ruta.origenCiudadId)
@@ -141,12 +142,14 @@ router.post(
     }
 
     if (!data) {
-      throw AppError.notFound('No tarifa found for this route');
+      throw AppError.notFound(
+        mensajeSinCobertura('portal', ruta.origenNombre, ruta.destinoNombre, { motivo: 'sin_tarifa' })
+      );
     }
 
     const tarifa = data as Pick<
       TarifaRow,
-      'id' | 'origen' | 'destino' | 'tipo_servicio' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'
+      'origen' | 'destino' | 'tipo_servicio' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'
     >;
 
     const costo = calcularCosto(
@@ -212,14 +215,23 @@ router.post(
   })
 );
 
+interface RutaCotizable {
+  origenCiudadId: string;
+  destinoCiudadId: string;
+  origenNombre: string;
+  destinoNombre: string;
+}
+
 /**
  * Los dos extremos de la ruta, siempre como ids. El schema garantiza que cada extremo viene por
- * id o por nombre; el nombre que no existe en el catalogo es un 404 de ruta, igual que una ruta
- * real sin tarifa cargada: en los dos casos el cotizador no tiene un precio que dar.
+ * id o por nombre.
+ *
+ * Las dos formas de fallar no son la misma y no se colapsan: una ciudad que no existe es un 404,
+ * porque no hay ruta que cotizar; una ciudad cuyo nombre se repite en dos departamentos es un
+ * 400, porque la ruta puede existir y lo que falta es que el caller diga cual. El texto sale de
+ * mensajeSinCobertura para que el portal reciba el mismo copy que en los demas caminos.
  */
-async function resolverExtremos(
-  input: CotizarInput,
-): Promise<{ origenCiudadId: string; destinoCiudadId: string }> {
+async function resolverExtremos(input: CotizarInput): Promise<RutaCotizable> {
   const porNombre = [
     input.origenCiudadId ? null : input.origen ?? null,
     input.destinoCiudadId ? null : input.destino ?? null,
@@ -230,19 +242,50 @@ async function resolverExtremos(
       ? await resolverCiudades(supabase, porNombre)
       : new Map<string, ResolucionCiudad>();
 
+  const origen = extremo(resoluciones, input.origenCiudadId, input.origen);
+  const destino = extremo(resoluciones, input.destinoCiudadId, input.destino);
+
   return {
-    origenCiudadId: input.origenCiudadId ?? idDeExtremo(resoluciones, input.origen),
-    destinoCiudadId: input.destinoCiudadId ?? idDeExtremo(resoluciones, input.destino),
+    origenCiudadId: origen.id,
+    destinoCiudadId: destino.id,
+    origenNombre: origen.nombre,
+    destinoNombre: destino.nombre,
   };
 }
 
-function idDeExtremo(
+function extremo(
   resoluciones: Map<string, ResolucionCiudad>,
+  ciudadId: string | undefined,
   nombre: string | undefined,
-): string {
+): { id: string; nombre: string } {
+  // Vino por id: no hay nombre que resolver, y el nombre para el copy es el que mando el caller
+  // o el id mismo si no mando ninguno. Si el id no existe, la busqueda devuelve cero filas y el
+  // camino termina en el 404 de ruta sin tarifa, que es la verdad.
+  if (ciudadId) return { id: ciudadId, nombre: nombre ?? ciudadId };
+
   const resolucion = nombre === undefined ? undefined : resoluciones.get(nombre);
-  if (resolucion?.estado === 'resuelta') return resolucion.ciudad.id;
-  throw AppError.notFound(`No tarifa found for this route: ciudad "${nombre ?? ''}"`);
+  const etiqueta = nombre ?? '';
+
+  if (resolucion?.estado === 'resuelta') {
+    return { id: resolucion.ciudad.id, nombre: resolucion.ciudad.nombre };
+  }
+
+  if (resolucion?.estado === 'ambigua') {
+    throw AppError.badRequest(
+      mensajeSinCobertura('portal', etiqueta, etiqueta, {
+        motivo: 'ciudad_ambigua',
+        ciudad: etiqueta,
+        coincidencias: resolucion.coincidencias,
+      })
+    );
+  }
+
+  throw AppError.notFound(
+    mensajeSinCobertura('portal', etiqueta, etiqueta, {
+      motivo: 'ciudad_desconocida',
+      ciudad: etiqueta,
+    })
+  );
 }
 
 export default router;

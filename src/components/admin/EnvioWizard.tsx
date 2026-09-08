@@ -26,7 +26,6 @@ import {
   SpinnerGap,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { avisarSinTarifa } from '@/lib/avisoTarifa';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { PHONE_PLACEHOLDER, normalizePhone, isValidPhone } from '@/lib/phone';
@@ -327,14 +326,10 @@ export function EnvioWizard() {
           seguroAdicional: formData.seguroAdicional,
         },
         {
-          onSuccess: (envio) => {
-            if (envio.pendienteDeTasar) {
-              avisarSinTarifa(envio.trackingNumber, envio.origen, envio.destino);
-            } else {
-              toast.success(formData.tipoPago === 'anticipado'
-                ? 'Envío creado con pago anticipado'
-                : 'Envío creado exitosamente');
-            }
+          onSuccess: () => {
+            toast.success(formData.tipoPago === 'anticipado'
+              ? 'Envío creado con pago anticipado'
+              : 'Envío creado exitosamente');
             localStorage.removeItem('envio-borrador');
             setIsSubmitting(false);
             navigate('/admin/envios');
@@ -347,7 +342,9 @@ export function EnvioWizard() {
             const msg = firstIssue
               ? `${firstIssue.field}: ${firstIssue.message}`
               : (apiErr?.data?.error ?? 'Error al crear el envío');
-            toast.error(msg);
+            // Mensajes como el rechazo por ruta sin cobertura nombran origen y destino:
+            // no alcanza el default de 4s para leerlos y volver al formulario.
+            toast.error(msg, { duration: 8000 });
             setIsSubmitting(false);
           },
         },

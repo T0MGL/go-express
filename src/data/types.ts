@@ -114,8 +114,6 @@ export interface Envio {
   notasInternas: NotaInterna[];
   tags: string[];
   tarifaId: string | null;
-  // El backend no encontro tarifa para la ruta y el envio quedo con flete 0.
-  pendienteDeTasar: boolean;
   fecha: string;
   creadoEn: string;
   updatedAt: string;

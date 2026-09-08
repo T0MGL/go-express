@@ -14,7 +14,7 @@ import { useCreateEnvio } from '@/hooks/api/use-envios';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { avisarSinTarifa } from '@/lib/avisoTarifa';
+import { describeError } from '@/lib/api';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface QuickCreateEnvioProps {
@@ -180,16 +180,13 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
 
     createEnvioMut.mutate(body, {
       onSuccess: (envio) => {
-        if (envio.pendienteDeTasar) {
-          avisarSinTarifa(envio.trackingNumber, envio.origen, envio.destino);
-        } else {
-          toast.success(`Envío ${envio.trackingNumber} creado`);
-        }
+        toast.success(`Envío ${envio.trackingNumber} creado`);
         onOpenChange(false);
       },
       onError: (err) => {
-        const message = err instanceof Error ? err.message : 'Error al crear envío';
-        toast.error(message);
+        // El 422 de ruta sin cobertura nombra origen y destino: ese texto es el que tiene
+        // que llegar al mostrador, no un "error al crear envío" que no dice que corregir.
+        toast.error(describeError(err), { duration: 8000 });
       },
     });
   };

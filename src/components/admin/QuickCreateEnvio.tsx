@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
-import { departamentosPY } from '@/data/constants';
 import { CiudadPicker } from '@/components/CiudadPicker';
 import { useClientes, useClienteMostrador } from '@/hooks/api/use-clientes';
 import { useCreateEnvio } from '@/hooks/api/use-envios';
@@ -30,6 +29,7 @@ interface QuickForm {
   destinatarioTelefono: string;
   destinatarioDireccion: string;
   destinatarioCiudad: string;
+  destinatarioDepartamento: string;
   origen: string;
   destino: string;
   peso: string;
@@ -48,7 +48,8 @@ const INITIAL: QuickForm = {
   destinatarioTelefono: '',
   destinatarioDireccion: '',
   destinatarioCiudad: '',
-  origen: 'Central',
+  destinatarioDepartamento: '',
+  origen: 'Asunción',
   destino: '',
   peso: '',
   tipoServicio: 'estandar',
@@ -60,6 +61,9 @@ const INITIAL: QuickForm = {
 
 export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) {
   const [form, setForm] = useState<QuickForm>(INITIAL);
+  // Los pickers trabajan por id de ciudad, el payload por nombre: se guardan los dos.
+  const [origenCiudadId, setOrigenCiudadId] = useState('');
+  const [destinoCiudadId, setDestinoCiudadId] = useState('');
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteOpen, setClienteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -83,6 +87,8 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
   useEffect(() => {
     if (!open) {
       setForm(INITIAL);
+      setOrigenCiudadId('');
+      setDestinoCiudadId('');
       setClienteSearch('');
       setClienteOpen(false);
       setMoreOpen(false);
@@ -166,7 +172,7 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
       destinatarioDireccion: form.destinatarioDireccion.trim(),
       destinatarioTelefono: normalizePhone(form.destinatarioTelefono),
       destinatarioCiudad: form.destinatarioCiudad.trim() || undefined,
-      destinatarioDepartamento: form.destino.trim() || undefined,
+      destinatarioDepartamento: form.destinatarioDepartamento.trim() || undefined,
       cantidad: 1,
       peso: pesoNum,
       fragil: false,
@@ -322,10 +328,15 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
           <div>
             <CiudadPicker
               label="Ciudad de destino"
-              value={undefined}
-              onChange={(_id, ciudad) => {
+              value={destinoCiudadId || undefined}
+              onChange={(id, ciudad) => {
+                setDestinoCiudadId(id);
                 setField('destinatarioCiudad', ciudad.nombre);
-                setField('destino', ciudad.departamentoNombre);
+                // El costo se cotiza por el par de CIUDADES, no por departamento: las tarifas
+                // se cargan ciudad a ciudad. destino guarda la ciudad y el departamento viaja
+                // en su propio campo.
+                setField('destino', ciudad.nombre);
+                setField('destinatarioDepartamento', ciudad.departamentoNombre);
               }}
               placeholder="Elegi una ciudad"
               id="qc-destinatario-ciudad"
@@ -333,7 +344,7 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
             {form.destinatarioCiudad && (
               <p className="text-[11px] text-muted-foreground mt-1">
                 Seleccionada: <span className="font-medium text-foreground">{form.destinatarioCiudad}</span>
-                {form.destino && <> (<span>{form.destino}</span>)</>}
+                {form.destinatarioDepartamento && <> (<span>{form.destinatarioDepartamento}</span>)</>}
               </p>
             )}
           </div>
@@ -392,17 +403,19 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
             <CollapsibleContent className="space-y-3 pt-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-[12px]">Departamento origen</Label>
-                  <Select value={form.origen} onValueChange={(v) => setField('origen', v)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departamentosPY.map((d) => (
-                        <SelectItem key={`qco-${d}`} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <CiudadPicker
+                    label="Ciudad de origen"
+                    value={origenCiudadId || undefined}
+                    onChange={(id, ciudad) => {
+                      setOrigenCiudadId(id);
+                      setField('origen', ciudad.nombre);
+                    }}
+                    placeholder={form.origen}
+                    id="qc-origen"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Sale desde <span className="font-medium text-foreground">{form.origen}</span>
+                  </p>
                 </div>
                 <div>
                   <Label className="text-[12px]">Tipo de pago</Label>

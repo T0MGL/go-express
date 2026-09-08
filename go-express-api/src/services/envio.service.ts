@@ -6,7 +6,7 @@ import { auditoriaService } from './auditoria.service.js';
 import { notificacionesService } from './notificaciones.service.js';
 import { webhookDispatcher } from './webhookDispatcher.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
-import { computeCostoEnvio } from '../lib/cotizacion.js';
+import { computeCostoEnvio, cotizarRutaConCobertura, mensajeSinCobertura } from '../lib/cotizacion.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
 import type {
@@ -98,9 +98,6 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
-    // Un envio sin tarifa resuelta y con costo 0 nunca fue tasado. Es el unico rastro que
-    // deja la ruta sin tarifa, y hace listable el trabajo pendiente sin columna nueva.
-    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eventos: [],
     pago: null,
@@ -430,6 +427,30 @@ class EnvioService {
       ? (input.clienteNombreOverride as string)
       : cliente.razon_social;
 
+    // Costo server-side. Por default se cotiza desde la tarifa que matchea origen/destino y
+    // una ruta sin tarifa activa se rechaza antes de reservar tracking number. input.costo NO
+    // es un default silencioso: solo se respeta como override explicito cuando
+    // forzarCostoManual=true, el unico camino que sigue creando sobre una ruta sin cobertura,
+    // y ese caso queda asentado en auditoria mas abajo con usuario y motivo.
+    let costo: number;
+    let tarifaIdResolved: string | null = input.tarifaId ?? null;
+    if (options.forzarCostoManual) {
+      costo = input.costo as number;
+    } else {
+      const cotizacion = await cotizarRutaConCobertura(
+        supabase,
+        {
+          origen: input.origen,
+          destino: input.destino,
+          peso: input.peso,
+          dimensiones: input.dimensiones ?? null,
+        },
+        'mostrador'
+      );
+      costo = cotizacion.costo;
+      tarifaIdResolved = cotizacion.tarifaId;
+    }
+
     const trackingNumber = await generateTrackingNumber(supabase);
 
     const today = todayPY();
@@ -439,36 +460,6 @@ class EnvioService {
       valorDeclarado,
       input.seguroAdicional
     );
-
-    // Costo server-side. Por default se cotiza desde la tarifa que matchea origen/destino.
-    // input.costo NO es un default silencioso: solo se respeta como override explicito
-    // cuando forzarCostoManual=true, y ese caso queda asentado en auditoria.
-    let costo: number;
-    let tarifaIdResolved: string | null = input.tarifaId ?? null;
-    if (options.forzarCostoManual) {
-      costo = input.costo as number;
-    } else {
-      const cotizacion = await computeCostoEnvio(supabase, {
-        origen: input.origen,
-        destino: input.destino,
-        peso: input.peso,
-        dimensiones: input.dimensiones ?? null,
-      });
-      costo = cotizacion.costo;
-      if (cotizacion.matched) {
-        tarifaIdResolved = cotizacion.tarifaId;
-      } else {
-        // Sin tarifa para la ruta el envio nace con flete 0, y el invariante I1 no lo
-        // detiene porque con costo 0 cualquier monto a cobrar lo cubre. Se despacha, se
-        // entrega, se cobra el COD de la mercaderia y el flete recien aparece en la
-        // liquidacion. No lo bloqueamos, cargar tiene que seguir siendo posible y para eso
-        // esta forzarCostoManual, pero queda marcado como pendiente de tasar.
-        logger.warn(
-          { trackingNumber, origen: input.origen, destino: input.destino, clienteId: input.clienteId },
-          'Envio creado sin tarifa para la ruta: costo 0, pendiente de tasar'
-        );
-      }
-    }
 
     const { data, error } = await supabase
       .from('envios')
@@ -958,8 +949,9 @@ class EnvioService {
 
     // Costo server-side por fila via la misma cotizacion que el path unitario (causa raiz C).
     // El costo del caller NO se confia: se recotiza desde la tarifa que matchea origen/destino.
-    // Si no hay tarifa, costo 0 y el admin lo tasa despues (el trigger de DB asienta el debito
-    // cuando se asigna el costo). Asi un import masivo no puede mover plata a costo cero.
+    // Las filas sin tarifa caen a fallidos mas abajo, con la misma convencion por fila que el
+    // resto del bulk: 500 filas buenas no se pierden porque una tenga un destino sin cobertura,
+    // y la que cae se nombra con su numero de fila en vez de desaparecer.
     const cotizaciones = await Promise.all(
       validEnvios.map(({ input }) =>
         computeCostoEnvio(supabase, {
@@ -995,6 +987,18 @@ class EnvioService {
       const { input, index, clienteNombre } = validEnvios[i]!;
       const cot = cotizaciones[i]!;
       const valorDeclarado = input.valorDeclarado ?? 0;
+
+      if (!cot.matched) {
+        logger.warn(
+          { fila: index + 1, origen: input.origen, destino: input.destino, clienteId: input.clienteId },
+          'Bulk import admin: fila rechazada por ruta sin tarifa'
+        );
+        fallidos.push({
+          fila: index + 1,
+          errores: [mensajeSinCobertura('mostrador', input.origen, input.destino)],
+        });
+        continue;
+      }
 
       // Filas invalidas se desvian a fallidos ANTES del insert: una fila mala no tumba las otras 499.
       if (valorDeclarado > seguroConfig.maximoAsegurable) {

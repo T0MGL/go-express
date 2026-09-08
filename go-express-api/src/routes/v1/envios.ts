@@ -9,7 +9,7 @@ import { auditoriaService } from '../../services/auditoria.service.js';
 import { notificacionesService } from '../../services/notificaciones.service.js';
 import { sseService } from '../../services/sse.service.js';
 import { computeSeguroForEnvio, mapEnvioRowToApi, ENVIO_COLUMNS } from '../../services/envio.service.js';
-import { computeCostoEnvio } from '../../lib/cotizacion.js';
+import { cotizarRutaConCobertura } from '../../lib/cotizacion.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY, nowISO } from '../../lib/datetime.js';
 import { hashV1EnvioBody } from '../../lib/idempotency.js';
@@ -77,7 +77,7 @@ function resolveReplay(
 // POST /: crea un envio para el cliente duenio de la key.
 // Base server-side igual al portal cliente (routes/cliente/envios.ts): el tercero NO manda
 // clienteId ni costo. El server deriva origen desde cliente.ciudad y cotiza costo + seguro
-// (computeCostoEnvio / computeSeguroForEnvio). A diferencia del portal, el gateway acepta
+// (cotizarRutaConCobertura / computeSeguroForEnvio). El gateway acepta
 // tipoPago (default anticipado): anticipado factura monto_a_cobrar = costo + seguro (I1
 // igualdad exacta); contra_entrega toma el montoACobrar del integrador, validado ANTES del
 // insert contra el minimo costo + seguro (I1 cobertura) con 422 MONTO_INSUFICIENTE.
@@ -135,24 +135,18 @@ router.post(
     const origenInput = clienteRow.ciudad?.trim() || 'Asuncion';
     const destinoInput = input.destinatarioCiudad.trim();
 
-    const cotizacion = await computeCostoEnvio(supabase, {
-      origen: origenInput,
-      destino: destinoInput,
-      peso: input.peso,
-      dimensiones: input.dimensiones ?? null,
-    });
-
-    // A diferencia del portal (donde costo 0 lo tasa un admin despues), el gateway rechaza
-    // rutas sin tarifa: un ERP a volumen no puede reservar flete gratis sin humano en el
-    // loop. El tercero pre-valida con GET /tarifas.
-    if (!cotizacion.matched) {
-      throw new AppError(
-        'No hay tarifa configurada para la ruta solicitada. Consulta GET /api/v1/tarifas o contacta a GO EXPRESS.',
-        422,
-        'RUTA_SIN_TARIFA',
-        { origen: origenInput, destino: destinoInput }
-      );
-    }
+    // Ruta sin tarifa activa es ruta sin cobertura: se rechaza en el borde, igual que en el
+    // mostrador y el portal. El tercero pre-valida con GET /tarifas.
+    const cotizacion = await cotizarRutaConCobertura(
+      supabase,
+      {
+        origen: origenInput,
+        destino: destinoInput,
+        peso: input.peso,
+        dimensiones: input.dimensiones ?? null,
+      },
+      'gateway_creacion'
+    );
 
     const valorDeclarado = input.valorDeclarado ?? 0;
     const { seguroAdicional, costoSeguro } = await computeSeguroForEnvio(

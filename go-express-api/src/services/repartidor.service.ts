@@ -597,7 +597,6 @@ class RepartidorService {
       codPagoPendiente: (row['cod_pago_pendiente'] as boolean) ?? false,
       tags: [],
       tarifaId: (row['tarifa_id'] as string | null) ?? null,
-      pendienteDeTasar: row['tarifa_id'] === null && row['costo'] === 0,
       fecha: row['fecha'] as string,
       eliminado: false,
       eliminadoPor: null,

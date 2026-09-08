@@ -181,3 +181,81 @@ describe('GET /api/cliente/dashboard/stats', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// El portal responde al mismo criterio que el mostrador y el gateway: sin tarifa activa para
+// el par no hay cobertura y el envio no se toma. El origen sale de cliente.ciudad (Asuncion en
+// el seed), asi que el mensaje tiene que nombrar los dos extremos aunque el cliente solo elija
+// el destino.
+describe('POST /api/cliente/envios: ruta sin cobertura', () => {
+  const CIUDAD_SIN_COBERTURA = 'Fuerte Olimpo';
+
+  it('rechaza con 422 RUTA_SIN_TARIFA y no deja envio creado', async () => {
+    const destinatarioNombre = 'Portal Sin Cobertura';
+    const payload = makeEnvioPayload(testData.clienteId, {
+      destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+      destinatarioNombre,
+    });
+
+    const res = await request
+      .post('/api/cliente/envios')
+      .set(clienteHeaders(testData.clienteId))
+      .send(payload);
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('RUTA_SIN_TARIFA');
+    expect(res.body.error).toContain('Asuncion');
+    expect(res.body.error).toContain(CIUDAD_SIN_COBERTURA);
+
+    const listado = await request
+      .get('/api/admin/envios')
+      .query({ search: destinatarioNombre })
+      .set(adminHeaders());
+
+    expect(listado.status).toBe(200);
+    expect(listado.body.data).toHaveLength(0);
+  });
+
+  it('bulk: la fila sin cobertura se reporta por indice y el resto se importa', async () => {
+    const res = await request
+      .post('/api/cliente/envios/bulk-import')
+      .set(clienteHeaders(testData.clienteId))
+      .send({
+        envios: [
+          makeEnvioPayload(testData.clienteId, {
+            destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+            destinatarioNombre: 'Bulk Portal Sin Cobertura',
+          }),
+          makeEnvioPayload(testData.clienteId, {
+            destinatarioNombre: 'Bulk Portal Con Cobertura',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.failed).toBe(1);
+    expect(res.body.errors).toHaveLength(1);
+    expect(res.body.errors[0].index).toBe(0);
+    expect(String(res.body.errors[0].error)).toContain(CIUDAD_SIN_COBERTURA);
+    expect(res.body.results).toHaveLength(1);
+  });
+
+  it('bulk: sin ninguna fila con cobertura no importa nada y las lista todas', async () => {
+    const res = await request
+      .post('/api/cliente/envios/bulk-import')
+      .set(clienteHeaders(testData.clienteId))
+      .send({
+        envios: [
+          makeEnvioPayload(testData.clienteId, {
+            destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+            destinatarioNombre: 'Bulk Portal Todo Sin Cobertura',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(0);
+    expect(res.body.failed).toBe(1);
+    expect(res.body.results).toHaveLength(0);
+  });
+});

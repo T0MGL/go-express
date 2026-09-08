@@ -75,14 +75,17 @@ INSERT INTO public.configuracion (key, value)
 VALUES ('tracking_prefix', '"GE"'::jsonb), ('tracking_year', '"2026"'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
-INSERT INTO public.tarifas (origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, eliminado, creado_por)
-SELECT 'Asunción', 'Ciudad del Este', 'estandar', 30000, 3, 5000, 5000, TRUE, FALSE, '00000000-0000-4000-a000-000000000001'
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.tarifas
-   WHERE public.tarifa_norm_ciudad(origen) = 'asuncion'
-     AND public.tarifa_norm_ciudad(destino) = 'ciudad del este'
-     AND tipo_servicio = 'estandar' AND activo = TRUE AND eliminado = FALSE
-);
+-- La ruta se identifica por el par de ids de ciudad (057). origen/destino los pone el trigger.
+INSERT INTO public.tarifas (
+  origen, destino, origen_ciudad_id, destino_ciudad_id, tipo_servicio,
+  precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, eliminado, creado_por
+)
+SELECT co.nombre, cd.nombre, co.id, cd.id, 'estandar',
+       30000, 3, 5000, 5000, TRUE, FALSE, '00000000-0000-4000-a000-000000000001'
+  FROM public.ciudades co, public.ciudades cd
+ WHERE public.norm_ciudad(co.nombre) = 'asuncion'
+   AND public.norm_ciudad(cd.nombre) = 'ciudad del este'
+ON CONFLICT DO NOTHING;
 
 -- Cliente mostrador (026) y bucket de comprobantes (015): los sembraron migraciones
 -- anteriores al baseline, y el baseline es un dump de schema sin filas. En prod estan; sin

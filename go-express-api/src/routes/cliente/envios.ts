@@ -10,7 +10,7 @@ import { computeSeguroForEnvio } from '../../services/envio.service.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
-import { computeCostoEnvio, cotizarRutaConCobertura, mensajeSinCobertura } from '../../lib/cotizacion.js';
+import { cotizarLote, cotizarRutaConCobertura, mensajeSinCobertura } from '../../lib/cotizacion.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import {
   createClienteEnvioSchema,
@@ -453,15 +453,16 @@ router.post(
     // Cotizacion server-side por fila, misma fuente de verdad que el unitario (causa raiz C).
     // El cliente NO decide costo, tipoPago, montoACobrar ni tarifaId: el portal siempre factura
     // a cuenta corriente y el costo se deriva de la tarifa que matchea origen/destino.
-    const cotizaciones = await Promise.all(
-      envios.map((input) =>
-        computeCostoEnvio(supabase, {
-          origen: origenInput,
-          destino: input.destinatarioCiudad.trim(),
-          peso: input.peso,
-          dimensiones: input.dimensiones ?? null,
-        })
-      )
+    // En lote: el origen es el mismo para las 200 filas y los destinos se repiten. Fila por fila
+    // eran dos idas a la base por pedido para responder siempre lo mismo.
+    const cotizaciones = await cotizarLote(
+      supabase,
+      envios.map((input) => ({
+        origen: origenInput,
+        destino: input.destinatarioCiudad.trim(),
+        peso: input.peso,
+        dimensiones: input.dimensiones ?? null,
+      }))
     );
 
     const today = todayPY();
@@ -481,7 +482,7 @@ router.post(
           { clienteId, fila: i + 1, origen: origenInput, destino: cot.destino },
           'Bulk import portal: fila rechazada por ruta sin tarifa'
         );
-        errors.push({ index: i, error: mensajeSinCobertura('portal', origenInput, cot.destino) });
+        errors.push({ index: i, error: mensajeSinCobertura('portal', origenInput, cot.destino, cot.rechazo) });
         continue;
       }
 

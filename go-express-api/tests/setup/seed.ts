@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import { normalizeCiudad } from '../../src/lib/ciudad.js';
+import { resolverCiudades, type CiudadResuelta } from '../../src/lib/ciudad.js';
 
 const ADMIN_USER_ID = '00000000-0000-4000-a000-000000000001';
+// Sin tildes a proposito: el catalogo las tiene ('Asunción', 'Encarnación') y toda la suite
+// entra por el resolver, que es el unico que decide que ciudad es cada nombre.
 const ORIGEN_RUTA = 'Asuncion';
 const DESTINO_RUTA = 'Encarnacion';
 // El API cotiza server-side y descarta el costo que manda el caller, asi que este es el
@@ -18,6 +20,8 @@ export interface TestData {
   clienteId: string;
   repartidorId: string;
   tarifaId: string;
+  origenCiudadId: string;
+  destinoCiudadId: string;
   // La tarifa de la ruta es compartida: si otra corrida la dejo viva, esta la adopta en vez
   // de duplicarla, y entonces no le corresponde borrarla.
   tarifaPropia: boolean;
@@ -79,16 +83,36 @@ async function ensureTrackingConfig(): Promise<void> {
   }
 }
 
-// tarifas_ruta_servicio_unica es un unique parcial sobre (origen, destino, tipo_servicio)
-// normalizados, con activo y no eliminado. El seed insertaba siempre la misma ruta con un uuid
-// nuevo: si una corrida moria antes del cleanup, la fila quedaba viva y TODAS las corridas
-// siguientes reventaban para siempre. Se inserta y, si la ruta ya existe, se adopta la fila
-// que esta ahi en vez de pelearse con ella.
-async function ensureTarifaRuta(tarifaId: string): Promise<{ tarifaId: string; tarifaPropia: boolean }> {
+async function ciudadesDeLaRuta(): Promise<{ origen: CiudadResuelta; destino: CiudadResuelta }> {
+  const resoluciones = await resolverCiudades(supabase, [ORIGEN_RUTA, DESTINO_RUTA]);
+  const origen = resoluciones.get(ORIGEN_RUTA);
+  const destino = resoluciones.get(DESTINO_RUTA);
+
+  if (origen?.estado !== 'resuelta' || destino?.estado !== 'resuelta') {
+    throw new Error(
+      `Seed: la ruta ${ORIGEN_RUTA} a ${DESTINO_RUTA} no resuelve contra el catalogo de ciudades. Correr scripts/test-db-reset.sh.`
+    );
+  }
+
+  return { origen: origen.ciudad, destino: destino.ciudad };
+}
+
+// tarifas_ruta_ciudad_servicio_unica es un unique parcial sobre (origen_ciudad_id,
+// destino_ciudad_id, tipo_servicio) con activo y no eliminado. El seed insertaba siempre la
+// misma ruta con un uuid nuevo: si una corrida moria antes del cleanup, la fila quedaba viva y
+// TODAS las corridas siguientes reventaban para siempre. Se inserta y, si la ruta ya existe, se
+// adopta la fila que esta ahi en vez de pelearse con ella.
+async function ensureTarifaRuta(
+  tarifaId: string,
+  origen: CiudadResuelta,
+  destino: CiudadResuelta,
+): Promise<{ tarifaId: string; tarifaPropia: boolean }> {
   const { error } = await supabase.from('tarifas').insert({
     id: tarifaId,
-    origen: ORIGEN_RUTA,
-    destino: DESTINO_RUTA,
+    origen: origen.nombre,
+    destino: destino.nombre,
+    origen_ciudad_id: origen.id,
+    destino_ciudad_id: destino.id,
     tipo_servicio: 'estandar',
     precio_base: 35000,
     peso_base: 5,
@@ -107,22 +131,23 @@ async function ensureTarifaRuta(tarifaId: string): Promise<{ tarifaId: string; t
     throw new Error(`Seed: failed to create test tarifa: ${error.message}`);
   }
 
+  // maybeSingle y no una busqueda en JS: el unique garantiza que hay a lo sumo una, y si
+  // apareciera mas de una es justo el bug que 057 vino a cerrar y el seed tiene que gritarlo.
   const { data, error: lookupError } = await supabase
     .from('tarifas')
-    .select('id, origen, destino')
+    .select('id')
+    .eq('origen_ciudad_id', origen.id)
+    .eq('destino_ciudad_id', destino.id)
     .eq('tipo_servicio', 'estandar')
     .eq('activo', true)
-    .eq('eliminado', false);
+    .eq('eliminado', false)
+    .maybeSingle();
 
   if (lookupError) {
     throw new Error(`Seed: failed to look up existing tarifa: ${lookupError.message}`);
   }
 
-  const existente = (data ?? []).find(
-    (row: { origen: string; destino: string }) =>
-      normalizeCiudad(row.origen) === normalizeCiudad(ORIGEN_RUTA) &&
-      normalizeCiudad(row.destino) === normalizeCiudad(DESTINO_RUTA)
-  ) as { id: string } | undefined;
+  const existente = data as { id: string } | null;
 
   if (!existente) {
     throw new Error(
@@ -180,9 +205,16 @@ export async function seedTestData(): Promise<TestData> {
     throw new Error(`Seed: failed to create test repartidor: ${repartidorErr.message}`);
   }
 
-  const tarifa = await ensureTarifaRuta(tarifaId);
+  const { origen, destino } = await ciudadesDeLaRuta();
+  const tarifa = await ensureTarifaRuta(tarifaId, origen, destino);
 
-  seeded = { clienteId, repartidorId, ...tarifa };
+  seeded = {
+    clienteId,
+    repartidorId,
+    origenCiudadId: origen.id,
+    destinoCiudadId: destino.id,
+    ...tarifa,
+  };
   return seeded;
 }
 

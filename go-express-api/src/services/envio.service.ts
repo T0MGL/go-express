@@ -6,7 +6,7 @@ import { auditoriaService } from './auditoria.service.js';
 import { notificacionesService } from './notificaciones.service.js';
 import { webhookDispatcher } from './webhookDispatcher.service.js';
 import { generateTrackingNumber } from '../lib/trackingNumber.js';
-import { computeCostoEnvio, cotizarRutaConCobertura, mensajeSinCobertura } from '../lib/cotizacion.js';
+import { cotizarLote, cotizarRutaConCobertura, mensajeSinCobertura } from '../lib/cotizacion.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../lib/seguro.js';
 import type {
@@ -952,15 +952,14 @@ class EnvioService {
     // Las filas sin tarifa caen a fallidos mas abajo, con la misma convencion por fila que el
     // resto del bulk: 500 filas buenas no se pierden porque una tenga un destino sin cobertura,
     // y la que cae se nombra con su numero de fila en vez de desaparecer.
-    const cotizaciones = await Promise.all(
-      validEnvios.map(({ input }) =>
-        computeCostoEnvio(supabase, {
-          origen: input.origen,
-          destino: input.destino,
-          peso: input.peso,
-          dimensiones: input.dimensiones ?? null,
-        })
-      )
+    const cotizaciones = await cotizarLote(
+      supabase,
+      validEnvios.map(({ input }) => ({
+        origen: input.origen,
+        destino: input.destino,
+        peso: input.peso,
+        dimensiones: input.dimensiones ?? null,
+      }))
     );
 
     // Seguro server-side, misma fuente de verdad que el unitario y que el bulk del portal cliente
@@ -995,7 +994,7 @@ class EnvioService {
         );
         fallidos.push({
           fila: index + 1,
-          errores: [mensajeSinCobertura('mostrador', input.origen, input.destino)],
+          errores: [mensajeSinCobertura('mostrador', input.origen, input.destino, cot.rechazo)],
         });
         continue;
       }

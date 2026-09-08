@@ -1,5 +1,12 @@
+import { createClient } from '@supabase/supabase-js';
 import { request, adminHeaders } from '../setup/test-client.js';
 import { seedTestData, cleanupTestData, makeEnvioPayload, type TestData } from '../setup/seed.js';
+
+const supabase = createClient(
+  process.env['SUPABASE_URL']!,
+  process.env['SUPABASE_SERVICE_ROLE_KEY']!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 let testData: TestData;
 let envioId: string;
@@ -230,5 +237,53 @@ describe('GET /api/admin/warehouse/stats', () => {
 
     expect(res.status).toBe(200);
     expect(typeof res.body).toBe('object');
+  });
+});
+
+describe('POST /api/admin/warehouse/ingreso: atomicidad', () => {
+  // El paquete esta en el estante: si el envio no queda en_deposito, el sistema y la realidad
+  // dicen cosas distintas. Antes el error se tragaba y el operador veia exito.
+  it('no deja inventario ni movimiento cuando la transicion del envio es rechazada', async () => {
+    const envioRes = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(makeEnvioPayload(testData.clienteId));
+    const rechazadoId = envioRes.body.id as string;
+    const rechazadoTracking = envioRes.body.trackingNumber as string;
+
+    // entregado es terminal: cualquier transicion desde ahi la rechaza la base.
+    const { error } = await supabase
+      .from('envios')
+      .update({ estado: 'entregado', fecha_entrega_real: new Date().toISOString() })
+      .eq('id', rechazadoId);
+    expect(error).toBeNull();
+
+    const res = await request
+      .post('/api/admin/warehouse/ingreso')
+      .set(adminHeaders())
+      .send({
+        envioId: rechazadoId,
+        trackingNumber: rechazadoTracking,
+        clienteNombre: 'Test Client SA',
+        ubicacion: 'Z-99-99',
+        zona: 'Z',
+        peso: 1,
+        prioridad: 'normal',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty('code', 'UNPROCESSABLE_ENTITY');
+
+    const { data: inventario } = await supabase
+      .from('inventario_almacen')
+      .select('id')
+      .eq('envio_id', rechazadoId);
+    expect(inventario).toEqual([]);
+
+    const { data: movimientos } = await supabase
+      .from('movimientos_almacen')
+      .select('id')
+      .eq('tracking_number', rechazadoTracking);
+    expect(movimientos).toEqual([]);
   });
 });

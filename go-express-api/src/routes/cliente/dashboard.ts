@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
 
@@ -58,7 +59,7 @@ router.get(
 
     if (totalResult.error) {
       logger.error({ error: totalResult.error, clienteId }, 'Error fetching dashboard stats');
-      throw new AppError(`Error fetching dashboard stats: ${totalResult.error.message}`, 500, 'DB_ERROR');
+      throw dbError(totalResult.error, `Error fetching dashboard stats: ${totalResult.error.message}`);
     }
 
     const enviosRecientes = ((recientesResult.data ?? []) as Record<string, unknown>[]).map((row) => ({

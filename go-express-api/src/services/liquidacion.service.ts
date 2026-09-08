@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { businessRuleError, dbError } from '../lib/dbError.js';
 import { rpcWithRetry } from '../lib/rpcRetry.js';
 import type {
   LiquidacionRepartidorRow,
@@ -133,6 +134,9 @@ function mapLiquidacionRpcError(err: unknown, context: { liquidacionId?: string;
     return new AppError('Error en operacion de liquidacion', 500, 'DB_ERROR');
   }
 
+  const regla = businessRuleError(err);
+  if (regla !== null) return regla;
+
   const msg = err.message ?? '';
 
   // 23505 = unique_violation. Si salta aca es porque el index parcial
@@ -149,47 +153,6 @@ function mapLiquidacionRpcError(err: unknown, context: { liquidacionId?: string;
   if (err.code === '23P01' || msg.includes('liquidaciones_repartidor_rango_no_solapado')) {
     return AppError.conflict(
       'Ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado',
-    );
-  }
-
-  if (msg.includes('liquidacion_rango_solapado')) {
-    return AppError.conflict(
-      'Ya existe una liquidacion del repartidor cuyo rango solapa con el solicitado',
-    );
-  }
-
-  if (msg.includes('liquidacion_no_encontrada')) {
-    return AppError.notFound('Liquidacion', context.liquidacionId);
-  }
-
-  if (msg.includes('liquidacion_ya_cerrada')) {
-    return AppError.conflict('La liquidacion ya esta cerrada');
-  }
-
-  if (msg.includes('liquidacion_no_cerrada')) {
-    return AppError.conflict('La liquidacion ya esta pendiente, no hay nada que reabrir');
-  }
-
-  if (msg.includes('motivo_insuficiente')) {
-    return AppError.badRequest('El motivo debe tener al menos 10 caracteres');
-  }
-
-  if (msg.includes('repartidor_no_encontrado')) {
-    return AppError.notFound('Repartidor', context.repartidorId);
-  }
-
-  if (msg.includes('rango_invalido')) {
-    return AppError.badRequest('El rango de fechas es invalido');
-  }
-
-  if (msg.includes('monto_invalido')) {
-    return AppError.badRequest('El monto recibido debe ser mayor o igual a cero');
-  }
-
-  if (msg.includes('notas_requeridas')) {
-    return AppError.unprocessable(
-      'Cerrar con diferencia requiere notas de al menos 10 caracteres',
-      'notas_requeridas',
     );
   }
 
@@ -328,7 +291,7 @@ class LiquidacionService {
 
     if (error) {
       logger.error({ err: error }, 'Error fetching liquidaciones');
-      throw new AppError('Error fetching liquidaciones', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching liquidaciones');
     }
 
     const rows = (data ?? []) as unknown as (LiquidacionRepartidorRow & { repartidores?: { nombre: string } | null })[];
@@ -410,7 +373,7 @@ class LiquidacionService {
 
     if (headResult.error) {
       logger.error({ err: headResult.error, id }, 'Error fetching liquidacion');
-      throw new AppError('Error fetching liquidacion', 500, 'DB_ERROR');
+      throw dbError(headResult.error, 'Error fetching liquidacion');
     }
 
     if (!headResult.data) {
@@ -425,12 +388,12 @@ class LiquidacionService {
 
     if (enviosResult.error) {
       logger.error({ err: enviosResult.error, id }, 'Error fetching liquidacion_envios');
-      throw new AppError('Error fetching liquidacion envios', 500, 'DB_ERROR');
+      throw dbError(enviosResult.error, 'Error fetching liquidacion envios');
     }
 
     if (ajustesResult.error) {
       logger.error({ err: ajustesResult.error, id }, 'Error fetching liquidacion_ajustes');
-      throw new AppError('Error fetching liquidacion ajustes', 500, 'DB_ERROR');
+      throw dbError(ajustesResult.error, 'Error fetching liquidacion ajustes');
     }
 
     const envioRows = (enviosResult.data ?? []) as unknown as (LiquidacionEnvioRow & {

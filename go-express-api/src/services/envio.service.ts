@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { businessRuleError, dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { notificacionesService } from './notificaciones.service.js';
 import { webhookDispatcher } from './webhookDispatcher.service.js';
@@ -37,19 +38,6 @@ export interface IntentoContacto {
   registradoPorNombre: string;
   creadoEn: string;
 }
-
-// State machine: valid transitions
-
-const VALID_TRANSITIONS: Record<EnvioEstado, EnvioEstado[]> = {
-  pendiente: ['recolectado', 'problema'],
-  recolectado: ['en_transito', 'problema'],
-  en_transito: ['en_deposito', 'en_reparto', 'problema'],
-  en_deposito: ['en_reparto', 'problema'],
-  en_reparto: ['entregado', 'fallido', 'problema'],
-  fallido: ['en_reparto', 'problema'],
-  entregado: [],
-  problema: ['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'fallido'],
-};
 
 // Row to API mapper
 
@@ -110,6 +98,9 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
+    // Un envio sin tarifa resuelta y con costo 0 nunca fue tasado. Es el unico rastro que
+    // deja la ruta sin tarifa, y hace listable el trabajo pendiente sin columna nueva.
+    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eventos: [],
     pago: null,
@@ -264,7 +255,7 @@ export async function computeSeguroForEnvio(
 
   if (error) {
     logger.error({ error }, 'Error fetching seguro config');
-    throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+    throw dbError(error, 'Error fetching seguro config');
   }
 
   const cfg = parseSeguroConfig((data as { value: unknown } | null)?.value ?? null);
@@ -331,7 +322,7 @@ class EnvioService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching envios', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching envios');
     }
 
     const rows = (data ?? []) as unknown as (EnvioRow & { pagos?: Array<{ estado_pago: string }> })[];
@@ -466,6 +457,16 @@ class EnvioService {
       costo = cotizacion.costo;
       if (cotizacion.matched) {
         tarifaIdResolved = cotizacion.tarifaId;
+      } else {
+        // Sin tarifa para la ruta el envio nace con flete 0, y el invariante I1 no lo
+        // detiene porque con costo 0 cualquier monto a cobrar lo cubre. Se despacha, se
+        // entrega, se cobra el COD de la mercaderia y el flete recien aparece en la
+        // liquidacion. No lo bloqueamos, cargar tiene que seguir siendo posible y para eso
+        // esta forzarCostoManual, pero queda marcado como pendiente de tasar.
+        logger.warn(
+          { trackingNumber, origen: input.origen, destino: input.destino, clienteId: input.clienteId },
+          'Envio creado sin tarifa para la ruta: costo 0, pendiente de tasar'
+        );
       }
     }
 
@@ -515,7 +516,7 @@ class EnvioService {
 
     if (error || !data) {
       logger.error({ error, trackingNumber }, 'Error creating envio');
-      throw new AppError('Error creating envio', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creating envio');
     }
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
@@ -650,7 +651,7 @@ class EnvioService {
         );
       }
       logger.error({ error, envioId: id }, 'Error updating envio');
-      throw new AppError('Error updating envio', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating envio');
     }
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
@@ -725,19 +726,8 @@ class EnvioService {
     });
 
     if (error) {
-      const msg = error.message ?? '';
-      if (msg.includes('envio_no_encontrado')) {
-        throw AppError.notFound('Envio', id);
-      }
-      if (msg.includes('envio_eliminado')) {
-        throw AppError.badRequest('No se puede modificar un envio eliminado');
-      }
-      if (msg.includes('transicion_invalida')) {
-        throw AppError.unprocessable(
-          `Transicion de estado invalida hacia "${input.estado}"`,
-          { detail: msg }
-        );
-      }
+      const regla = businessRuleError(error);
+      if (regla !== null) throw regla;
       logger.error({ error, envioId: id, nuevoEstado: input.estado }, 'Error en RPC update_envio_estado_atomico');
       throw new AppError('Error updating envio estado', 500, 'DB_ERROR');
     }
@@ -813,7 +803,7 @@ class EnvioService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error assigning repartidor', 500, 'DB_ERROR');
+      throw dbError(error, 'Error assigning repartidor');
     }
 
     const envio = mapEnvioRowToApi(data as unknown as EnvioRow);
@@ -880,7 +870,7 @@ class EnvioService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error adding nota', 500, 'DB_ERROR');
+      throw dbError(error, 'Error adding nota');
     }
 
     await auditoriaService.log({
@@ -905,7 +895,7 @@ class EnvioService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      throw new AppError('Error fetching eventos', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching eventos');
     }
 
     return ((data ?? []) as unknown as EventoEnvioRow[]).map(mapEventoRow);
@@ -928,7 +918,7 @@ class EnvioService {
       .eq('eliminado', false);
 
     if (clientesError) {
-      throw new AppError('Error validating clientes for bulk import', 500, 'DB_ERROR');
+      throw dbError(clientesError, 'Error validating clientes for bulk import');
     }
 
     const clienteMap = new Map<string, { razon_social: string; estado: string; es_mostrador: boolean }>();
@@ -993,7 +983,7 @@ class EnvioService {
 
     if (seguroConfigError) {
       logger.error({ error: seguroConfigError }, 'Bulk import: error fetching seguro config');
-      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+      throw dbError(seguroConfigError, 'Error fetching seguro config');
     }
 
     const seguroConfig = parseSeguroConfig((seguroConfigData as { value: unknown } | null)?.value ?? null);
@@ -1104,7 +1094,7 @@ class EnvioService {
           'Una fila tiene un monto a cobrar incoherente con el costo del envio. Revisa los montos del archivo e intenta de nuevo.'
         );
       }
-      throw new AppError('Error importing envios', 500, 'DB_ERROR');
+      throw dbError(insertError, 'Error importing envios');
     }
 
     const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;
@@ -1179,7 +1169,7 @@ class EnvioService {
 
     if (error) {
       logger.error({ error }, 'Error deleting envio');
-      throw new AppError('Error deleting envio', 500, 'DB_ERROR');
+      throw dbError(error, 'Error deleting envio');
     }
 
     await auditoriaService.log({
@@ -1286,7 +1276,7 @@ class EnvioService {
 
     if (error) {
       logger.error({ error, envioId }, 'Error fetching intentos contacto');
-      throw new AppError('Error fetching intentos contacto', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching intentos contacto');
     }
 
     return ((data ?? []) as Array<{
@@ -1341,7 +1331,7 @@ class EnvioService {
 
     if (error || !data) {
       logger.error({ error, envioId }, 'Error creating intento contacto');
-      throw new AppError('Error creating intento contacto', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creating intento contacto');
     }
 
     const row = data as {

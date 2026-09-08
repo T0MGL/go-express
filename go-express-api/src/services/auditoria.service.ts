@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import type {
   AuditoriaAccion,
   AuditoriaEntidad,
@@ -90,7 +91,7 @@ class AuditoriaService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching audit logs', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching audit logs');
     }
 
     const rows = (data ?? []) as AuditoriaLogRow[];

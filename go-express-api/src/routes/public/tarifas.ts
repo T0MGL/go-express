@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { trackingLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -32,7 +33,7 @@ router.get(
 
     if (error) {
       logger.error({ error }, 'Error fetching public tarifas');
-      throw new AppError(`Error fetching tarifas: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching tarifas: ${error.message}`);
     }
 
     type TarifaSlice = Pick<TarifaRow, 'destino' | 'tipo_servicio' | 'precio_base'>;

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { requirePermiso } from '../../middleware/apiKeyAuth.js';
 import { supabase } from '../../config/database.js';
@@ -44,7 +45,7 @@ async function findEnvioByIdempotencyKey(
 
   if (error) {
     logger.error({ error, clienteId }, 'Error buscando envio por idempotency key');
-    throw new AppError('Error creando envio', 500, 'DB_ERROR');
+    throw dbError(error, 'Error creando envio');
   }
 
   if (!data) return null;
@@ -286,7 +287,7 @@ router.post(
         }
       }
       logger.error({ error: insertError, clienteId, keyPrefix: req.apiKeyPrefix }, 'Error creando envio via API v1');
-      throw new AppError('Error creando envio', 500, 'DB_ERROR');
+      throw dbError(insertError, 'Error creando envio');
     }
 
     const envio = mapEnvioRowToApi(insertedData as unknown as EnvioRow);
@@ -373,7 +374,7 @@ router.get(
 
     if (error) {
       logger.error({ error, clienteId, keyPrefix: req.apiKeyPrefix }, 'Error listando envios via API v1');
-      throw new AppError('Error listando envios', 500, 'DB_ERROR');
+      throw dbError(error, 'Error listando envios');
     }
 
     res.json({
@@ -420,7 +421,7 @@ router.get(
 
     if (error) {
       logger.error({ error, trackingNumber, keyPrefix: req.apiKeyPrefix }, 'Error consultando envio via API v1');
-      throw new AppError('Error consultando envio', 500, 'DB_ERROR');
+      throw dbError(error, 'Error consultando envio');
     }
 
     if (!data) {
@@ -437,7 +438,7 @@ router.get(
 
     if (eventosError) {
       logger.error({ error: eventosError, trackingNumber }, 'Error consultando eventos via API v1');
-      throw new AppError('Error consultando eventos del envio', 500, 'DB_ERROR');
+      throw dbError(eventosError, 'Error consultando eventos del envio');
     }
 
     const eventos = ((eventosData ?? []) as unknown as Pick<EventoEnvioRow, 'estado' | 'descripcion' | 'ubicacion' | 'created_at'>[]).map((e) => ({

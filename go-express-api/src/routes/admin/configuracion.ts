@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
@@ -61,7 +62,7 @@ router.get(
       .order('key', { ascending: true });
 
     if (error) {
-      throw new AppError('Error fetching configuracion', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching configuracion');
     }
 
     const configs = ((data ?? []) as ConfiguracionRow[]).map((row) => ({
@@ -91,7 +92,7 @@ router.get(
       .maybeSingle();
 
     if (error) {
-      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching seguro config');
     }
 
     if (!data) {
@@ -145,7 +146,7 @@ router.put(
       .single();
 
     if (error || !data) {
-      throw new AppError('Error upserting seguro config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error upserting seguro config');
     }
 
     const row = data as { value: unknown; updated_at: string; updated_by: string | null };
@@ -185,7 +186,7 @@ router.get(
       .maybeSingle();
 
     if (error) {
-      throw new AppError('Error fetching notificaciones config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching notificaciones config');
     }
 
     if (!data) {
@@ -240,7 +241,7 @@ router.put(
       .single();
 
     if (error || !data) {
-      throw new AppError('Error upserting notificaciones config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error upserting notificaciones config');
     }
 
     const row = data as { value: unknown; updated_at: string; updated_by: string | null };
@@ -306,7 +307,7 @@ router.put(
       .single();
 
     if (error || !data) {
-      throw new AppError('Error upserting config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error upserting config');
     }
 
     const result = data as ConfiguracionRow;

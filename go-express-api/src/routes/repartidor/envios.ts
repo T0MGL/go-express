@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -105,7 +106,7 @@ router.get(
 
     if (error) {
       logger.error({ err: error, repartidorId }, 'Error fetching mis envios');
-      throw new AppError('Error fetching envios', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching envios');
     }
 
     res.json({ data: data ?? [] });
@@ -294,7 +295,7 @@ router.patch(
 
     if (updateErr) {
       logger.error({ err: updateErr, id }, 'Error marking entregado');
-      throw new AppError('Error actualizando envio', 500, 'DB_ERROR');
+      throw dbError(updateErr, 'Error actualizando envio');
     }
 
     if (!updatedRow) {
@@ -454,7 +455,7 @@ router.patch(
 
     if (updateErr) {
       logger.error({ err: updateErr, id }, 'Error reporting incidencia');
-      throw new AppError('Error registrando incidencia', 500, 'DB_ERROR');
+      throw dbError(updateErr, 'Error registrando incidencia');
     }
 
     await supabase.from('eventos_envio').insert({

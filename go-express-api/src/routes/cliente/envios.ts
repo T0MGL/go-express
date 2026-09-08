@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -103,6 +104,7 @@ function mapEnvioRow(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
+    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eliminado: row.eliminado,
     eliminadoPor: row.eliminado_por,
@@ -146,7 +148,7 @@ router.get(
 
     if (error) {
       logger.error({ error, clienteId }, 'Error fetching client envíos');
-      throw new AppError(`Error fetching envíos: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching envíos: ${error.message}`);
     }
 
     const rows = (data ?? []) as unknown as EnvioRow[];
@@ -186,7 +188,7 @@ router.get(
       if (envioError.code === 'PGRST116') {
         throw AppError.notFound('Envío', id);
       }
-      throw new AppError(`Error fetching envío: ${envioError.message}`, 500, 'DB_ERROR');
+      throw dbError(envioError, `Error fetching envío: ${envioError.message}`);
     }
 
     const envio = mapEnvioRow(envioData as unknown as EnvioRow);
@@ -363,7 +365,7 @@ router.post(
 
     if (insertError) {
       logger.error({ error: insertError, clienteId }, 'Error creating envío');
-      throw new AppError(`Error creating envío: ${insertError.message}`, 500, 'DB_ERROR');
+      throw dbError(insertError, `Error creating envío: ${insertError.message}`);
     }
 
     const envio = mapEnvioRow(insertedData as unknown as EnvioRow);
@@ -438,7 +440,7 @@ router.post(
 
     if (seguroConfigError) {
       logger.error({ error: seguroConfigError }, 'Bulk import: error fetching seguro config');
-      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+      throw dbError(seguroConfigError, 'Error fetching seguro config');
     }
 
     const seguroConfig = parseSeguroConfig(
@@ -531,7 +533,7 @@ router.post(
     if (insertError) {
       // If batch fails, entire batch is rejected
       logger.error({ error: insertError, clienteId }, 'Bulk import batch insert failed');
-      throw new AppError(`Error importing envíos: ${insertError.message}`, 500, 'DB_ERROR');
+      throw dbError(insertError, `Error importing envíos: ${insertError.message}`);
     }
 
     const inserted = (insertedData ?? []) as Array<{ id: string; tracking_number: string }>;

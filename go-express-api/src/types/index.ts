@@ -510,6 +510,7 @@ export interface Envio {
   codPagoPendiente: boolean;
   tags: string[];
   tarifaId: string | null;
+  pendienteDeTasar: boolean;
   fecha: string;
   eliminado: boolean;
   eliminadoPor: string | null;

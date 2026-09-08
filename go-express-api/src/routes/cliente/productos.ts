@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -59,7 +60,7 @@ router.get(
 
     if (error) {
       logger.error({ error, clienteId }, 'Error fetching products');
-      throw new AppError(`Error fetching products: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching products: ${error.message}`);
     }
 
     res.json({ data: ((data ?? []) as ProductoGuardadoRow[]).map(mapRow) });
@@ -93,7 +94,7 @@ router.post(
 
     if (error) {
       logger.error({ error, clienteId }, 'Error creating product');
-      throw new AppError(`Error creating product: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error creating product: ${error.message}`);
     }
 
     res.status(201).json(mapRow(data as ProductoGuardadoRow));
@@ -134,7 +135,7 @@ router.put(
         throw AppError.notFound('Producto', id);
       }
       logger.error({ error, clienteId, id }, 'Error updating product');
-      throw new AppError(`Error updating product: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error updating product: ${error.message}`);
     }
 
     res.json(mapRow(data as ProductoGuardadoRow));
@@ -167,7 +168,7 @@ router.delete(
 
     if (error) {
       logger.error({ error, clienteId, id }, 'Error deleting product');
-      throw new AppError(`Error deleting product: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error deleting product: ${error.message}`);
     }
 
     res.status(204).send();

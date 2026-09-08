@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { businessRuleError, dbError } from '../lib/dbError.js';
 import { todayPY } from '../lib/datetime.js';
 import { rpcWithRetry } from '../lib/rpcRetry.js';
 import type {
@@ -46,6 +47,9 @@ function isPgError(err: unknown): err is PgError {
 }
 
 function mapRpcError(err: unknown, context: { envioId?: string; pagoId?: string }): AppError {
+  const regla = businessRuleError(err);
+  if (regla !== null) return regla;
+
   if (!isPgError(err)) {
     logger.error({ err, context }, 'Unknown error from pago RPC');
     return new AppError('Error en operacion de pago', 500, 'DB_ERROR');
@@ -53,46 +57,6 @@ function mapRpcError(err: unknown, context: { envioId?: string; pagoId?: string 
 
   if (err.code === '23505') {
     return AppError.conflict('Ya existe un pago para este envio');
-  }
-
-  const msg = err.message ?? '';
-
-  if (msg.includes('pago_no_encontrado')) {
-    return AppError.notFound('Pago', context.pagoId);
-  }
-
-  if (msg.includes('pago_cc_no_editable')) {
-    return AppError.unprocessable(
-      'Un pago a cuenta corriente no se edita. Anula este pago y registra uno nuevo con el monto correcto.'
-    );
-  }
-
-  if (msg.includes('pago_monto_total_invalido')) {
-    return AppError.unprocessable(
-      'El monto total no coincide con el costo real del envio. Recarga el envio e intenta de nuevo.'
-    );
-  }
-
-  if (msg.includes('pago_monto_recibido_invalido')) {
-    return AppError.badRequest('El monto recibido no puede exceder el monto total');
-  }
-
-  if (msg.includes('pago_ya_anulado')) {
-    return AppError.conflict('El pago ya esta anulado');
-  }
-
-  if (msg.includes('pago_en_liquidacion_cerrada')) {
-    return AppError.conflict(
-      'El envio pertenece a una liquidacion cerrada. Reabri o ajusta la liquidacion antes de editar o anular este pago.',
-    );
-  }
-
-  if (msg.includes('envio_no_encontrado')) {
-    return AppError.notFound('Envio', context.envioId);
-  }
-
-  if (msg.includes('motivo_insuficiente')) {
-    return AppError.badRequest('El motivo debe tener al menos 10 caracteres');
   }
 
   logger.error({ err, context }, 'Error en RPC de pago');
@@ -131,7 +95,7 @@ class PagoService {
       const { data, count, error } = await q;
 
       if (error) {
-        throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
+        throw dbError(error, 'Error fetching pagos');
       }
 
       const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
@@ -172,7 +136,7 @@ class PagoService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching pagos', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching pagos');
     }
 
     const rows = (data ?? []) as unknown as (PagoRow & { envios?: { tracking_number: string; cliente_nombre: string; costo: number } })[];
@@ -208,7 +172,7 @@ class PagoService {
     const { data, error } = await q.maybeSingle();
 
     if (error) {
-      throw new AppError('Error fetching pago', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching pago');
     }
 
     if (!data) {

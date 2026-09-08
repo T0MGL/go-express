@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { emailService } from './email.service.js';
 import { todayPY, nowISO } from '../lib/datetime.js';
@@ -70,7 +71,7 @@ class RepartidorService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching repartidores', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching repartidores');
     }
 
     const repartidores = ((data ?? []) as unknown as RepartidorRow[]).map(toApi);
@@ -143,7 +144,7 @@ class RepartidorService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error creating repartidor', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creating repartidor');
     }
 
     const repartidor = toApi(data as unknown as RepartidorRow);
@@ -196,7 +197,7 @@ class RepartidorService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error updating repartidor', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating repartidor');
     }
 
     const repartidor = toApi(data as unknown as RepartidorRow);
@@ -238,7 +239,7 @@ class RepartidorService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error toggling repartidor estado', 500, 'DB_ERROR');
+      throw dbError(error, 'Error toggling repartidor estado');
     }
 
     const repartidor = toApi(data as unknown as RepartidorRow);
@@ -285,7 +286,7 @@ class RepartidorService {
 
     if (error) {
       logger.error({ error }, 'Error eliminando repartidor');
-      throw new AppError('Error eliminando repartidor', 500, 'DB_ERROR');
+      throw dbError(error, 'Error eliminando repartidor');
     }
 
     const { error: unassignError } = await supabase
@@ -395,7 +396,7 @@ class RepartidorService {
 
     if (updateErr || !updated) {
       logger.error({ err: updateErr, repartidorId }, 'Failed to update repartidor portal_status');
-      throw new AppError('No se pudo vincular la cuenta al repartidor', 500, 'DB_ERROR');
+      throw dbError(updateErr, 'No se pudo vincular la cuenta al repartidor');
     }
 
     const repartidor = toApi(updated as unknown as RepartidorRow);
@@ -487,7 +488,7 @@ class RepartidorService {
 
     if (error) {
       logger.error({ err: error, repartidorId }, 'Error fetching reporte COD');
-      throw new AppError('Error fetching reporte COD', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching reporte COD');
     }
 
     const rows = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
@@ -529,7 +530,7 @@ class RepartidorService {
   async getEnviosAsignados(id: string): Promise<Envio[]> {
     await this.getById(id);
 
-    const ENVIO_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre, destinatario_ciudad, estado, costo, fecha, created_at';
+    const ENVIO_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre, destinatario_ciudad, estado, costo, tarifa_id, fecha, created_at';
 
     const { data, error } = await supabase
       .from('envios')
@@ -541,7 +542,7 @@ class RepartidorService {
       .limit(100);
 
     if (error) {
-      throw new AppError('Error fetching repartidor envios', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching repartidor envios');
     }
 
     return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -595,7 +596,8 @@ class RepartidorService {
       incidenciaReportadaPor: null,
       codPagoPendiente: (row['cod_pago_pendiente'] as boolean) ?? false,
       tags: [],
-      tarifaId: null,
+      tarifaId: (row['tarifa_id'] as string | null) ?? null,
+      pendienteDeTasar: row['tarifa_id'] === null && row['costo'] === 0,
       fecha: row['fecha'] as string,
       eliminado: false,
       eliminadoPor: null,

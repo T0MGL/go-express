@@ -14,6 +14,7 @@ import { useCreateEnvio } from '@/hooks/api/use-envios';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { avisarSinTarifa } from '@/lib/avisoTarifa';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface QuickCreateEnvioProps {
@@ -179,7 +180,11 @@ export function QuickCreateEnvio({ open, onOpenChange }: QuickCreateEnvioProps) 
 
     createEnvioMut.mutate(body, {
       onSuccess: (envio) => {
-        toast.success(`Envío ${envio.trackingNumber} creado`);
+        if (envio.pendienteDeTasar) {
+          avisarSinTarifa(envio.trackingNumber, envio.origen, envio.destino);
+        } else {
+          toast.success(`Envío ${envio.trackingNumber} creado`);
+        }
         onOpenChange(false);
       },
       onError: (err) => {

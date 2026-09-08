@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { request, adminHeaders } from '../setup/test-client.js';
-import { seedTestData, cleanupTestData, makeEnvioPayload, type TestData } from '../setup/seed.js';
+import { seedTestData, cleanupTestData, makeEnvioPayload, makeEnvioPayloadCostoManual, type TestData } from '../setup/seed.js';
 
 const supabase = createClient(
   process.env['SUPABASE_URL']!,
@@ -46,6 +46,33 @@ afterAll(async () => {
   await cleanupTestData(testData);
 });
 
+const ADMIN_USER_ID = '00000000-0000-4000-a000-000000000001';
+
+// Las liquidaciones de un mismo repartidor no pueden solaparse en el tiempo (023) y la suite
+// comparte un unico repartidor, asi que cada test liquida en su propio dia. Sin esto el
+// segundo test que liquida "hoy" falla por solapamiento, que no es lo que esta probando.
+function diaPy(diasAtras: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - diasAtras);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+}
+
+// Mediodia PY del dia indicado: la entrega cae en ese dia sin depender del huso del runner.
+function entregaEn(dia: string): string {
+  return new Date(`${dia}T16:00:00Z`).toISOString();
+}
+
+// A4 (044): un cobro exige repartidor asignado en el envio, si no el pago no es liquidable.
+async function asignarRepartidor(envioId: string): Promise<void> {
+  const res = await request
+    .patch(`/api/admin/envios/${envioId}/repartidor`)
+    .set(adminHeaders())
+    .send({ repartidorId: testData.repartidorId });
+  if (res.status !== 200) {
+    throw new Error(`Failed to assign repartidor: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+}
+
 // Helper: crea un envio COD entregado por el repartidor de test con fecha_entrega_real
 // controlada. montoACobrar = 50000 por default, monto_cobrado snapshot = monto recibido.
 async function crearEnvioCodEntregado(options: {
@@ -57,9 +84,7 @@ async function crearEnvioCodEntregado(options: {
   const monto = options.montoACobrar ?? 50000;
   const cobrado = options.montoCobrado ?? monto;
 
-  const payload = makeEnvioPayload(testData.clienteId, {
-    montoACobrar: monto,
-    costo: monto,
+  const payload = makeEnvioPayloadCostoManual(testData.clienteId, monto, {
     tipoPago: 'contra_entrega',
   });
   const envioRes = await request.post('/api/admin/envios').set(adminHeaders()).send(payload);
@@ -85,6 +110,24 @@ async function crearEnvioCodEntregado(options: {
   const { error } = await supabase.from('envios').update(update).eq('id', envioId);
   if (error) {
     throw new Error(`Failed to update envio to entregado: ${error.message}`);
+  }
+
+  // crear_liquidacion solo toma envios con un pago pagado y no anulado: lo que se le liquida
+  // al repartidor es la plata que cobro en la calle, y sin pago registrado no hay nada que
+  // liquidar. Sin esto el envio existe, esta entregado, y la liquidacion sale en cero.
+  // Se inserta directo, igual que el resto del fixture: pasar por el endpoint agrega una
+  // escritura admin por envio y la suite se come el adminWriteLimiter (30/min).
+  const { error: pagoError } = await supabase.from('pagos').insert({
+    envio_id: envioId,
+    monto_total: monto,
+    monto_recibido: cobrado,
+    metodo_pago: 'contra_entrega',
+    estado_pago: cobrado >= monto ? 'pagado' : 'pago_parcial',
+    fecha_pago: new Date().toISOString().slice(0, 10),
+    creado_por: ADMIN_USER_ID,
+  });
+  if (pagoError) {
+    throw new Error(`Failed to register pago: ${pagoError.message}`);
   }
 
   return envioId;
@@ -238,8 +281,8 @@ describe('TZ Asuncion: entrega 22:30 PY cae en el dia PY correcto', () => {
 
 describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
   it('cierra liquidacion con monto exacto: estado cerrada, envios marcados conciliados', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    const fechaEntrega = new Date().toISOString();
+    const hoyPy = diaPy(10);
+    const fechaEntrega = entregaEn(hoyPy);
 
     await crearEnvioCodEntregado({ montoACobrar: 25000, fechaEntregaReal: fechaEntrega });
     await crearEnvioCodEntregado({ montoACobrar: 35000, fechaEntregaReal: fechaEntrega });
@@ -280,8 +323,8 @@ describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
   });
 
   it('cierra con diferencia y notas -> estado con_diferencia', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    const fechaEntrega = new Date().toISOString();
+    const hoyPy = diaPy(11);
+    const fechaEntrega = entregaEn(hoyPy);
 
     await crearEnvioCodEntregado({ montoACobrar: 40000, fechaEntregaReal: fechaEntrega });
 
@@ -311,8 +354,8 @@ describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
   });
 
   it('cerrar con diferencia SIN notas -> 422', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    await crearEnvioCodEntregado({ montoACobrar: 40000 });
+    const hoyPy = diaPy(12);
+    await crearEnvioCodEntregado({ montoACobrar: 40000, fechaEntregaReal: entregaEn(hoyPy) });
 
     const crearRes = await request
       .post('/api/admin/liquidaciones')
@@ -336,8 +379,8 @@ describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
   });
 
   it('cerrar liquidacion ya cerrada -> 409', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    await crearEnvioCodEntregado({ montoACobrar: 15000 });
+    const hoyPy = diaPy(13);
+    await crearEnvioCodEntregado({ montoACobrar: 15000, fechaEntregaReal: entregaEn(hoyPy) });
 
     const crearRes = await request
       .post('/api/admin/liquidaciones')
@@ -376,8 +419,8 @@ describe('PATCH /api/admin/liquidaciones/:id/cerrar', () => {
 
 describe('Doble liquidacion del mismo envio rechazada', () => {
   it('segunda liquidacion con rango solapado es rechazada con 409', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    const fechaEntrega = new Date().toISOString();
+    const hoyPy = diaPy(14);
+    const fechaEntrega = entregaEn(hoyPy);
 
     await crearEnvioCodEntregado({ montoACobrar: 12000, fechaEntregaReal: fechaEntrega });
 
@@ -413,25 +456,20 @@ describe('Doble liquidacion del mismo envio rechazada', () => {
   });
 
   it('rangos no solapados del mismo repartidor se permiten', async () => {
-    const hoyPy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    const ayer = new Date();
-    ayer.setDate(ayer.getDate() - 3);
-    const ayerPy = ayer.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
-    const anteayer = new Date();
-    anteayer.setDate(anteayer.getDate() - 6);
-    const anteayerPy = anteayer.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+    const diaA = diaPy(21);
+    const diaB = diaPy(20);
 
     const aRes = await request
       .post('/api/admin/liquidaciones')
       .set(adminHeaders())
-      .send({ repartidorId: testData.repartidorId, fechaDesde: anteayerPy, fechaHasta: anteayerPy });
+      .send({ repartidorId: testData.repartidorId, fechaDesde: diaA, fechaHasta: diaA });
     expect(aRes.status).toBe(201);
     createdLiquidaciones.push(aRes.body.id as string);
 
     const bRes = await request
       .post('/api/admin/liquidaciones')
       .set(adminHeaders())
-      .send({ repartidorId: testData.repartidorId, fechaDesde: ayerPy, fechaHasta: hoyPy });
+      .send({ repartidorId: testData.repartidorId, fechaDesde: diaB, fechaHasta: diaB });
     expect(bRes.status).toBe(201);
     createdLiquidaciones.push(bRes.body.id as string);
   });
@@ -489,13 +527,12 @@ describe('GET /api/admin/repartidores/:id/liquidaciones', () => {
 
 describe('Trigger sync pagos -> envios.monto_cobrado (cache)', () => {
   it('crear pago contra_entrega actualiza envios.monto_cobrado', async () => {
-    const payload = makeEnvioPayload(testData.clienteId, {
+    const payload = makeEnvioPayloadCostoManual(testData.clienteId, 20000, {
       tipoPago: 'contra_entrega',
-      costo: 20000,
-      montoACobrar: 20000,
     });
     const envioRes = await request.post('/api/admin/envios').set(adminHeaders()).send(payload);
     const envioId = envioRes.body.id as string;
+    await asignarRepartidor(envioId);
 
     const pagoRes = await request
       .post('/api/admin/pagos')
@@ -517,13 +554,12 @@ describe('Trigger sync pagos -> envios.monto_cobrado (cache)', () => {
   });
 
   it('anular pago contra_entrega resetea envios.monto_cobrado a 0', async () => {
-    const payload = makeEnvioPayload(testData.clienteId, {
+    const payload = makeEnvioPayloadCostoManual(testData.clienteId, 15000, {
       tipoPago: 'contra_entrega',
-      costo: 15000,
-      montoACobrar: 15000,
     });
     const envioRes = await request.post('/api/admin/envios').set(adminHeaders()).send(payload);
     const envioId = envioRes.body.id as string;
+    await asignarRepartidor(envioId);
 
     const pagoRes = await request
       .post('/api/admin/pagos')

@@ -58,7 +58,7 @@ for f in $(ls "$HERE"/sql/[0-9][0-9][0-9]_*.sql | sort); do
 done
 
 # Seed minimo espejo de prod: usuario SISTEMA (FK de auditoria/seeds), seguro_config vivo,
-# tarifa Asuncion -> Ciudad del Este. Los tests siembran el resto (cliente, repartidor,
+# tarifa Asuncion -> Ciudad del Este, cliente mostrador y bucket pod-entregas. Los tests siembran el resto (cliente, repartidor,
 # tarifa Asuncion -> Encarnacion) via tests/setup/seed.ts.
 run <<'SQL'
 INSERT INTO public.usuarios (id, nombre, email, rol, estado)
@@ -83,6 +83,26 @@ WHERE NOT EXISTS (
      AND public.tarifa_norm_ciudad(destino) = 'ciudad del este'
      AND tipo_servicio = 'estandar' AND activo = TRUE AND eliminado = FALSE
 );
+
+-- Cliente mostrador (026) y bucket de comprobantes (015): los sembraron migraciones
+-- anteriores al baseline, y el baseline es un dump de schema sin filas. En prod estan; sin
+-- esto la instancia de test miente sobre el estado de produccion y los tests de walk-in y de
+-- limpieza de POD fallan por drift, no por codigo.
+INSERT INTO public.clientes (
+  razon_social, ruc, contacto_nombre, telefono, email, ciudad, estado, plan, es_mostrador, notas
+) VALUES (
+  'Mostrador', 'MOSTRADOR-SIN-RUC', 'Cliente sin cuenta', '+595000000000',
+  'mostrador@goexpress.local', 'Asunción', 'activo', 'basico', TRUE,
+  'Cliente sentinela para envios walk-in. No editar ni eliminar.'
+)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('pod-entregas', 'pod-entregas', FALSE, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE SET
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types,
+  public = FALSE;
 
 NOTIFY pgrst, 'reload schema';
 SQL

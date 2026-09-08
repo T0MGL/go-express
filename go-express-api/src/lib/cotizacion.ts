@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from './dbError.js';
 import { logger } from '../config/logger.js';
 import { calcularCosto, type Dimensiones } from './volumetric.js';
 import { normalizeCiudad } from './ciudad.js';
@@ -61,7 +62,7 @@ export async function computeCostoEnvio(
 
   if (error) {
     logger.error({ error, origen: input.origen, destino: input.destino }, 'Error fetching tarifas para cotizacion');
-    throw new AppError('Error calculando costo del envio', 500, 'DB_ERROR');
+    throw dbError(error, 'Error calculando costo del envio');
   }
 
   const tarifas = (data ?? []) as TarifaCotizable[];

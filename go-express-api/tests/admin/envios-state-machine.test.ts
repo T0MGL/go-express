@@ -75,6 +75,22 @@ describe('Envio state machine: happy path (full lifecycle)', () => {
   });
 });
 
+describe('Envio state machine: ingreso por mostrador', () => {
+  // El cliente trae el paquete al mostrador: ya esta en el deposito, recolectado y
+  // en_transito nunca ocurrieron. Sin esta transicion ese camino no es representable.
+  it('permite pendiente -> en_deposito y despues en_deposito -> en_reparto', async () => {
+    const envioId = await createPendienteEnvio();
+
+    const aDeposito = await transitionTo(envioId, 'en_deposito', 'Recibido en mostrador');
+    expect(aDeposito.status).toBe(200);
+    expect(aDeposito.body.estado).toBe('en_deposito');
+
+    const aReparto = await transitionTo(envioId, 'en_reparto', 'Sale a reparto');
+    expect(aReparto.status).toBe(200);
+    expect(aReparto.body.estado).toBe('en_reparto');
+  });
+});
+
 describe('Envio state machine: invalid skips', () => {
   it('rejects pendiente -> entregado (skipping intermediate states)', async () => {
     const envioId = await createPendienteEnvio();

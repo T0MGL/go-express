@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { generateWebhookSecret } from '../lib/apiKey.js';
 import type { WebhookEndpoint, WebhookEndpointRow } from '../types/index.js';
@@ -48,7 +49,7 @@ class WebhookEndpointService {
 
     if (error) {
       logger.error({ error, clienteId }, 'Error listando webhook endpoints');
-      throw new AppError('Error listando webhook endpoints', 500, 'DB_ERROR');
+      throw dbError(error, 'Error listando webhook endpoints');
     }
 
     return ((data ?? []) as unknown as EndpointListRow[]).map(mapEndpointRow);
@@ -107,7 +108,7 @@ class WebhookEndpointService {
 
     if (error || !data) {
       logger.error({ error, clienteId: input.clienteId }, 'Error creando webhook endpoint');
-      throw new AppError('Error creando webhook endpoint', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creando webhook endpoint');
     }
 
     const endpoint = mapEndpointRow(data as unknown as EndpointListRow);
@@ -144,7 +145,7 @@ class WebhookEndpointService {
 
     if (error || !data) {
       logger.error({ error, endpointId: id }, 'Error actualizando webhook endpoint');
-      throw new AppError('Error actualizando webhook endpoint', 500, 'DB_ERROR');
+      throw dbError(error, 'Error actualizando webhook endpoint');
     }
 
     await auditoriaService.log({
@@ -180,7 +181,7 @@ class WebhookEndpointService {
 
     if (error) {
       logger.error({ error, endpointId: id }, 'Error desactivando webhook endpoint');
-      throw new AppError('Error desactivando webhook endpoint', 500, 'DB_ERROR');
+      throw dbError(error, 'Error desactivando webhook endpoint');
     }
 
     await auditoriaService.log({
@@ -217,7 +218,7 @@ class WebhookEndpointService {
 
     if (error || !data) {
       logger.error({ error, endpointId: id }, 'Error regenerando secreto de webhook endpoint');
-      throw new AppError('Error regenerando secreto', 500, 'DB_ERROR');
+      throw dbError(error, 'Error regenerando secreto');
     }
 
     await auditoriaService.log({
@@ -242,7 +243,7 @@ class WebhookEndpointService {
 
     if (error) {
       logger.error({ error, endpointId: id }, 'Error buscando webhook endpoint');
-      throw new AppError('Error buscando webhook endpoint', 500, 'DB_ERROR');
+      throw dbError(error, 'Error buscando webhook endpoint');
     }
 
     // Con scope de cliente, un endpoint ajeno responde el mismo 404 que uno inexistente.

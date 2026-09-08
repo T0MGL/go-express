@@ -26,6 +26,7 @@ import {
   SpinnerGap,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { avisarSinTarifa } from '@/lib/avisoTarifa';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { PHONE_PLACEHOLDER, normalizePhone, isValidPhone } from '@/lib/phone';
@@ -326,11 +327,14 @@ export function EnvioWizard() {
           seguroAdicional: formData.seguroAdicional,
         },
         {
-          onSuccess: () => {
-            const mensaje = formData.tipoPago === 'anticipado'
-              ? 'Envío creado con pago anticipado'
-              : 'Envío creado exitosamente';
-            toast.success(mensaje);
+          onSuccess: (envio) => {
+            if (envio.pendienteDeTasar) {
+              avisarSinTarifa(envio.trackingNumber, envio.origen, envio.destino);
+            } else {
+              toast.success(formData.tipoPago === 'anticipado'
+                ? 'Envío creado con pago anticipado'
+                : 'Envío creado exitosamente');
+            }
             localStorage.removeItem('envio-borrador');
             setIsSubmitting(false);
             navigate('/admin/envios');

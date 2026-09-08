@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { supabase } from '../config/database.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { emailService } from './email.service.js';
 import { logger } from '../config/logger.js';
@@ -99,7 +100,7 @@ class UsuarioService {
       await supabase.auth.admin.deleteUser(authUserId).catch((err) => {
         logger.error({ err, authUserId }, 'Failed to rollback auth user after usuarios insert error');
       });
-      throw new AppError(`Error creando usuario: ${insertErr?.message ?? 'insert failed'}`, 500, 'DB_ERROR');
+      throw dbError(insertErr, `Error creando usuario: ${insertErr?.message ?? 'insert failed'}`);
     }
 
     emailService
@@ -184,7 +185,7 @@ class UsuarioService {
 
       if (linkErr) {
         logger.error({ err: linkErr, usuarioId, authUserId }, 'Failed to link auth_id to usuario on reinvite');
-        throw new AppError('No se pudo vincular la cuenta', 500, 'DB_ERROR');
+        throw dbError(linkErr, 'No se pudo vincular la cuenta');
       }
     }
 

@@ -44,14 +44,18 @@ import { IntentosContactoCard } from '@/components/admin/IntentosContactoCard';
 import { useAdminPodDownloadUrl, useResolverIncidencia } from '@/hooks/api/use-envio-pod';
 import type { Envio } from '@/data/types';
 
+// Espejo de la matriz que corre en la base (sql/056). Decide que ofrece el menu de cambio de
+// estado; la base es la que manda. Sin en_deposito, un paquete ingresado por mostrador
+// quedaba sin ninguna accion disponible en pantalla.
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  pendiente: ['recolectado', 'problema'],
+  pendiente: ['recolectado', 'en_deposito', 'problema'],
   recolectado: ['en_transito', 'problema'],
-  en_transito: ['en_reparto', 'problema'],
+  en_transito: ['en_deposito', 'en_reparto', 'problema'],
+  en_deposito: ['en_reparto', 'problema'],
   en_reparto: ['entregado', 'fallido', 'problema'],
   fallido: ['en_reparto', 'problema'],
   entregado: [],
-  problema: ['pendiente', 'recolectado', 'en_transito', 'en_reparto', 'fallido'],
+  problema: ['pendiente', 'recolectado', 'en_transito', 'en_deposito', 'en_reparto', 'fallido'],
 };
 
 const EnvioDetail = () => {

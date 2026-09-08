@@ -10,17 +10,41 @@ const supabase = createClient(
 
 let testData: TestData;
 let envioId: string;
+let montoDelEnvio: number;
 let createdPagoId: string;
+
+// Dos reglas de la base gobiernan todo cobro y ninguna se puede saltear desde el test:
+// A4 (044) exige repartidor asignado, si no el cobro no es liquidable; y create_pago_atomico
+// deriva monto_total del envio y rechaza cualquier otro. Asi que cada envio de esta suite
+// nace cobrable y el monto sale del envio, nunca de una constante escrita a mano.
+async function crearEnvioCobrable(
+  overrides: Record<string, unknown> = {}
+): Promise<{ envioId: string; montoTotal: number }> {
+  const envioRes = await request
+    .post('/api/admin/envios')
+    .set(adminHeaders())
+    .send(makeEnvioPayload(testData.clienteId, overrides));
+  if (envioRes.status !== 201) {
+    throw new Error(`No se pudo crear el envio: ${envioRes.status} ${JSON.stringify(envioRes.body)}`);
+  }
+
+  const asignarRes = await request
+    .patch(`/api/admin/envios/${envioRes.body.id}/repartidor`)
+    .set(adminHeaders())
+    .send({ repartidorId: testData.repartidorId });
+  if (asignarRes.status !== 200) {
+    throw new Error(`No se pudo asignar repartidor: ${asignarRes.status} ${JSON.stringify(asignarRes.body)}`);
+  }
+
+  return { envioId: envioRes.body.id as string, montoTotal: envioRes.body.montoACobrar as number };
+}
 
 beforeAll(async () => {
   testData = await seedTestData();
 
-  const payload = makeEnvioPayload(testData.clienteId);
-  const envioRes = await request
-    .post('/api/admin/envios')
-    .set(adminHeaders())
-    .send(payload);
-  envioId = envioRes.body.id;
+  const envio = await crearEnvioCobrable();
+  envioId = envio.envioId;
+  montoDelEnvio = envio.montoTotal;
 });
 
 afterAll(async () => {
@@ -34,16 +58,16 @@ describe('POST /api/admin/pagos', () => {
       .set(adminHeaders())
       .send({
         envioId,
-        montoTotal: 45000,
-        montoRecibido: 45000,
+        montoTotal: montoDelEnvio,
+        montoRecibido: montoDelEnvio,
         metodoPago: 'efectivo',
       });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
     expect(res.body).toHaveProperty('envioId', envioId);
-    expect(res.body).toHaveProperty('montoTotal', 45000);
-    expect(res.body).toHaveProperty('montoRecibido', 45000);
+    expect(res.body).toHaveProperty('montoTotal', montoDelEnvio);
+    expect(res.body).toHaveProperty('montoRecibido', montoDelEnvio);
     expect(res.body).toHaveProperty('estadoPago', 'pagado');
     expect(res.body).toHaveProperty('metodoPago', 'efectivo');
 
@@ -56,8 +80,8 @@ describe('POST /api/admin/pagos', () => {
       .set(adminHeaders())
       .send({
         envioId,
-        montoTotal: 45000,
-        montoRecibido: 45000,
+        montoTotal: montoDelEnvio,
+        montoRecibido: montoDelEnvio,
         metodoPago: 'transferencia',
       });
 
@@ -66,20 +90,15 @@ describe('POST /api/admin/pagos', () => {
   });
 
   it('calculates estadoPago as pago_parcial when montoRecibido < montoTotal', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const newEnvioId = envioRes.body.id;
+    const { envioId: newEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const res = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: newEnvioId,
-        montoTotal: 50000,
-        montoRecibido: 25000,
+        montoTotal,
+        montoRecibido: Math.floor(montoTotal / 2),
         metodoPago: 'efectivo',
       });
 
@@ -88,19 +107,14 @@ describe('POST /api/admin/pagos', () => {
   });
 
   it('calculates estadoPago as pendiente when montoRecibido is 0', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const newEnvioId = envioRes.body.id;
+    const { envioId: newEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const res = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: newEnvioId,
-        montoTotal: 30000,
+        montoTotal,
         montoRecibido: 0,
         metodoPago: 'contra_entrega',
       });
@@ -208,19 +222,14 @@ describe('GET /api/admin/pagos/stats', () => {
 
 describe('PATCH /api/admin/pagos/:id', () => {
   it('updates pago montoRecibido and recalculates estadoPago', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const tmpEnvioId = envioRes.body.id;
+    const { envioId: tmpEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const createRes = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: tmpEnvioId,
-        montoTotal: 40000,
+        montoTotal,
         montoRecibido: 0,
         metodoPago: 'contra_entrega',
       });
@@ -229,11 +238,11 @@ describe('PATCH /api/admin/pagos/:id', () => {
     const res = await request
       .patch(`/api/admin/pagos/${pagoId}`)
       .set(adminHeaders())
-      .send({ montoRecibido: 40000 });
+      .send({ montoRecibido: montoTotal });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('estadoPago', 'pagado');
-    expect(res.body).toHaveProperty('montoRecibido', 40000);
+    expect(res.body).toHaveProperty('montoRecibido', montoTotal);
   });
 
   it('returns 404 for nonexistent pago', async () => {
@@ -257,12 +266,7 @@ describe('PATCH /api/admin/pagos/:id', () => {
 
 describe('Auditoria de pagos persiste ip_address y user_agent', () => {
   it('create persists ip_address and user_agent in audit log', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const tmpEnvioId = envioRes.body.id;
+    const { envioId: tmpEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const createRes = await request
       .post('/api/admin/pagos')
@@ -271,8 +275,8 @@ describe('Auditoria de pagos persiste ip_address y user_agent', () => {
       .set('User-Agent', 'pagos-audit-create-test/1.0')
       .send({
         envioId: tmpEnvioId,
-        montoTotal: 60000,
-        montoRecibido: 60000,
+        montoTotal,
+        montoRecibido: montoTotal,
         metodoPago: 'efectivo',
       });
 
@@ -294,19 +298,14 @@ describe('Auditoria de pagos persiste ip_address y user_agent', () => {
   });
 
   it('update persists ip_address and user_agent in audit log', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const tmpEnvioId = envioRes.body.id;
+    const { envioId: tmpEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const createRes = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: tmpEnvioId,
-        montoTotal: 80000,
+        montoTotal,
         montoRecibido: 0,
         metodoPago: 'contra_entrega',
       });
@@ -317,7 +316,7 @@ describe('Auditoria de pagos persiste ip_address y user_agent', () => {
       .set(adminHeaders())
       .set('X-Forwarded-For', '198.51.100.42')
       .set('User-Agent', 'pagos-audit-update-test/1.0')
-      .send({ montoRecibido: 80000 });
+      .send({ montoRecibido: montoTotal });
 
     expect(patchRes.status).toBe(200);
 
@@ -348,19 +347,14 @@ describe('Auditoria de pagos persiste ip_address y user_agent', () => {
 // garantiza que el UPDATE tambien se revierta.
 describe('Atomicidad transaccional del RPC update_pago_atomico', () => {
   it('rolls back pago update when audit insert violates FK on usuario_id', async () => {
-    const payload = makeEnvioPayload(testData.clienteId);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const tmpEnvioId = envioRes.body.id as string;
+    const { envioId: tmpEnvioId, montoTotal } = await crearEnvioCobrable();
 
     const createRes = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: tmpEnvioId,
-        montoTotal: 70000,
+        montoTotal,
         montoRecibido: 0,
         metodoPago: 'contra_entrega',
       });
@@ -371,7 +365,7 @@ describe('Atomicidad transaccional del RPC update_pago_atomico', () => {
 
     const { error } = await supabase.rpc('update_pago_atomico', {
       p_pago_id: pagoId,
-      p_monto_recibido: 70000,
+      p_monto_recibido: montoTotal,
       p_metodo_pago: null,
       p_fecha_pago: null,
       p_referencia: null,
@@ -426,25 +420,20 @@ describe('POST /api/admin/pagos/:id/anular', () => {
   async function crearEnvioYPago(
     overrides: Record<string, unknown> = {},
     pagoOverrides: Record<string, unknown> = {},
-  ): Promise<{ envioId: string; pagoId: string }> {
-    const payload = makeEnvioPayload(testData.clienteId, overrides);
-    const envioRes = await request
-      .post('/api/admin/envios')
-      .set(adminHeaders())
-      .send(payload);
-    const newEnvioId = envioRes.body.id as string;
+  ): Promise<{ envioId: string; pagoId: string; montoTotal: number }> {
+    const { envioId: newEnvioId, montoTotal } = await crearEnvioCobrable(overrides);
 
     const pagoRes = await request
       .post('/api/admin/pagos')
       .set(adminHeaders())
       .send({
         envioId: newEnvioId,
-        montoTotal: 50000,
-        montoRecibido: 50000,
+        montoTotal,
+        montoRecibido: montoTotal,
         metodoPago: 'efectivo',
         ...pagoOverrides,
       });
-    return { envioId: newEnvioId, pagoId: pagoRes.body.id as string };
+    return { envioId: newEnvioId, pagoId: pagoRes.body.id as string, montoTotal };
   }
 
   it('marks pago as anulado and writes audit entry with accion=anular', async () => {
@@ -519,10 +508,7 @@ describe('POST /api/admin/pagos/:id/anular', () => {
   });
 
   it('permite registrar un nuevo pago sobre el mismo envio despues de anular el previo', async () => {
-    const { envioId: reusedEnvioId, pagoId } = await crearEnvioYPago({}, {
-      montoTotal: 45000,
-      montoRecibido: 45000,
-    });
+    const { envioId: reusedEnvioId, pagoId, montoTotal } = await crearEnvioYPago();
 
     const anularRes = await request
       .post(`/api/admin/pagos/${pagoId}/anular`)
@@ -535,8 +521,8 @@ describe('POST /api/admin/pagos/:id/anular', () => {
       .set(adminHeaders())
       .send({
         envioId: reusedEnvioId,
-        montoTotal: 45000,
-        montoRecibido: 45000,
+        montoTotal,
+        montoRecibido: montoTotal,
         metodoPago: 'transferencia',
       });
 

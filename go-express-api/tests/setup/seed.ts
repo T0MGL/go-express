@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { normalizeCiudad } from '../../src/lib/ciudad.js';
 
 const ADMIN_USER_ID = '00000000-0000-4000-a000-000000000001';
+const ORIGEN_RUTA = 'Asuncion';
+const DESTINO_RUTA = 'Encarnacion';
+// El API cotiza server-side y descarta el costo que manda el caller, asi que este es el
+// costo real de todo envio de la suite: peso 2,5 no supera el peso_base de 5.
+export const TARIFA_PRECIO_BASE = 35000;
 
 const supabase = createClient(
   process.env['SUPABASE_URL']!,
@@ -12,6 +18,9 @@ export interface TestData {
   clienteId: string;
   repartidorId: string;
   tarifaId: string;
+  // La tarifa de la ruta es compartida: si otra corrida la dejo viva, esta la adopta en vez
+  // de duplicarla, y entonces no le corresponde borrarla.
+  tarifaPropia: boolean;
 }
 
 let seeded: TestData | null = null;
@@ -70,6 +79,60 @@ async function ensureTrackingConfig(): Promise<void> {
   }
 }
 
+// tarifas_ruta_servicio_unica es un unique parcial sobre (origen, destino, tipo_servicio)
+// normalizados, con activo y no eliminado. El seed insertaba siempre la misma ruta con un uuid
+// nuevo: si una corrida moria antes del cleanup, la fila quedaba viva y TODAS las corridas
+// siguientes reventaban para siempre. Se inserta y, si la ruta ya existe, se adopta la fila
+// que esta ahi en vez de pelearse con ella.
+async function ensureTarifaRuta(tarifaId: string): Promise<{ tarifaId: string; tarifaPropia: boolean }> {
+  const { error } = await supabase.from('tarifas').insert({
+    id: tarifaId,
+    origen: ORIGEN_RUTA,
+    destino: DESTINO_RUTA,
+    tipo_servicio: 'estandar',
+    precio_base: 35000,
+    peso_base: 5,
+    precio_por_kg_extra: 5000,
+    factor_dimensional: 5000,
+    activo: true,
+    eliminado: false,
+    creado_por: ADMIN_USER_ID,
+  });
+
+  if (!error) {
+    return { tarifaId, tarifaPropia: true };
+  }
+
+  if (error.code !== '23505') {
+    throw new Error(`Seed: failed to create test tarifa: ${error.message}`);
+  }
+
+  const { data, error: lookupError } = await supabase
+    .from('tarifas')
+    .select('id, origen, destino')
+    .eq('tipo_servicio', 'estandar')
+    .eq('activo', true)
+    .eq('eliminado', false);
+
+  if (lookupError) {
+    throw new Error(`Seed: failed to look up existing tarifa: ${lookupError.message}`);
+  }
+
+  const existente = (data ?? []).find(
+    (row: { origen: string; destino: string }) =>
+      normalizeCiudad(row.origen) === normalizeCiudad(ORIGEN_RUTA) &&
+      normalizeCiudad(row.destino) === normalizeCiudad(DESTINO_RUTA)
+  ) as { id: string } | undefined;
+
+  if (!existente) {
+    throw new Error(
+      `Seed: la tarifa ${ORIGEN_RUTA} a ${DESTINO_RUTA} choco contra el unique pero no aparece activa. Revisar tarifas a mano.`
+    );
+  }
+
+  return { tarifaId: existente.id, tarifaPropia: false };
+}
+
 export async function seedTestData(): Promise<TestData> {
   if (seeded) return seeded;
 
@@ -117,29 +180,20 @@ export async function seedTestData(): Promise<TestData> {
     throw new Error(`Seed: failed to create test repartidor: ${repartidorErr.message}`);
   }
 
-  const { error: tarifaErr } = await supabase.from('tarifas').insert({
-    id: tarifaId,
-    origen: 'Asuncion',
-    destino: 'Encarnacion',
-    tipo_servicio: 'estandar',
-    precio_base: 35000,
-    peso_base: 5,
-    precio_por_kg_extra: 5000,
-    factor_dimensional: 5000,
-    activo: true,
-    eliminado: false,
-    creado_por: ADMIN_USER_ID,
-  });
+  const tarifa = await ensureTarifaRuta(tarifaId);
 
-  if (tarifaErr) {
-    throw new Error(`Seed: failed to create test tarifa: ${tarifaErr.message}`);
-  }
-
-  seeded = { clienteId, repartidorId, tarifaId };
+  seeded = { clienteId, repartidorId, ...tarifa };
   return seeded;
 }
 
-export async function cleanupTestData(data: TestData): Promise<void> {
+// Recibe undefined a proposito: cuando seedTestData tira, el afterAll corre igual con la
+// variable sin asignar, y un cleanup que explota ahi convierte un fallo en dos.
+export async function cleanupTestData(data: TestData | undefined): Promise<void> {
+  if (!data) {
+    seeded = null;
+    return;
+  }
+
   const { data: envios } = await supabase
     .from('envios')
     .select('id')
@@ -153,7 +207,9 @@ export async function cleanupTestData(data: TestData): Promise<void> {
     await supabase.from('envios').delete().in('id', envioIds);
   }
 
-  await supabase.from('tarifas').delete().eq('id', data.tarifaId);
+  if (data.tarifaPropia) {
+    await supabase.from('tarifas').delete().eq('id', data.tarifaId);
+  }
   await supabase.from('repartidores').delete().eq('id', data.repartidorId);
   await supabase.from('clientes').delete().eq('id', data.clienteId);
 
@@ -176,4 +232,21 @@ export function makeEnvioPayload(clienteId: string, overrides: Record<string, un
     tipoPago: 'contra_entrega' as const,
     ...overrides,
   };
+}
+
+// I1 exige monto_a_cobrar >= costo + seguro, y el costo sale de la tarifa (35000), no del
+// payload. Un test que necesita otro flete tiene que pedirlo por donde lo pide el admin:
+// costo manual explicito con motivo, que queda en auditoria.
+export function makeEnvioPayloadCostoManual(
+  clienteId: string,
+  costo: number,
+  overrides: Record<string, unknown> = {}
+) {
+  return makeEnvioPayload(clienteId, {
+    costo,
+    montoACobrar: costo,
+    forzarCostoManual: true,
+    motivoCostoManual: 'Costo pactado para el escenario de prueba',
+    ...overrides,
+  });
 }

@@ -16,12 +16,12 @@ const createdUsuarioIds: string[] = [];
 const createdAuthIds: string[] = [];
 
 afterAll(async () => {
-  for (const id of createdUsuarioIds) {
-    await admin.from('usuarios').delete().eq('id', id).catch(() => undefined);
-  }
-  for (const authId of createdAuthIds) {
-    await admin.auth.admin.deleteUser(authId).catch(() => undefined);
-  }
+  // El builder de supabase-js no es una Promise hasta que se lo await, asi que no tiene
+  // .catch: encadenarlo tiraba TypeError y se llevaba puesta la suite entera. El builder
+  // ya devuelve el error en el resultado en vez de lanzarlo, y aca no hay nada que hacer
+  // con el mas que seguir borrando.
+  await Promise.all(createdUsuarioIds.map((id) => admin.from('usuarios').delete().eq('id', id)));
+  await Promise.all(createdAuthIds.map((authId) => admin.auth.admin.deleteUser(authId)));
 });
 
 async function collectForCleanup(email: string, usuarioId?: string): Promise<void> {

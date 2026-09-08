@@ -1,5 +1,5 @@
 import { request, adminHeaders } from '../setup/test-client.js';
-import { seedTestData, cleanupTestData, makeEnvioPayload, type TestData } from '../setup/seed.js';
+import { seedTestData, cleanupTestData, makeEnvioPayload, TARIFA_PRECIO_BASE, type TestData } from '../setup/seed.js';
 
 let testData: TestData;
 let createdEnvioId: string;
@@ -28,7 +28,9 @@ describe('POST /api/admin/envios', () => {
     expect(res.body).toHaveProperty('estado', 'pendiente');
     expect(res.body).toHaveProperty('clienteId', testData.clienteId);
     expect(res.body).toHaveProperty('destinatarioNombre', payload.destinatarioNombre);
-    expect(res.body).toHaveProperty('costo', payload.costo);
+    // El costo es server-side: el API lo cotiza desde la tarifa e ignora el del payload.
+    expect(res.body).toHaveProperty('costo', TARIFA_PRECIO_BASE);
+    expect(res.body.costo).not.toBe(payload.costo);
     expect(res.body).toHaveProperty('tipoPago', 'contra_entrega');
 
     createdEnvioId = res.body.id;
@@ -100,9 +102,12 @@ describe('POST /api/admin/envios', () => {
     expect(mostradorRes.body).toHaveProperty('esMostrador', true);
 
     const mostradorId = mostradorRes.body.id as string;
+    // Anticipado exige monto_a_cobrar exactamente igual a costo+seguro: el cobro en calle es
+    // la tarifa y nada mas, no hay mercaderia que cobrarle al destinatario.
     const payload = makeEnvioPayload(mostradorId, {
       clienteNombreOverride: 'Kiosco Don Luis',
       tipoPago: 'anticipado',
+      montoACobrar: TARIFA_PRECIO_BASE,
     });
 
     const res = await request

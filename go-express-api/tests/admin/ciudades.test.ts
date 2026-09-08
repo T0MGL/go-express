@@ -22,10 +22,16 @@ describe('GET /api/admin/ciudades', () => {
     expect(typeof first.habilitada).toBe('boolean');
   });
 
-  it('Asuncion is the first item (orden=0)', async () => {
+  // Asunción es un departamento propio en el catalogo, pero el listado de ciudades la
+  // muestra dentro de Central: para quien carga un envio, Asunción es Gran Asunción.
+  // El catalogo crudo de departamentos si la devuelve aparte, y eso se verifica abajo.
+  it('lista Asunción dentro de Central, no como departamento propio', async () => {
     const res = await request.get('/api/admin/ciudades').set(adminHeaders());
-    expect(res.body.data[0].departamentoNombre).toBe('Asunción');
-    expect(res.body.data[0].nombre).toBe('Asunción');
+    const ciudades = res.body.data as Array<{ nombre: string; departamentoNombre: string }>;
+    const asuncion = ciudades.find((c) => c.nombre === 'Asunción');
+    expect(asuncion).toBeDefined();
+    expect(asuncion?.departamentoNombre).toBe('Central');
+    expect(ciudades.some((c) => c.departamentoNombre === 'Asunción')).toBe(false);
   });
 
   it('rejects without auth with 401', async () => {
@@ -53,16 +59,17 @@ describe('GET /api/admin/ciudades/departamentos', () => {
 });
 
 describe('GET /api/admin/ciudades/cobertura', () => {
-  it('returns aggregate + 18 departamento cards', async () => {
+  // 17 y no 18: cobertura pliega Asunción dentro de Central, igual que el listado.
+  it('returns aggregate + 17 departamento cards', async () => {
     const res = await request
       .get('/api/admin/ciudades/cobertura')
       .set(adminHeaders());
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('totalCiudades');
     expect(res.body).toHaveProperty('ciudadesHabilitadas');
-    expect(res.body).toHaveProperty('totalDepartamentos', 18);
+    expect(res.body).toHaveProperty('totalDepartamentos', 17);
     expect(res.body).toHaveProperty('departamentosConCobertura');
-    expect(res.body.departamentos.length).toBe(18);
+    expect(res.body.departamentos.length).toBe(17);
 
     const first = res.body.departamentos[0];
     expect(first).toHaveProperty('id');

@@ -21,6 +21,18 @@ interface FilaImportada {
   errores: string[];
 }
 
+// Lo que devolvio el server, no lo que mandamos: una fila puede caer del lado del server
+// (por ejemplo un destino sin cobertura) y el que subio el archivo tiene que verla nombrada.
+interface FilaRechazada {
+  fila: number;
+  motivo: string;
+}
+
+interface ResultadoImportacion {
+  importados: number;
+  rechazadas: FilaRechazada[];
+}
+
 const COLUMNAS_TEMPLATE = [
   'destinatario_nombre',
   'destinatario_telefono',
@@ -79,8 +91,9 @@ const ClienteImportar = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [filas, setFilas] = useState<FilaImportada[]>([]);
-  const [importado, setImportado] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoImportacion | null>(null);
   const [nombreArchivo, setNombreArchivo] = useState('');
+  const importado = resultado !== null;
 
   const bulkImportMutation = useClienteBulkImport();
 
@@ -99,7 +112,7 @@ const ClienteImportar = () => {
         return;
       }
       setFilas(parsed);
-      setImportado(false);
+      setResultado(null);
     };
     reader.readAsText(file);
   };
@@ -146,7 +159,21 @@ const ClienteImportar = () => {
 
     bulkImportMutation.mutate(envios, {
       onSuccess: (res) => {
-        setImportado(true);
+        const rechazadas = (res.errors ?? []).map(({ index, error }) => ({
+          fila: filasValidas[index]?.fila ?? index + 1,
+          motivo: error,
+        }));
+        setResultado({ importados: res.imported, rechazadas });
+
+        if (rechazadas.length > 0) {
+          toast({
+            title: `Importamos ${res.imported} de ${filasValidas.length}`,
+            description: `${rechazadas.length === 1 ? 'Una fila quedó afuera' : `${rechazadas.length} filas quedaron afuera`}. El detalle está abajo.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
         toast({
           title: `Listo, importamos ${res.imported} ${res.imported === 1 ? 'envío' : 'envíos'}`,
           description: 'Los pedidos quedaron registrados y pasan a recolección en las próximas horas.',
@@ -160,7 +187,7 @@ const ClienteImportar = () => {
 
   const limpiar = () => {
     setFilas([]);
-    setImportado(false);
+    setResultado(null);
     setNombreArchivo('');
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -234,17 +261,45 @@ const ClienteImportar = () => {
       )}
 
       {/* Estado importado */}
-      {importado && (
+      {resultado && resultado.rechazadas.length === 0 && (
         <div className="surface-card p-6 mb-5 bg-green-50 border-green-200 text-center">
           <CheckCircle size={32} weight="duotone" className="text-green-500 mx-auto mb-3" />
           <h3 className="font-semibold text-[15px] mb-1">Listo, recibimos tus pedidos</h3>
           <p className="text-[12px] text-muted-foreground mb-4">
-            Se importaron <strong className="font-data">{filasValidas.length}</strong>{' '}
-            {filasValidas.length === 1 ? 'envío' : 'envíos'}. Los procesamos en las próximas horas y te notificamos cuando pasen a recolección.
+            Se importaron <strong className="font-data">{resultado.importados}</strong>{' '}
+            {resultado.importados === 1 ? 'envío' : 'envíos'}. Los procesamos en las próximas horas y te notificamos cuando pasen a recolección.
           </p>
           <Button variant="outline" size="sm" onClick={limpiar} className="gap-1.5">
             <UploadSimple size={14} weight="duotone" /> Importar otro archivo
           </Button>
+        </div>
+      )}
+
+      {resultado && resultado.rechazadas.length > 0 && (
+        <div className="surface-card p-6 mb-5 bg-amber-50 border-amber-200">
+          <div className="flex items-start gap-3">
+            <Warning size={24} weight="duotone" className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-[15px] mb-1">
+                Importamos <span className="font-data">{resultado.importados}</span>, quedaron{' '}
+                <span className="font-data">{resultado.rechazadas.length}</span> afuera
+              </h3>
+              <p className="text-[12px] text-muted-foreground mb-3">
+                Los que entraron ya están registrados. Corregí estas filas y volvé a subirlas:
+              </p>
+              <ul className="space-y-2 mb-4">
+                {resultado.rechazadas.map((r) => (
+                  <li key={r.fila} className="text-[12px] flex gap-2">
+                    <span className="font-data text-amber-700 flex-shrink-0">#{r.fila}</span>
+                    <span className="text-muted-foreground">{r.motivo}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" size="sm" onClick={limpiar} className="gap-1.5">
+                <UploadSimple size={14} weight="duotone" /> Importar otro archivo
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

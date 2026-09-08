@@ -10,7 +10,7 @@ import { computeSeguroForEnvio } from '../../services/envio.service.js';
 import { parseSeguroConfig, calcularSeguroAdicional, puedeAsegurar } from '../../lib/seguro.js';
 import { generateTrackingNumber } from '../../lib/trackingNumber.js';
 import { todayPY } from '../../lib/datetime.js';
-import { computeCostoEnvio } from '../../lib/cotizacion.js';
+import { computeCostoEnvio, cotizarRutaConCobertura, mensajeSinCobertura } from '../../lib/cotizacion.js';
 import { bulkLimiter } from '../../middleware/rateLimit.js';
 import {
   createClienteEnvioSchema,
@@ -104,7 +104,6 @@ function mapEnvioRow(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
-    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eliminado: row.eliminado,
     eliminadoPor: row.eliminado_por,
@@ -249,7 +248,7 @@ router.get(
 //   - clienteId desde req.clienteId
 //   - origen desde cliente.ciudad (fallback 'Asuncion')
 //   - destino desde destinatarioCiudad o destinatarioDepartamento
-//   - costo + tarifaId buscando la tarifa activa que matchee origen/destino (si no hay, costo=0 y admin lo setea)
+//   - costo + tarifaId buscando la tarifa activa que matchee origen/destino (si no hay, 422: la ruta no tiene cobertura)
 //   - tipoPago = 'anticipado' (el repartidor cobra la tarifa en efectivo al entregar;
 //     monto_a_cobrar = costo + seguro por I1)
 
@@ -288,14 +287,18 @@ router.post(
     const destinoInput = input.destinatarioCiudad.trim();
 
     // Costo server-side via helper compartido (misma fuente de verdad que el path admin).
-    // Si no hay tarifa que matchee, costo 0 y el admin lo tasa despues: no bloqueamos al
-    // cliente por configuracion faltante. El cliente nunca decide el costo.
-    const cotizacion = await computeCostoEnvio(supabase, {
-      origen: origenInput,
-      destino: destinoInput,
-      peso: input.peso,
-      dimensiones: input.dimensiones ?? null,
-    });
+    // Sin tarifa activa para el par no hay cobertura, y el envio se rechaza con 422 antes de
+    // reservar tracking number. El cliente nunca decide el costo.
+    const cotizacion = await cotizarRutaConCobertura(
+      supabase,
+      {
+        origen: origenInput,
+        destino: destinoInput,
+        peso: input.peso,
+        dimensiones: input.dimensiones ?? null,
+      },
+      'portal'
+    );
 
     const costo = cotizacion.costo;
     const tarifaId = cotizacion.tarifaId;
@@ -462,8 +465,25 @@ router.post(
     );
 
     const today = todayPY();
-    const insertRows = envios.map((input, i) => {
+    const results: Array<{ trackingNumber: string; id: string }> = [];
+    // Fila rechazada, no batch rechazado: quien sube 200 pedidos y tiene uno a una ciudad sin
+    // cobertura no pierde los otros 199, y se lleva la lista exacta de lo que quedo afuera.
+    const errors: Array<{ index: number; error: string }> = [];
+    const insertRows: Record<string, unknown>[] = [];
+
+    for (let i = 0; i < envios.length; i++) {
+      const input = envios[i]!;
+      const cot = cotizaciones[i]!;
       const valorDeclarado = input.valorDeclarado ?? 0;
+
+      if (!cot.matched) {
+        logger.warn(
+          { clienteId, fila: i + 1, origen: origenInput, destino: cot.destino },
+          'Bulk import portal: fila rechazada por ruta sin tarifa'
+        );
+        errors.push({ index: i, error: mensajeSinCobertura('portal', origenInput, cot.destino) });
+        continue;
+      }
 
       if (valorDeclarado > seguroConfig.maximoAsegurable) {
         throw AppError.badRequest(
@@ -478,9 +498,7 @@ router.post(
         costoSeguro = calcularSeguroAdicional(valorDeclarado, seguroConfig);
       }
 
-      const cot = cotizaciones[i]!;
-
-      return {
+      insertRows.push({
         tracking_number: trackingNumbers[i]!,
         cliente_id: clienteId,
         cliente_nombre: clienteNombre,
@@ -518,17 +536,24 @@ router.post(
         tags: input.tags ?? [],
         tarifa_id: cot.tarifaId,
         fecha: today,
-      };
-    });
+      });
+    }
+
+    if (insertRows.length === 0) {
+      res.status(201).json({
+        imported: 0,
+        failed: errors.length,
+        results,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+      return;
+    }
 
     // Batch insert all envios in a single query
     const { data: insertedData, error: insertError } = await supabase
       .from('envios')
       .insert(insertRows)
       .select('id, tracking_number');
-
-    const results: Array<{ trackingNumber: string; id: string }> = [];
-    const errors: Array<{ index: number; error: string }> = [];
 
     if (insertError) {
       // If batch fails, entire batch is rejected

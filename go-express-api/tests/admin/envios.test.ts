@@ -1,5 +1,5 @@
 import { request, adminHeaders } from '../setup/test-client.js';
-import { seedTestData, cleanupTestData, makeEnvioPayload, TARIFA_PRECIO_BASE, type TestData } from '../setup/seed.js';
+import { seedTestData, cleanupTestData, makeEnvioPayload, makeEnvioPayloadCostoManual, TARIFA_PRECIO_BASE, type TestData } from '../setup/seed.js';
 
 let testData: TestData;
 let createdEnvioId: string;
@@ -462,5 +462,99 @@ describe('POST /api/admin/envios/bulk-import (A2/A3 Step6)', () => {
     expect(envio['costoSeguro']).toBe(100000);
     expect(envio['seguroAdicional']).toBe(true);
     expect(envio['montoACobrar']).toBe((envio['costo'] as number) + 100000);
+  });
+});
+
+// Cobertura: una ruta sin tarifa activa no es un envio pendiente de tasar, es un envio que
+// GO EXPRESS no toma. Los cuatro caminos de creacion (mostrador unitario, bulk admin, portal
+// unitario, bulk portal) convergen al 422 que el gateway v1 ya hacia. Fuerte Olimpo no tiene
+// tarifa en el seed y es la ruta sin cobertura de toda la suite.
+describe('POST /api/admin/envios: ruta sin cobertura', () => {
+  const CIUDAD_SIN_COBERTURA = 'Fuerte Olimpo';
+
+  it('rechaza con 422 RUTA_SIN_TARIFA, nombra la ruta y no deja envio creado', async () => {
+    const destinatarioNombre = 'Mostrador Sin Cobertura';
+    const payload = makeEnvioPayload(testData.clienteId, {
+      destino: CIUDAD_SIN_COBERTURA,
+      destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+      destinatarioNombre,
+    });
+
+    const res = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('RUTA_SIN_TARIFA');
+    // El operador esta mirando un formulario con dos campos de ciudad: el mensaje tiene que
+    // decirle cual de los dos esta mal.
+    expect(res.body.error).toContain('Asuncion');
+    expect(res.body.error).toContain(CIUDAD_SIN_COBERTURA);
+    expect(res.body.details).toMatchObject({ origen: 'Asuncion', destino: CIUDAD_SIN_COBERTURA });
+
+    const listado = await request
+      .get('/api/admin/envios')
+      .query({ search: destinatarioNombre })
+      .set(adminHeaders());
+
+    expect(listado.status).toBe(200);
+    expect(listado.body.data).toHaveLength(0);
+  });
+
+  it('forzarCostoManual sigue creando sobre la ruta sin cobertura y queda auditado', async () => {
+    const payload = makeEnvioPayloadCostoManual(testData.clienteId, 60000, {
+      destino: CIUDAD_SIN_COBERTURA,
+      destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+      destinatarioNombre: 'Excepcion Con Motivo',
+    });
+
+    const res = await request
+      .post('/api/admin/envios')
+      .set(adminHeaders())
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.costo).toBe(60000);
+    // Sin tarifa que resolver el envio queda sin tarifa_id: el costo es la excepcion del admin.
+    expect(res.body.tarifaId).toBeNull();
+
+    const audit = await request
+      .get('/api/admin/auditoria')
+      .query({ search: res.body.trackingNumber as string })
+      .set(adminHeaders());
+
+    expect(audit.status).toBe(200);
+    const override = (audit.body.data as Array<{ descripcion: string }>).find((a) =>
+      a.descripcion.includes('Costo manual forzado'),
+    );
+    expect(override, 'el override tiene que dejar rastro en auditoria').toBeDefined();
+    expect(override!.descripcion).toContain('Costo pactado para el escenario de prueba');
+  });
+
+  it('bulk: la fila sin cobertura va a fallidos con su numero y el resto entra', async () => {
+    const res = await request
+      .post('/api/admin/envios/bulk-import')
+      .set(adminHeaders())
+      .send({
+        envios: [
+          makeEnvioPayload(testData.clienteId, {
+            destino: CIUDAD_SIN_COBERTURA,
+            destinatarioCiudad: CIUDAD_SIN_COBERTURA,
+            destinatarioNombre: 'Bulk Sin Cobertura',
+          }),
+          makeEnvioPayload(testData.clienteId, {
+            montoACobrar: 200000,
+            destinatarioNombre: 'Bulk Con Cobertura',
+          }),
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.failed).toBe(1);
+    expect(res.body.errors).toHaveLength(1);
+    expect(res.body.errors[0].fila).toBe(1);
+    expect(String(res.body.errors[0].errores[0])).toContain(CIUDAD_SIN_COBERTURA);
   });
 });

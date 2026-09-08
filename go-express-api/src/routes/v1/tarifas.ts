@@ -3,15 +3,16 @@ import { asyncHandler } from '../../middleware/errorHandler.js';
 import { validate } from '../../middleware/validate.js';
 import { requirePermiso } from '../../middleware/apiKeyAuth.js';
 import { supabase } from '../../config/database.js';
-import { computeCostoEnvio } from '../../lib/cotizacion.js';
+import { computeCostoEnvio, mensajeSinCobertura } from '../../lib/cotizacion.js';
 import { v1TarifaQuerySchema } from '../../lib/validators/api-key.schema.js';
 import type { V1TarifaQuery } from '../../lib/validators/api-key.schema.js';
 
 const router = Router();
 
 // GET /: cotizacion por origen/destino/peso (+ dimensiones opcionales) via la misma fuente
-// de verdad que la creacion de envios (computeCostoEnvio). Sin tarifa que matchee responde
-// matched=false y costo null: el gateway no inventa precios.
+// de verdad que la creacion de envios. Sin tarifa que matchee responde 200 con matched=false
+// y costo null: aca no se crea nada, asi que informar es la respuesta correcta. El POST de
+// envios sobre esa misma ruta rechaza con 422.
 
 router.get(
   '/',
@@ -34,7 +35,7 @@ router.get(
         costo: null,
         origen,
         destino,
-        mensaje: 'No hay tarifa configurada para la ruta solicitada. Contacta a GO EXPRESS para cotizarla.',
+        mensaje: mensajeSinCobertura('gateway_cotizacion', origen, destino),
       });
       return;
     }

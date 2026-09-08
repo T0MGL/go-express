@@ -10,6 +10,7 @@ import type { ProductoGuardado } from '@/data/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn, formatCurrency } from '@/lib/utils';
+import { describeError } from '@/lib/api';
 import { isValidPhone, normalizePhone, PHONE_PLACEHOLDER } from '@/lib/phone';
 import { PlusCircle, Tag, X, Package, User, Cube, Lightning, Warning, Scales, ShieldCheck, CircleNotch } from '@phosphor-icons/react';
 import { useClienteCreateEnvio } from '@/hooks/api/use-cliente-envios';
@@ -187,8 +188,10 @@ const ClienteNuevoPaquete = () => {
           toast.success('Listo, tu paquete quedó registrado. Generamos el número de seguimiento en unos segundos.');
           navigate('/portal/envios');
         },
-        onError: () => {
-          toast.error('No pudimos registrar el paquete. Probá de nuevo en un momento.');
+        onError: (err) => {
+          // Una ruta sin cobertura no se arregla reintentando: el server dice cual es el par
+          // que no cubrimos y ese texto le dice al cliente que campo cambiar.
+          toast.error(describeError(err), { duration: 8000 });
         },
       }
     );

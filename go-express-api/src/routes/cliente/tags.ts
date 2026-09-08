@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -43,7 +44,7 @@ router.get(
 
     if (tagsError) {
       logger.error({ error: tagsError, clienteId }, 'Error fetching tags');
-      throw new AppError(`Error fetching tags: ${tagsError.message}`, 500, 'DB_ERROR');
+      throw dbError(tagsError, `Error fetching tags: ${tagsError.message}`);
     }
 
     const tags = ((tagsData ?? []) as TagRow[]).map(mapRow);
@@ -106,7 +107,7 @@ router.post(
         throw AppError.conflict(`Tag "${input.nombre}" already exists`);
       }
       logger.error({ error, clienteId }, 'Error creating tag');
-      throw new AppError(`Error creating tag: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error creating tag: ${error.message}`);
     }
 
     res.status(201).json({ data: mapRow(data as TagRow) });
@@ -139,7 +140,7 @@ router.delete(
 
     if (error) {
       logger.error({ error, clienteId, id }, 'Error deleting tag');
-      throw new AppError(`Error deleting tag: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error deleting tag: ${error.message}`);
     }
 
     res.status(204).send();

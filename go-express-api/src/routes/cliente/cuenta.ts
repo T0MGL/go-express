@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -58,7 +59,7 @@ router.get(
         throw AppError.notFound('Cliente', clienteId);
       }
       logger.error({ error, clienteId }, 'Error fetching client account');
-      throw new AppError(`Error fetching account: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching account: ${error.message}`);
     }
 
     res.json(mapClienteRow(data as ClienteRow));
@@ -111,7 +112,7 @@ router.put(
         throw AppError.notFound('Cliente', clienteId);
       }
       logger.error({ error, clienteId }, 'Error updating client account');
-      throw new AppError(`Error updating account: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error updating account: ${error.message}`);
     }
 
     res.json(mapClienteRow(data as ClienteRow));

@@ -31,13 +31,26 @@ export function extractApiError(err: unknown, fallback = 'Ocurrio un error inesp
   return fallback;
 }
 
+// El backend responde { error: string, code, details }, no { error: { message } }, asi que
+// esta funcion leia siempre undefined y todo error caia al generico por status. Las 35 reglas
+// de negocio de la base explican en su mensaje que corregir; ese texto es el que tiene que
+// llegar al operador.
+const CODIGOS_TECNICOS = new Set(['INTERNAL_ERROR', 'DB_ERROR', 'VALIDATION_ERROR']);
+
 // Pull the server-provided message when available, fall back to a generic one
 // per HTTP code so the operator gets something actionable instead of silence.
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
-    const data = error.data as { error?: { message?: string }; message?: string } | null;
-    const serverMessage = data?.error?.message ?? data?.message;
-    if (serverMessage && typeof serverMessage === 'string') return serverMessage;
+    const data = error.data as { error?: unknown; code?: unknown; message?: unknown } | null;
+    // Detras de estos tres codigos el mensaje esta escrito para el que debuggea
+    // ("Validation failed", "Error creating envio"), no para el mostrador.
+    const tecnico = typeof data?.code === 'string' && CODIGOS_TECNICOS.has(data.code);
+    const serverMessage = typeof data?.error === 'string'
+      ? data.error
+      : typeof data?.message === 'string'
+        ? data.message
+        : null;
+    if (serverMessage !== null && !tecnico) return serverMessage;
     switch (error.status) {
       case 400:
       case 422:

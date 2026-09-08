@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { supabase } from '../config/database.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { emailService } from './email.service.js';
 import { logger } from '../config/logger.js';
@@ -85,7 +86,7 @@ class ClienteService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching clientes', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching clientes');
     }
 
     return {
@@ -121,7 +122,7 @@ class ClienteService {
     const { data, error } = await q;
 
     if (error) {
-      throw new AppError('Error exporting clientes', 500, 'DB_ERROR');
+      throw dbError(error, 'Error exporting clientes');
     }
 
     return ((data ?? []) as unknown as ClienteRow[]).map(toApi);
@@ -209,7 +210,7 @@ class ClienteService {
         if (msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('duplicate')) {
           throw AppError.conflict('Ya existe un cliente con ese RUC o email');
         }
-        throw new AppError('Error creating cliente', 500, 'DB_ERROR');
+        throw dbError(result.error, 'Error creating cliente');
       }
 
       data = result.data;
@@ -308,7 +309,7 @@ class ClienteService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error updating cliente', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating cliente');
     }
 
     const cliente = toApi(data as unknown as ClienteRow);
@@ -350,7 +351,7 @@ class ClienteService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error updating cliente estado', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating cliente estado');
     }
 
     const cliente = toApi(data as unknown as ClienteRow);
@@ -408,7 +409,7 @@ class ClienteService {
       .eq('id', id);
 
     if (error) {
-      throw new AppError('Error deleting cliente', 500, 'DB_ERROR');
+      throw dbError(error, 'Error deleting cliente');
     }
 
     await auditoriaService.log({
@@ -509,7 +510,7 @@ class ClienteService {
 
     if (updateErr || !updated) {
       logger.error({ updateErr, clienteId }, 'Failed to update cliente with auth_id');
-      throw new AppError('Error al vincular cuenta de portal', 500, 'DB_ERROR');
+      throw dbError(updateErr, 'Error al vincular cuenta de portal');
     }
 
     const cliente = toApi(updated as unknown as ClienteRow);
@@ -578,7 +579,7 @@ class ClienteService {
       .single();
 
     if (updateErr || !updated) {
-      throw new AppError('Error al actualizar estado de invitacion', 500, 'DB_ERROR');
+      throw dbError(updateErr, 'Error al actualizar estado de invitacion');
     }
 
     const cliente = toApi(updated as unknown as ClienteRow);

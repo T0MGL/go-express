@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { envioService } from './envio.service.js';
 import { nowISO, startOfTodayPY } from '../lib/datetime.js';
@@ -91,7 +92,7 @@ class WarehouseService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching inventario', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching inventario');
     }
 
     const rows = (data ?? []) as unknown as InventarioAlmacenRow[];
@@ -144,7 +145,7 @@ class WarehouseService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error creating inventario entry', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creating inventario entry');
     }
 
     const item = toInventarioApi(data as unknown as InventarioAlmacenRow);
@@ -226,7 +227,7 @@ class WarehouseService {
       .maybeSingle();
 
     if (error) {
-      throw new AppError('Error dispatching paquete', 500, 'DB_ERROR');
+      throw dbError(error, 'Error dispatching paquete');
     }
 
     if (!data) {
@@ -311,7 +312,7 @@ class WarehouseService {
       .maybeSingle();
 
     if (error) {
-      throw new AppError('Error returning paquete', 500, 'DB_ERROR');
+      throw dbError(error, 'Error returning paquete');
     }
 
     if (!data) {
@@ -352,7 +353,7 @@ class WarehouseService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      throw new AppError('Error fetching picking list', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching picking list');
     }
 
     return ((data ?? []) as unknown as PickingItemRow[]).map(toPickingApi);
@@ -379,7 +380,7 @@ class WarehouseService {
 
     if (error) {
       logger.error({ error }, 'Error updating picking item');
-      throw new AppError('Error updating picking item', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating picking item');
     }
     if (!data) {
       throw AppError.notFound('PickingItem', id);

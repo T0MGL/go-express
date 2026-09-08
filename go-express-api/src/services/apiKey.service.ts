@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { auditoriaService } from './auditoria.service.js';
 import { generateApiKey, hashApiKey, apiKeyPrefix } from '../lib/apiKey.js';
 import { nowISO } from '../lib/datetime.js';
@@ -81,7 +82,7 @@ class ApiKeyService {
 
     if (error || !data) {
       logger.error({ error, clienteId: input.clienteId }, 'Error creando API key');
-      throw new AppError('Error creando API key', 500, 'DB_ERROR');
+      throw dbError(error, 'Error creando API key');
     }
 
     const apiKey = mapApiKeyRow(data as unknown as ApiKeyListRow);
@@ -113,7 +114,7 @@ class ApiKeyService {
 
     if (error) {
       logger.error({ error }, 'Error listando API keys');
-      throw new AppError('Error listando API keys', 500, 'DB_ERROR');
+      throw dbError(error, 'Error listando API keys');
     }
 
     return ((data ?? []) as unknown as ApiKeyListRow[]).map(mapApiKeyRow);
@@ -139,7 +140,7 @@ class ApiKeyService {
 
     if (error || !data) {
       logger.error({ error, apiKeyId: id }, 'Error revocando API key');
-      throw new AppError('Error revocando API key', 500, 'DB_ERROR');
+      throw dbError(error, 'Error revocando API key');
     }
 
     await auditoriaService.log({
@@ -189,7 +190,7 @@ class ApiKeyService {
 
     if (insertError || !nuevaData) {
       logger.error({ error: insertError, apiKeyId: id }, 'Error creando la key sucesora en rotacion');
-      throw new AppError('Error rotando API key', 500, 'DB_ERROR');
+      throw dbError(insertError, 'Error rotando API key');
     }
 
     const nueva = mapApiKeyRow(nuevaData as unknown as ApiKeyListRow);
@@ -206,7 +207,7 @@ class ApiKeyService {
       // nunca salio del proceso, borrarla es seguro.
       await supabase.from('api_keys').delete().eq('id', nueva.id);
       logger.error({ error: updateError, apiKeyId: id }, 'Error expirando la key vieja en rotacion');
-      throw new AppError('Error rotando API key', 500, 'DB_ERROR');
+      throw dbError(updateError, 'Error rotando API key');
     }
 
     await auditoriaService.log({
@@ -232,7 +233,7 @@ class ApiKeyService {
 
     if (error) {
       logger.error({ error, apiKeyId: id }, 'Error buscando API key');
-      throw new AppError('Error buscando API key', 500, 'DB_ERROR');
+      throw dbError(error, 'Error buscando API key');
     }
 
     if (!data) {

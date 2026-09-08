@@ -1,5 +1,6 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { logger } from '../config/logger.js';
 import { auditoriaService } from './auditoria.service.js';
 import { sseService } from './sse.service.js';
@@ -102,7 +103,7 @@ class TarifaService {
     const { data, count, error } = await q;
 
     if (error) {
-      throw new AppError('Error fetching tarifas', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching tarifas');
     }
 
     const rows = (data ?? []) as unknown as TarifaRow[];
@@ -182,7 +183,7 @@ class TarifaService {
       if (error?.code === '23505') {
         throw AppError.conflict('Ya existe una tarifa con esa combinacion de origen, destino y tipo de servicio');
       }
-      throw new AppError(`Error creating tarifa: ${error?.message ?? 'unknown'}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error creating tarifa: ${error?.message ?? 'unknown'}`);
     }
 
     const tarifa = toApi(data as unknown as TarifaRow);
@@ -249,7 +250,7 @@ class TarifaService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error updating tarifa', 500, 'DB_ERROR');
+      throw dbError(error, 'Error updating tarifa');
     }
 
     const tarifa = toApi(data as unknown as TarifaRow);
@@ -294,7 +295,7 @@ class TarifaService {
       .eq('id', id);
 
     if (error) {
-      throw new AppError('Error deleting tarifa', 500, 'DB_ERROR');
+      throw dbError(error, 'Error deleting tarifa');
     }
 
     await auditoriaService.log({
@@ -362,7 +363,7 @@ class TarifaService {
       .single();
 
     if (error || !data) {
-      throw new AppError('Error restoring tarifa', 500, 'DB_ERROR');
+      throw dbError(error, 'Error restoring tarifa');
     }
 
     const tarifa = toApi(data as unknown as TarifaRow);

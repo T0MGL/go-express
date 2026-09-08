@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -28,7 +29,7 @@ router.get(
 
     if (error) {
       logger.error({ error }, 'Error fetching cities');
-      throw new AppError(`Error fetching cities: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching cities: ${error.message}`);
     }
 
     const rows = (data ?? []) as Array<Pick<TarifaRow, 'origen' | 'destino'>>;
@@ -63,7 +64,7 @@ router.get(
 
     if (clienteError) {
       logger.error({ error: clienteError, clienteId }, 'Error fetching cliente origen');
-      throw new AppError('Error fetching cliente', 500, 'DB_ERROR');
+      throw dbError(clienteError, 'Error fetching cliente');
     }
 
     const origen = (clienteData as { ciudad: string | null }).ciudad?.trim() || 'Asuncion';
@@ -79,7 +80,7 @@ router.get(
 
     if (error) {
       logger.error({ error, origen }, 'Error fetching destinos');
-      throw new AppError('Error fetching destinos', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching destinos');
     }
 
     const rows = (data ?? []) as Array<{ origen: string; destino: string }>;
@@ -125,7 +126,7 @@ router.post(
         throw AppError.notFound('No tarifa found for this route');
       }
       logger.error({ error, input }, 'Error fetching tarifa for cotización');
-      throw new AppError(`Error fetching tarifa: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching tarifa: ${error.message}`);
     }
 
     const tarifa = data as TarifaRow;
@@ -173,7 +174,7 @@ router.post(
 
     if (error) {
       logger.error({ error }, 'Error fetching seguro config for cliente cotizar');
-      throw new AppError('Error fetching seguro config', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching seguro config');
     }
 
     const cfg = parseSeguroConfig((data as { value: unknown } | null)?.value ?? null);

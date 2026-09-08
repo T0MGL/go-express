@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { hashApiKey, API_KEY_REGEX } from '../lib/apiKey.js';
@@ -67,7 +68,7 @@ export async function requireApiKey(req: Request, _res: Response, next: NextFunc
 
     if (error) {
       logger.error({ error }, 'Error validando API key');
-      throw new AppError('Error validando API key', 500, 'DB_ERROR');
+      throw dbError(error, 'Error validando API key');
     }
 
     if (!data) {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { adminWriteLimiter } from '../../middleware/rateLimit.js';
 import { supabase } from '../../config/database.js';
@@ -62,7 +63,7 @@ router.get(
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new AppError(`Error fetching usuarios: ${error.message}`, 500, 'DB_ERROR');
+      throw dbError(error, `Error fetching usuarios: ${error.message}`);
     }
 
     res.json(((data ?? []) as UsuarioRow[]).map(toApi));

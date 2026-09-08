@@ -1,6 +1,7 @@
 import { supabase } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import type { EventoEnvioRow } from '../types/index.js';
 
 // Limited data, no PII
@@ -50,7 +51,7 @@ class TrackingService {
         return null;
       }
       logger.error({ error: envioError, trackingNumber }, 'Error fetching envio for tracking');
-      throw new AppError('Error fetching tracking data', 500, 'DB_ERROR');
+      throw dbError(envioError, 'Error fetching tracking data');
     }
 
     if (!envioData) return null;

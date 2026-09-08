@@ -1,5 +1,6 @@
 import { supabase } from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { dbError } from '../lib/dbError.js';
 import { logger } from '../config/logger.js';
 import type {
   CiudadRow,
@@ -41,15 +42,15 @@ class CiudadService {
 
     if (ciudadesResult.error) {
       logger.error({ error: ciudadesResult.error }, 'Error fetching ciudades');
-      throw new AppError('Error fetching ciudades', 500, 'DB_ERROR');
+      throw dbError(ciudadesResult.error, 'Error fetching ciudades');
     }
     if (departamentosResult.error) {
       logger.error({ error: departamentosResult.error }, 'Error fetching departamentos');
-      throw new AppError('Error fetching departamentos', 500, 'DB_ERROR');
+      throw dbError(departamentosResult.error, 'Error fetching departamentos');
     }
     if (tarifasResult.error) {
       logger.error({ error: tarifasResult.error }, 'Error fetching tarifas for cobertura');
-      throw new AppError('Error fetching tarifas for cobertura', 500, 'DB_ERROR');
+      throw dbError(tarifasResult.error, 'Error fetching tarifas for cobertura');
     }
 
     const ciudadesRows = (ciudadesResult.data ?? []) as unknown as CiudadRow[];
@@ -106,7 +107,7 @@ class CiudadService {
 
     if (error) {
       logger.error({ error }, 'Error fetching departamentos');
-      throw new AppError('Error fetching departamentos', 500, 'DB_ERROR');
+      throw dbError(error, 'Error fetching departamentos');
     }
 
     return (data as unknown as DepartamentoRow[]).map(mapDepartamento);
@@ -138,7 +139,7 @@ class CiudadService {
         },
         'Error fetching cobertura inputs',
       );
-      throw new AppError('Error fetching cobertura', 500, 'DB_ERROR');
+      throw dbError(ciudadesResult.error, 'Error fetching cobertura');
     }
 
     const ciudadesRows = (ciudadesResult.data ?? []) as unknown as CiudadRow[];

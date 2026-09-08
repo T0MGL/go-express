@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError } from '../../middleware/errorHandler.js';
+import { dbError } from '../../lib/dbError.js';
 import { validate } from '../../middleware/validate.js';
 import { supabase } from '../../config/database.js';
 import { logger } from '../../config/logger.js';
@@ -45,7 +46,7 @@ router.post(
 
     if (error) {
       logger.error({ error, clienteId }, '[WEBHOOK TEST] Error buscando endpoints');
-      throw new AppError('Error buscando webhook endpoints', 500, 'DB_ERROR');
+      throw dbError(error, 'Error buscando webhook endpoints');
     }
 
     const endpoints = (data ?? []) as Array<{ id: string; url: string; secreto: string }>;

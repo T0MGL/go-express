@@ -29,8 +29,10 @@ describe('POST /api/cliente/cotizador/cotizar', () => {
     expect(res.body).toHaveProperty('costoBase');
     expect(res.body).toHaveProperty('costoExtra');
     expect(res.body).toHaveProperty('tarifa');
-    expect(res.body.tarifa).toHaveProperty('origen', 'Asuncion');
-    expect(res.body.tarifa).toHaveProperty('destino', 'Encarnacion');
+    // Entra sin tildes, sale con el nombre del catalogo: el texto de la tarifa lo deriva la
+    // base desde ciudades (057) y el cotizador resuelve el nombre antes de buscar.
+    expect(res.body.tarifa).toHaveProperty('origen', 'Asunción');
+    expect(res.body.tarifa).toHaveProperty('destino', 'Encarnación');
     expect(typeof res.body.costoTotal).toBe('number');
   });
 
@@ -93,12 +95,26 @@ describe('POST /api/cliente/cotizador/cotizar', () => {
       .post('/api/cliente/cotizador/cotizar')
       .set(clienteHeaders(testData.clienteId))
       .send({
+        origen: 'Asuncion',
+        destino: 'Fuerte Olimpo',
+        peso: 1,
+      });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for a ciudad that is not in the catalog', async () => {
+    const res = await request
+      .post('/api/cliente/cotizador/cotizar')
+      .set(clienteHeaders(testData.clienteId))
+      .send({
         origen: 'NowhereCity',
         destino: 'GhostTown',
         peso: 1,
       });
 
     expect(res.status).toBe(404);
+    expect(String(res.body.error)).toContain('NowhereCity');
   });
 
   it('returns 401 without auth', async () => {
@@ -120,8 +136,8 @@ describe('GET /api/cliente/cotizador/ciudades', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThanOrEqual(1);
-    expect(res.body).toContain('Asuncion');
-    expect(res.body).toContain('Encarnacion');
+    expect(res.body).toContain('Asunción');
+    expect(res.body).toContain('Encarnación');
   });
 
   it('returns sorted city names', async () => {

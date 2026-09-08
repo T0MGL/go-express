@@ -116,7 +116,9 @@ router.post(
 
     let q = supabase
       .from('tarifas')
-      .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional, activo, creado_por, eliminado, eliminado_por, eliminado_en, motivo_eliminacion, created_at, updated_at')
+      // Solo lo que entra al calculo y a la respuesta. El resto de la fila (creado_por,
+      // eliminado_por, motivos) es interno y no tiene por que viajar hasta aca.
+      .select('id, origen, destino, tipo_servicio, precio_base, peso_base, precio_por_kg_extra, factor_dimensional')
       .eq('activo', true)
       .eq('eliminado', false)
       .eq('origen_ciudad_id', ruta.origenCiudadId)
@@ -142,7 +144,10 @@ router.post(
       throw AppError.notFound('No tarifa found for this route');
     }
 
-    const tarifa = data as TarifaRow;
+    const tarifa = data as Pick<
+      TarifaRow,
+      'id' | 'origen' | 'destino' | 'tipo_servicio' | 'precio_base' | 'peso_base' | 'precio_por_kg_extra' | 'factor_dimensional'
+    >;
 
     const costo = calcularCosto(
       {

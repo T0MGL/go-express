@@ -111,6 +111,9 @@ export function mapEnvioRowToApi(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
+    // Un envio sin tarifa resuelta y con costo 0 nunca fue tasado. Es el unico rastro que
+    // deja la ruta sin tarifa, y hace listable el trabajo pendiente sin columna nueva.
+    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eventos: [],
     pago: null,
@@ -467,6 +470,16 @@ class EnvioService {
       costo = cotizacion.costo;
       if (cotizacion.matched) {
         tarifaIdResolved = cotizacion.tarifaId;
+      } else {
+        // Sin tarifa para la ruta el envio nace con flete 0, y el invariante I1 no lo
+        // detiene porque con costo 0 cualquier monto a cobrar lo cubre. Se despacha, se
+        // entrega, se cobra el COD de la mercaderia y el flete recien aparece en la
+        // liquidacion. No lo bloqueamos, cargar tiene que seguir siendo posible y para eso
+        // esta forzarCostoManual, pero queda marcado como pendiente de tasar.
+        logger.warn(
+          { trackingNumber, origen: input.origen, destino: input.destino, clienteId: input.clienteId },
+          'Envio creado sin tarifa para la ruta: costo 0, pendiente de tasar'
+        );
       }
     }
 

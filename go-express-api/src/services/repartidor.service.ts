@@ -530,7 +530,7 @@ class RepartidorService {
   async getEnviosAsignados(id: string): Promise<Envio[]> {
     await this.getById(id);
 
-    const ENVIO_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre, destinatario_ciudad, estado, costo, fecha, created_at';
+    const ENVIO_COLS = 'id, tracking_number, cliente_id, cliente_nombre, origen, destino, destinatario_nombre, destinatario_ciudad, estado, costo, tarifa_id, fecha, created_at';
 
     const { data, error } = await supabase
       .from('envios')
@@ -596,7 +596,8 @@ class RepartidorService {
       incidenciaReportadaPor: null,
       codPagoPendiente: (row['cod_pago_pendiente'] as boolean) ?? false,
       tags: [],
-      tarifaId: null,
+      tarifaId: (row['tarifa_id'] as string | null) ?? null,
+      pendienteDeTasar: row['tarifa_id'] === null && row['costo'] === 0,
       fecha: row['fecha'] as string,
       eliminado: false,
       eliminadoPor: null,

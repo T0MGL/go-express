@@ -104,6 +104,7 @@ function mapEnvioRow(row: EnvioRow): Envio {
     codPagoPendiente: row.cod_pago_pendiente ?? false,
     tags: row.tags,
     tarifaId: row.tarifa_id,
+    pendienteDeTasar: row.tarifa_id === null && row.costo === 0,
     fecha: row.fecha,
     eliminado: row.eliminado,
     eliminadoPor: row.eliminado_por,

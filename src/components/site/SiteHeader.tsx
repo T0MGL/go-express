@@ -41,7 +41,7 @@ export function SiteHeader({ sections, onSection, secondary, onLogo, onPortal }:
       <nav className="mx-auto flex h-12 max-w-[1320px] items-center justify-between px-6 xl:px-10" aria-label="Navegación principal">
         <button
           onClick={onLogo}
-          className="flex shrink-0 items-center transition-transform duration-150 active:scale-[0.98]"
+          className="flex h-11 shrink-0 items-center transition-transform duration-150 active:scale-[0.98]"
           aria-label="Ir al inicio"
         >
           <Logotipo className="h-7" />
@@ -79,15 +79,19 @@ export function SiteHeader({ sections, onSection, secondary, onLogo, onPortal }:
           >
             Portal empresas
           </Button>
+          {/* Unico control de navegacion en mobile: 44x44, el minimo de iOS. El
+              size-6 va aca y no en el icono porque el [&_svg]:size-4 del cva de
+              Button le gana por especificidad y lo dejaba en 16px. */}
           <Button
             variant="ghost"
             size="sm"
-            className="border-0 px-2 text-sidebar hover:bg-muted md:hidden"
+            className="h-11 w-11 border-0 p-0 text-sidebar hover:bg-muted md:hidden [&_svg]:size-6"
             onClick={() => setOpen(!open)}
             aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={open}
+            aria-controls="menu-mobile"
           >
-            {open ? <X weight="bold" className="h-6 w-6" /> : <List weight="bold" className="h-6 w-6" />}
+            {open ? <X weight="bold" /> : <List weight="bold" />}
           </Button>
         </div>
       </nav>
@@ -95,33 +99,36 @@ export function SiteHeader({ sections, onSection, secondary, onLogo, onPortal }:
       <AnimatePresence>
         {open && (
           <motion.div
+            id="menu-mobile"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
             className="absolute w-full overflow-hidden border-t border-border/70 bg-white shadow-lg md:hidden"
           >
-            <div className="flex flex-col gap-4 px-6 py-5">
+            {/* Cada fila mide 44px de alto por padding, no por tamano de letra: el
+                menu es la unica navegacion que tiene el visitante en mobile. */}
+            <div className="flex flex-col px-6 py-3">
               {sections?.map((item) => (
                 <button
                   key={item}
                   onClick={() => goSection(item.toLowerCase())}
-                  className="text-left text-[15px] font-semibold text-sidebar/80 transition-colors hover:text-sidebar"
+                  className="-mx-2 flex min-h-[44px] items-center rounded-lg px-2 text-left text-[15px] font-semibold text-sidebar/80 transition-colors hover:text-sidebar active:bg-muted"
                 >
                   {item}
                 </button>
               ))}
-              {sections && <div className="my-1 h-px w-full bg-border" />}
+              {sections && <div className="my-2 h-px w-full bg-border" />}
               <button
                 onClick={() => { setOpen(false); secondary.onClick(); }}
-                className="flex items-center gap-2 text-left text-[15px] font-semibold text-sidebar/80 transition-colors hover:text-sidebar"
+                className="-mx-2 flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-left text-[15px] font-semibold text-sidebar/80 transition-colors hover:text-sidebar active:bg-muted"
               >
                 <secondary.icon weight="bold" className="h-4 w-4" />
                 {secondary.label}
               </button>
               <button
                 onClick={() => { setOpen(false); onPortal(); }}
-                className="h-11 rounded-full bg-primary px-6 text-[14px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-sidebar active:scale-[0.98]"
+                className="mt-3 h-12 rounded-full bg-primary px-6 text-[14px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-sidebar active:scale-[0.98]"
               >
                 Portal empresas
               </button>
